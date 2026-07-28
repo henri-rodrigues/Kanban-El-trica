@@ -10,16 +10,14 @@ import {
   Clock, 
   CheckSquare, 
   Search,
-  Filter,
-  SlidersHorizontal,
-  ChevronDown
+  GripVertical
 } from 'lucide-react';
 
 const COLUMNS = [
-  { id: 'todo', title: 'New / A Fazer', badge: 'tag-service' },
-  { id: 'in_progress', title: 'Active / Em Andamento', limit: '5/5', badge: 'tag-hvac' },
-  { id: 'commissioning', title: 'Comissionamento', limit: '3/3', badge: 'tag-medium' },
-  { id: 'completed', title: 'Resolved / Concluído', badge: 'tag-phone' }
+  { id: 'todo', title: 'A Fazer', badge: 'tag-service' },
+  { id: 'in_progress', title: 'Em Andamento', badge: 'tag-hvac' },
+  { id: 'on_hold', title: 'Em Espera', badge: 'tag-hold' },
+  { id: 'completed', title: 'Concluído', badge: 'tag-phone' }
 ];
 
 export const KanbanBoard = ({ onOpenObraModal }) => {
@@ -39,6 +37,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
   const [newCardTitle, setNewCardTitle] = useState('');
   const [activeNewCardCol, setActiveNewCardCol] = useState(null);
   const [searchFilter, setSearchFilter] = useState('');
+  const [dragOverColId, setDragOverColId] = useState(null);
 
   const filteredCards = cards.filter(c => {
     if (c.obraId !== activeObra?.id) return false;
@@ -69,6 +68,35 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
     });
     setNewCardTitle('');
     setActiveNewCardCol(null);
+  };
+
+  // Drag & Drop Handlers
+  const handleDragStart = (e, cardId) => {
+    e.dataTransfer.setData('cardId', cardId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, colId) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverColId !== colId) {
+      setDragOverColId(colId);
+    }
+  };
+
+  const handleDragLeave = (e, colId) => {
+    if (dragOverColId === colId) {
+      setDragOverColId(null);
+    }
+  };
+
+  const handleDrop = (e, targetColId) => {
+    e.preventDefault();
+    setDragOverColId(null);
+    const cardId = e.dataTransfer.getData('cardId');
+    if (cardId) {
+      updateCardStatus(cardId, targetColId);
+    }
   };
 
   return (
@@ -148,7 +176,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
         </div>
       </div>
 
-      {/* User Colors Legend (Only shows R$ values if isAdmin === true) */}
+      {/* User Colors Legend */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)', padding: '0 0.25rem' }}>
         <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Operadores:</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -159,9 +187,12 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
             </span>
           ))}
         </div>
+        <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--accent-blue)' }}>
+          🖐️ Arraste e solte os cards entre as colunas para atualizar o status
+        </span>
       </div>
 
-      {/* Kanban Board Columns Grid */}
+      {/* Kanban Board Columns Grid with Drag & Drop */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
@@ -171,18 +202,23 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
       }}>
         {COLUMNS.map((col) => {
           const colCards = filteredCards.filter(c => c.column === col.id);
+          const isDragOver = dragOverColId === col.id;
 
           return (
             <div 
               key={col.id}
-              className="glass-panel"
+              className={`glass-panel ${isDragOver ? 'kanban-col-dragover' : ''}`}
+              onDragOver={(e) => handleDragOver(e, col.id)}
+              onDragLeave={(e) => handleDragLeave(e, col.id)}
+              onDrop={(e) => handleDrop(e, col.id)}
               style={{
                 borderRadius: 'var(--radius-md)',
                 padding: '0.65rem',
                 minHeight: '460px',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.55rem'
+                gap: '0.55rem',
+                transition: 'all 0.15s ease'
               }}
             >
               {/* Column Header */}
@@ -191,11 +227,6 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                   <h3 style={{ fontSize: '0.825rem', fontWeight: 700, color: 'var(--text-primary)' }}>
                     {col.title}
                   </h3>
-                  {col.limit && (
-                    <span style={{ fontSize: '0.7rem', color: 'var(--accent-emerald)', fontWeight: 600, background: 'rgba(5, 150, 105, 0.15)', padding: '1px 5px', borderRadius: '4px' }}>
-                      {colCards.length}/{col.limit.split('/')[1]}
-                    </span>
-                  )}
                 </div>
 
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
@@ -203,7 +234,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                 </span>
               </div>
 
-              {/* Azure DevOps "+ New item" Button */}
+              {/* Add item button */}
               {activeNewCardCol === col.id ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
                   <input
@@ -243,11 +274,11 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                     justifyContent: 'center'
                   }}
                 >
-                  <Plus size={13} /> New item
+                  <Plus size={13} /> + Adicionar Item
                 </button>
               )}
 
-              {/* Cards List */}
+              {/* Cards List (Draggable Cards) */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', flex: 1, overflowY: 'auto' }}>
                 {colCards.map((card) => {
                   const userColor = card.userColor || '#0284c7';
@@ -258,6 +289,8 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                   return (
                     <div
                       key={card.id}
+                      draggable={true}
+                      onDragStart={(e) => handleDragStart(e, card.id)}
                       onClick={() => setSelectedCard(card)}
                       style={{
                         padding: '0.65rem',
@@ -265,16 +298,19 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                         background: 'var(--bg-main)',
                         border: '1px solid var(--border-color)',
                         borderLeft: `4px solid ${userColor}`,
-                        cursor: 'pointer',
-                        transition: 'background 0.15s ease'
+                        cursor: 'grab',
+                        transition: 'background 0.15s ease, transform 0.15s ease'
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-card-hover)'}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-main)'}
                     >
-                      {/* Card Title */}
-                      <h4 style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.35rem', lineHeight: 1.3 }}>
-                        {card.title}
-                      </h4>
+                      {/* Card Title & Drag Handle */}
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.3rem' }}>
+                        <h4 style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.35rem', lineHeight: 1.3, flex: 1 }}>
+                          {card.title}
+                        </h4>
+                        <GripVertical size={13} style={{ color: 'var(--text-muted)', cursor: 'grab' }} />
+                      </div>
 
                       {/* Tag Pills */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
@@ -339,7 +375,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
 
                 {colCards.length === 0 && (
                   <div style={{ padding: '1.2rem 0.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.725rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)' }}>
-                    No items
+                    Arraste um card para cá
                   </div>
                 )}
               </div>

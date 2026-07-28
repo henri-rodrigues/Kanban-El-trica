@@ -21,7 +21,7 @@ export const parsePurchaseOrderPDFText = (fullText, fileName = '') => {
   let grandTotal = 0;
   let items = [];
 
-  // 1. Known Models Check (Req 17355 CAREL & Req 18306 BICHUETTE)
+  // 1. Check for specific known 3D ENGENHARIA PDF Models (Req 17355 CAREL & Req 18306 BICHUETTE)
   if (fullText.includes('17355') || (fullText.includes('CAREL') && fullText.includes('27.988'))) {
     fornecedor = 'CAREL SUD AMERICA INSTRUMENTAÇÃO ELETRONICA LTDA';
     reqNum = '17355';
@@ -59,7 +59,7 @@ export const parsePurchaseOrderPDFText = (fullText, fileName = '') => {
     return { orderNumber: reqNum, date, fornecedor, nfNumber: nfNum, totalValue: grandTotal, items };
   }
 
-  // 2. Extract Fornecedor & Header info
+  // 2. Extract Header Metadata (Fornecedor, Req, Date)
   const fornMatch = fullText.match(/FORNECEDOR:?\s*([^\n\r]+)/i) || 
                     fullText.match(/RAZÃO\s*SOCIAL:?\s*([^\n\r]+)/i) ||
                     fullText.match(/EMPRESA:?\s*([^\n\r]+)/i) ||
@@ -86,35 +86,55 @@ export const parsePurchaseOrderPDFText = (fullText, fileName = '') => {
     date = dateMatch[1];
   }
 
-  // 3. Robust Line-by-Line Product Items Parser
-  let pendingDesc = '';
-
-  for (let i = 0; i < rawLines.length; i++) {
-    const line = rawLines[i];
-    
-    // Ignore header / footer lines
-    if (line.toUpperCase().includes('CNPJ') || line.toUpperCase().includes('DADOS DO') || line.toUpperCase().includes('SUBTOTAL') || line.toUpperCase().includes('ENDEREÇO') || line.toUpperCase().includes('FATURAMENTO')) {
-      continue;
+  // 3. Strict Items Parsing (EXCLUDING Supplier / Header Info)
+  // Locate start of items table (after headers like Qtde, Produto, Serviço, UN)
+  let tableStartIndex = 0;
+  rawLines.forEach((l, idx) => {
+    if (l.includes('Produto') || l.includes('Serviço') || l.includes('Qtde') || l.includes('Vl. Unit') || l.includes('#')) {
+      tableStartIndex = idx + 1;
     }
+  });
 
-    // Check if line contains a product code or item indicator
-    const hasCodeOrProduct = /^\d{1,3}\b/.test(line) || /^\d{4,8}\b/.test(line) || line.includes('-') || line.includes('R$');
-    const currencyMatches = line.match(/R\$\s*([\d\.,]+)/g);
+  const tableLines = rawLines.slice(tableStartIndex);
+
+  tableLines.forEach((line) => {
+    const upper = line.toUpperCase();
+    
+    // STRICTLY IGNORE Supplier lines, Header blocks, Addresses, CNPJ, and Totals
+    const isHeaderOrFooter = upper.includes('CNPJ') || 
+                            upper.includes('DADOS DO FORNECEDOR') || 
+                            upper.includes('DADOS PARA') || 
+                            upper.includes('FORNECEDOR:') || 
+                            upper.includes('FATURAMENTO') || 
+                            upper.includes('COBRANÇA') || 
+                            upper.includes('ENTREGA') || 
+                            upper.includes('ENDEREÇO') || 
+                            upper.includes('SUBTOTAL') || 
+                            upper.includes('OBSERVAÇÕES') || 
+                            upper.includes('OBSERVAÇÃO') || 
+                            upper.includes('VALOR TOTAL') || 
+                            upper.includes('PÁGINA') ||
+                            upper === fornecedor.toUpperCase();
+
+    if (isHeaderOrFooter) return;
+
+    // Check for item format
+    const currencyInLine = line.match(/R\$\s*([\d\.,]+)/g);
     const qtyMatch = line.match(/\b(\d+(?:[\.,]\d+)?)\s*(?:PÇ|UN|M|KG|CX|PC|METROS|UNIDADE|PEÇA)?\b/i);
+    const hasProductCode = /^\d{4,8}\b/.test(line) || /^\d{1,3}\b/.test(line);
 
-    if (currencyMatches || hasCodeOrProduct) {
+    if ((currencyInLine || hasProductCode) && line.length > 5) {
       let desc = line;
       let unitPrice = 0;
       let totalPrice = 0;
       let qty = 1;
 
-      if (currencyMatches && currencyMatches.length > 0) {
-        // Last currency match is usually total item price
-        const totalStr = currencyMatches[currencyMatches.length - 1].replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+      if (currencyInLine && currencyInLine.length > 0) {
+        const totalStr = currencyInLine[currencyInLine.length - 1].replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
         totalPrice = parseFloat(totalStr) || 0;
 
-        if (currencyMatches.length > 1) {
-          const unitStr = currencyMatches[0].replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+        if (currencyInLine.length > 1) {
+          const unitStr = currencyInLine[0].replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
           unitPrice = parseFloat(unitStr) || totalPrice;
         }
       }
@@ -126,15 +146,11 @@ export const parsePurchaseOrderPDFText = (fullText, fileName = '') => {
         }
       }
 
-      // Clean item description text
+      // Clean item description string
       desc = desc.replace(/R\$\s*[\d\.,]+/g, '').replace(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g, '').replace(/[\t]+/g, ' ').trim();
 
-      if (pendingDesc) {
-        desc = `${pendingDesc} ${desc}`;
-        pendingDesc = '';
-      }
-
-      if (desc.length > 4 && items.length < 35) {
+      // Make sure description is not just the supplier name or numeric total
+      if (desc.length > 4 && desc.toUpperCase() !== fornecedor.toUpperCase() && !desc.toUpperCase().includes('TOTAL')) {
         if (unitPrice === 0 && totalPrice > 0 && qty > 0) {
           unitPrice = Math.round((totalPrice / qty) * 100) / 100;
         }
@@ -150,20 +166,9 @@ export const parsePurchaseOrderPDFText = (fullText, fileName = '') => {
           unitPrice: unitPrice || totalPrice || 50,
           totalPrice: totalPrice || (unitPrice * qty) || 50
         });
-      } else if (desc.length > 3) {
-        pendingDesc = desc;
       }
     }
-  }
-
-  // Deduplicate and filter items
-  const validItems = items.filter((itm, idx, self) => 
-    idx === self.findIndex(t => t.description === itm.description)
-  );
-
-  if (validItems.length > 0) {
-    items = validItems;
-  }
+  });
 
   // Calculate Grand Total sum of items
   grandTotal = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);

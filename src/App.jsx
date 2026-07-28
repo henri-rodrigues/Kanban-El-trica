@@ -8,13 +8,14 @@ import { ObraHubView } from './components/ObraHubView';
 import { KanbanBoard } from './components/KanbanBoard';
 import { QuadrosView } from './components/QuadrosView';
 import { ChecklistModule } from './components/ChecklistModule';
+import { MaterialsModule } from './components/MaterialsModule';
 import { ReportsModule } from './components/ReportsModule';
 import { LoginScreenView } from './components/LoginScreenView';
 import { UserManagementModal } from './components/UserManagementModal';
 import { ObraModal } from './components/ObraModal';
 import { FirebaseModal } from './components/FirebaseModal';
 import { PwaInstallModal } from './components/PwaInstallModal';
-import { Kanban, Layers, CheckSquare, BarChart3, Grid, Smartphone } from 'lucide-react';
+import { Kanban, Layers, CheckSquare, BarChart3, Grid, Smartphone, Package } from 'lucide-react';
 
 function MainLayout() {
   const { currentUser } = useAuth();
@@ -33,7 +34,6 @@ function MainLayout() {
     }
   }, []);
 
-  // Show full-screen LoginScreenView when user is not authenticated
   if (!currentUser) {
     return <LoginScreenView />;
   }
@@ -53,6 +53,7 @@ function MainLayout() {
       case 'kanban': return 'Kanban & Post-its';
       case 'quadros': return 'Subníveis & Quadros';
       case 'checklist': return 'Checklist HVAC';
+      case 'materials': return 'Controle de Materiais & PDF';
       case 'reports': return 'Relatórios Financeiros';
       default: return 'Visão Geral';
     }
@@ -101,6 +102,10 @@ function MainLayout() {
 
             {activeTab === 'checklist' && (
               <ChecklistModule />
+            )}
+
+            {activeTab === 'materials' && (
+              <MaterialsModule />
             )}
 
             {activeTab === 'reports' && (

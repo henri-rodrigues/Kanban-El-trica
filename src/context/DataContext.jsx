@@ -12,28 +12,33 @@ export const DataProvider = ({ children }) => {
   const { currentUser, isAdmin, users } = useAuth();
 
   const [rawObras, setRawObras] = useState(() => {
-    const saved = localStorage.getItem('omnifield_obras_v6');
+    const saved = localStorage.getItem('omnifield_obras_v7');
     return saved ? JSON.parse(saved) : [];
   });
 
   const [selectedObraId, setSelectedObraId] = useState(() => {
-    return localStorage.getItem('omnifield_selected_obra_v6') || null;
+    return localStorage.getItem('omnifield_selected_obra_v7') || null;
   });
 
   const [quadros, setQuadros] = useState(() => {
-    const saved = localStorage.getItem('omnifield_quadros_v6');
+    const saved = localStorage.getItem('omnifield_quadros_v7');
     return saved ? JSON.parse(saved) : [];
   });
 
   const [selectedQuadroId, setSelectedQuadroId] = useState(null);
 
   const [cards, setCards] = useState(() => {
-    const saved = localStorage.getItem('omnifield_cards_v6');
+    const saved = localStorage.getItem('omnifield_cards_v7');
     return saved ? JSON.parse(saved) : [];
   });
 
   const [checklists, setChecklists] = useState(() => {
-    const saved = localStorage.getItem('omnifield_checklists_v6');
+    const saved = localStorage.getItem('omnifield_checklists_v7');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [purchaseOrders, setPurchaseOrders] = useState(() => {
+    const saved = localStorage.getItem('omnifield_purchase_orders_v7');
     return saved ? JSON.parse(saved) : [];
   });
 
@@ -41,17 +46,17 @@ export const DataProvider = ({ children }) => {
   const obras = rawObras.filter(o => {
     if (isAdmin) return true; // Admin sees all Obras
     if (!currentUser) return false;
-    // User sees Obra if assignedUserIds contains user.id or if assignedUserIds is not set yet
     if (!o.assignedUserIds || o.assignedUserIds.length === 0) return true;
     return o.assignedUserIds.includes(currentUser.id);
   });
 
   // Sync to localStorage
-  useEffect(() => { localStorage.setItem('omnifield_obras_v6', JSON.stringify(rawObras)); }, [rawObras]);
-  useEffect(() => { if (selectedObraId) localStorage.setItem('omnifield_selected_obra_v6', selectedObraId); }, [selectedObraId]);
-  useEffect(() => { localStorage.setItem('omnifield_quadros_v6', JSON.stringify(quadros)); }, [quadros]);
-  useEffect(() => { localStorage.setItem('omnifield_cards_v6', JSON.stringify(cards)); }, [cards]);
-  useEffect(() => { localStorage.setItem('omnifield_checklists_v6', JSON.stringify(checklists)); }, [checklists]);
+  useEffect(() => { localStorage.setItem('omnifield_obras_v7', JSON.stringify(rawObras)); }, [rawObras]);
+  useEffect(() => { if (selectedObraId) localStorage.setItem('omnifield_selected_obra_v7', selectedObraId); }, [selectedObraId]);
+  useEffect(() => { localStorage.setItem('omnifield_quadros_v7', JSON.stringify(quadros)); }, [quadros]);
+  useEffect(() => { localStorage.setItem('omnifield_cards_v7', JSON.stringify(cards)); }, [cards]);
+  useEffect(() => { localStorage.setItem('omnifield_checklists_v7', JSON.stringify(checklists)); }, [checklists]);
+  useEffect(() => { localStorage.setItem('omnifield_purchase_orders_v7', JSON.stringify(purchaseOrders)); }, [purchaseOrders]);
 
   // Automatic Real-time Synchronization with Firestore
   useEffect(() => {
@@ -60,12 +65,14 @@ export const DataProvider = ({ children }) => {
       const unsubQuadros = subscribeFirestoreCollection('quadros', (data) => setQuadros(data));
       const unsubCards = subscribeFirestoreCollection('cards', (data) => setCards(data));
       const unsubChecklists = subscribeFirestoreCollection('checklists', (data) => setChecklists(data));
+      const unsubPOs = subscribeFirestoreCollection('purchase_orders', (data) => setPurchaseOrders(data));
 
       return () => {
         unsubObras();
         unsubQuadros();
         unsubCards();
         unsubChecklists();
+        unsubPOs();
       };
     }
   }, []);
@@ -93,6 +100,57 @@ export const DataProvider = ({ children }) => {
 
     const daysSpent = Math.round((totalHours / 8) * 10) / 10;
     return { totalLaborCost, daysSpent, totalHours };
+  };
+
+  // Add Purchase Order & Auto-Deduct Total from Obra's Material Costs / Verba
+  const addPurchaseOrder = (obraId, poData) => {
+    if (!isAdmin || !obraId) return;
+    const newPO = {
+      id: `po-${Date.now()}`,
+      obraId,
+      createdAt: new Date().toISOString(),
+      ...poData
+    };
+
+    setPurchaseOrders(prev => [newPO, ...prev]);
+    if (isFirebaseActive()) saveFirestoreDoc('purchase_orders', newPO.id, newPO);
+
+    // Auto-update Obra's materialCosts with PO total value (deducting from Obra Verba)
+    const poValue = parseFloat(newPO.totalValue) || 0;
+    setRawObras(prev => prev.map(o => {
+      if (o.id === obraId) {
+        const currentMatCost = parseFloat(o.materialCosts) || 0;
+        const updatedMatCost = currentMatCost + poValue;
+        const updatedObra = { ...o, materialCosts: updatedMatCost };
+        if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updatedObra);
+        return updatedObra;
+      }
+      return o;
+    }));
+  };
+
+  // Toggle item status between 'Já Chegou' and 'Falta Chegar'
+  const updatePOItemStatus = (orderId, itemId, newStatus) => {
+    if (!isAdmin) return;
+    setPurchaseOrders(prev => prev.map(po => {
+      if (po.id === orderId) {
+        const updatedItems = (po.items || []).map(itm => {
+          if (itm.id === itemId) {
+            return {
+              ...itm,
+              status: newStatus,
+              quantityReceived: newStatus === 'Já Chegou' ? itm.quantityOrdered : 0
+            };
+          }
+          return itm;
+        });
+
+        const updatedPO = { ...po, items: updatedItems };
+        if (isFirebaseActive()) saveFirestoreDoc('purchase_orders', orderId, updatedPO);
+        return updatedPO;
+      }
+      return po;
+    }));
   };
 
   // Add Obra (Admin Only)
@@ -262,7 +320,10 @@ export const DataProvider = ({ children }) => {
         activeQuadro,
         cards,
         checklists,
+        purchaseOrders,
         getObraLaborCostsAndDays,
+        addPurchaseOrder,
+        updatePOItemStatus,
         addObra,
         updateObra,
         updateObraFinancials,

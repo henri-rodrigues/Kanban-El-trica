@@ -7,7 +7,7 @@ import {
   CheckSquare, 
   BarChart3, 
   Plus, 
-  Lock,
+  Package,
   ChevronRight
 } from 'lucide-react';
 
@@ -127,6 +127,33 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
           <CheckSquare size={16} />
           <span>Checklist HVAC</span>
         </button>
+
+        {/* Materials Control Tab ONLY for Admin */}
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('materials')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.55rem 0.75rem',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '0.8rem',
+              fontWeight: activeTab === 'materials' ? 600 : 400,
+              background: activeTab === 'materials' ? 'rgba(2, 132, 199, 0.15)' : 'transparent',
+              color: activeTab === 'materials' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              textAlign: 'left'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <Package size={16} />
+              <span>Controle Materiais</span>
+            </div>
+            <span className="badge badge-blue" style={{ fontSize: '0.6rem' }}>Admin</span>
+          </button>
+        )}
 
         {/* Reports Tab ONLY for Admin */}
         {isAdmin && (

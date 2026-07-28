@@ -11,7 +11,9 @@ import {
   Clock, 
   CheckSquare, 
   Search,
-  GripVertical
+  GripVertical,
+  Lock,
+  AlertCircle
 } from 'lucide-react';
 
 const COLUMNS = [
@@ -39,6 +41,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
   const [activeNewCardCol, setActiveNewCardCol] = useState(null);
   const [searchFilter, setSearchFilter] = useState('');
   const [dragOverColId, setDragOverColId] = useState(null);
+  const [permissionErrorMsg, setPermissionErrorMsg] = useState('');
 
   const filteredCards = cards.filter(c => {
     if (c.obraId !== activeObra?.id) return false;
@@ -72,9 +75,19 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
     setActiveNewCardCol(null);
   };
 
-  // Drag & Drop Handlers
-  const handleDragStart = (e, cardId) => {
-    e.dataTransfer.setData('cardId', cardId);
+  // Drag & Drop Handlers with Strict Ownership Check
+  const handleDragStart = (e, card) => {
+    setPermissionErrorMsg('');
+    const isOwnerOrAdmin = isAdmin || card.assignedUserId === currentUser?.id;
+    
+    if (!isOwnerOrAdmin) {
+      setPermissionErrorMsg('🔒 Você só pode mover os post-its atribuídos ao seu usuário!');
+      setTimeout(() => setPermissionErrorMsg(''), 4000);
+      e.preventDefault();
+      return false;
+    }
+
+    e.dataTransfer.setData('cardId', card.id);
     e.dataTransfer.effectAllowed = 'move';
   };
 
@@ -97,12 +110,46 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
     setDragOverColId(null);
     const cardId = e.dataTransfer.getData('cardId');
     if (cardId) {
-      updateCardStatus(cardId, targetColId);
+      const card = cards.find(c => c.id === cardId);
+      const isOwnerOrAdmin = isAdmin || card?.assignedUserId === currentUser?.id;
+      
+      if (isOwnerOrAdmin) {
+        updateCardStatus(cardId, targetColId);
+      } else {
+        setPermissionErrorMsg('🔒 Você só pode mover os post-its atribuídos ao seu usuário!');
+        setTimeout(() => setPermissionErrorMsg(''), 4000);
+      }
     }
+  };
+
+  const handleCardClick = (card) => {
+    setPermissionErrorMsg('');
+    setSelectedCard(card);
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '0.75rem' }}>
+      {/* Top Notification Toast for Permission Error */}
+      {permissionErrorMsg && (
+        <div style={{
+          padding: '0.65rem 1rem',
+          borderRadius: 'var(--radius-md)',
+          background: 'rgba(220, 38, 38, 0.2)',
+          border: '1px solid rgba(220, 38, 38, 0.4)',
+          color: '#f87171',
+          fontSize: '0.825rem',
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.5rem',
+          boxShadow: '0 4px 12px rgba(220, 38, 38, 0.3)',
+          animation: 'fadeIn 0.2s ease-in'
+        }}>
+          <AlertCircle size={18} />
+          <span>{permissionErrorMsg}</span>
+        </div>
+      )}
+
       {/* Azure DevOps / Miro Top Toolbar */}
       <div className="glass-panel" style={{
         padding: '0.65rem 0.85rem',
@@ -190,7 +237,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
           ))}
         </div>
         <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--accent-blue)' }}>
-          🖐️ Arraste e solte os cards entre as colunas
+          🔒 Você pode mover e editar apenas os seus próprios post-its
         </span>
       </div>
 
@@ -280,38 +327,45 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                 </button>
               )}
 
-              {/* Cards List (Draggable Cards with Creative Gradient Theme) */}
+              {/* Cards List (Draggable Cards with Ownership Protection) */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', flex: 1, overflowY: 'auto' }}>
                 {colCards.map((card) => {
                   const cardGradient = getGradientById(card.gradientId || 'cyan');
                   const totalHours = (card.workedDays || []).reduce((sum, w) => sum + (w.hours || 0), 0);
                   const subtasksDone = (card.subtasks || []).filter(st => st.completed).length;
                   const totalSubtasks = (card.subtasks || []).length;
+                  const isMine = card.assignedUserId === currentUser?.id;
+                  const canTouch = isAdmin || isMine;
 
                   return (
                     <div
                       key={card.id}
-                      draggable={true}
-                      onDragStart={(e) => handleDragStart(e, card.id)}
-                      onClick={() => setSelectedCard(card)}
+                      draggable={canTouch}
+                      onDragStart={(e) => handleDragStart(e, card)}
+                      onClick={() => handleCardClick(card)}
                       style={{
                         padding: '0.65rem',
                         borderRadius: 'var(--radius-md)',
                         background: 'var(--bg-main)',
                         border: `1px solid ${cardGradient.border}`,
                         borderLeft: `5px solid ${cardGradient.border}`,
-                        cursor: 'grab',
+                        cursor: canTouch ? 'grab' : 'not-allowed',
+                        opacity: canTouch ? 1 : 0.8,
                         transition: 'background 0.15s ease, transform 0.15s ease'
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-card-hover)'}
                       onMouseLeave={(e) => e.currentTarget.style.background = 'var(--bg-main)'}
                     >
-                      {/* Card Title & Drag Handle */}
+                      {/* Card Title & Drag/Lock Handle */}
                       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.3rem' }}>
                         <h4 style={{ fontSize: '0.825rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '0.35rem', lineHeight: 1.3, flex: 1 }}>
                           {card.title}
                         </h4>
-                        <GripVertical size={13} style={{ color: 'var(--text-muted)', cursor: 'grab' }} />
+                        {canTouch ? (
+                          <GripVertical size={13} style={{ color: 'var(--text-muted)', cursor: 'grab' }} />
+                        ) : (
+                          <Lock size={13} style={{ color: 'var(--accent-rose)' }} title="Post-it pertence a outro operador" />
+                        )}
                       </div>
 
                       {/* Tag Pills */}
@@ -322,11 +376,6 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                         <span className="tag-pill tag-hvac">
                           {card.categoryTag || 'HVAC'}
                         </span>
-                        {card.priority === 'Alta' && (
-                          <span className="tag-pill tag-high">
-                            High
-                          </span>
-                        )}
                       </div>
 
                       {/* Image Thumbnail preview */}

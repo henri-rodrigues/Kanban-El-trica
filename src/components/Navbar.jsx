@@ -7,17 +7,14 @@ import {
   Moon, 
   ChevronDown, 
   Plus, 
-  UserCheck,
-  Globe,
   Grid,
   Smartphone,
   LogOut,
-  ShieldCheck,
-  Clock
+  ShieldCheck
 } from 'lucide-react';
 
-export const Navbar = ({ onOpenObraModal, onOpenUserManagementModal, onOpenFirebaseModal, onOpenPwaModal, onGoToHub }) => {
-  const { currentUser, logout, switchRole, theme, toggleTheme, isAdmin, users } = useAuth();
+export const Navbar = ({ onOpenObraModal, onOpenUserManagementModal, onOpenPwaModal, onGoToHub }) => {
+  const { currentUser, logout, theme, toggleTheme, isAdmin, users } = useAuth();
   const { obras, selectedObraId, setSelectedObraId, activeObra } = useData();
   const [showObraDropdown, setShowObraDropdown] = useState(false);
 
@@ -124,18 +121,20 @@ export const Navbar = ({ onOpenObraModal, onOpenUserManagementModal, onOpenFireb
                   </div>
                 ))}
 
-                <div style={{ borderTop: '1px solid var(--border-color)', marginTop: '0.3rem', paddingTop: '0.3rem' }}>
-                  <button
-                    onClick={() => {
-                      setShowObraDropdown(false);
-                      onOpenObraModal('obra');
-                    }}
-                    className="btn btn-primary btn-sm"
-                    style={{ width: '100%', justifyContent: 'center' }}
-                  >
-                    <Plus size={13} /> Nova Obra
-                  </button>
-                </div>
+                {isAdmin && (
+                  <div style={{ borderTop: '1px solid var(--border-color)', marginTop: '0.3rem', paddingTop: '0.3rem' }}>
+                    <button
+                      onClick={() => {
+                        setShowObraDropdown(false);
+                        onOpenObraModal('obra');
+                      }}
+                      className="btn btn-primary btn-sm"
+                      style={{ width: '100%', justifyContent: 'center' }}
+                    >
+                      <Plus size={13} /> Nova Obra
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -144,7 +143,7 @@ export const Navbar = ({ onOpenObraModal, onOpenUserManagementModal, onOpenFireb
 
       {/* Right Controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-        {/* Admin User Management Button (with pending count indicator) */}
+        {/* Admin User Management Button */}
         {isAdmin && (
           <button
             onClick={onOpenUserManagementModal}
@@ -172,62 +171,12 @@ export const Navbar = ({ onOpenObraModal, onOpenUserManagementModal, onOpenFireb
           <span className="mobile-hide">Atalho Celular</span>
         </button>
 
-        {/* Cloud Backup Modal trigger */}
-        <button
-          onClick={onOpenFirebaseModal}
-          className="btn btn-secondary btn-sm"
-          title="Backup JSON & Cloud Firebase"
-        >
-          <Globe size={14} className="text-blue" />
-          <span className="mobile-hide">Backup</span>
-        </button>
-
-        {/* Role Switcher */}
-        <div style={{
-          display: 'flex',
-          background: 'var(--bg-main)',
-          borderRadius: 'var(--radius-md)',
-          padding: '2px',
-          border: '1px solid var(--border-color)'
-        }}>
-          <button
-            onClick={() => switchRole('administrador')}
-            style={{
-              padding: '0.2rem 0.5rem',
-              fontSize: '0.7rem',
-              fontWeight: 600,
-              borderRadius: '4px',
-              border: 'none',
-              cursor: 'pointer',
-              background: isAdmin ? 'var(--accent-blue)' : 'transparent',
-              color: isAdmin ? '#ffffff' : 'var(--text-muted)'
-            }}
-          >
-            Admin
-          </button>
-          <button
-            onClick={() => switchRole('usuario')}
-            style={{
-              padding: '0.2rem 0.5rem',
-              fontSize: '0.7rem',
-              fontWeight: 600,
-              borderRadius: '4px',
-              border: 'none',
-              cursor: 'pointer',
-              background: !isAdmin ? 'var(--accent-emerald)' : 'transparent',
-              color: !isAdmin ? '#ffffff' : 'var(--text-muted)'
-            }}
-          >
-            Usuário
-          </button>
-        </div>
-
         {/* Theme Toggle */}
         <button onClick={toggleTheme} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem' }}>
           {theme === 'dark' ? <Sun size={15} className="text-amber" /> : <Moon size={15} />}
         </button>
 
-        {/* Logout Button */}
+        {/* Current User & Logout */}
         {currentUser && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <div 
@@ -244,7 +193,7 @@ export const Navbar = ({ onOpenObraModal, onOpenUserManagementModal, onOpenFireb
                 fontWeight: 700,
                 fontSize: '0.75rem'
               }}
-              title={currentUser.name}
+              title={`${currentUser.name} (${currentUser.role})`}
             >
               {currentUser.name.charAt(0)}
             </div>

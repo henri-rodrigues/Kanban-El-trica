@@ -1,4 +1,13 @@
-export const parsePurchaseOrderPDFText = (fullText) => {
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Import pdfjs worker URL via Vite native bundling (no CDN requests, zero CORS errors, 100% offline worker)
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
+if (pdfjsLib.GlobalWorkerOptions) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
+}
+
+export const parsePurchaseOrderPDFText = (fullText, fileName = '') => {
   if (!fullText || typeof fullText !== 'string') {
     fullText = '';
   }
@@ -14,13 +23,13 @@ export const parsePurchaseOrderPDFText = (fullText) => {
 
   // 1. Extract Fornecedor
   const fornMatch = fullText.match(/FORNECEDOR:?\s*([^\n\r]+)/i) || 
-                    fullText.match(/ELETRICA\s+[A-Z0-9\s]+/i) ||
+                    fullText.match(/ELETRICA\s+[A-Z0-9\s\.\-]{3,40}/i) ||
                     fullText.match(/DADOS DO FORNECEDOR[\s\S]*?([A-Z0-9\s\.\-]{5,50})/i);
   if (fornMatch && fornMatch[1]) {
     const rawForn = fornMatch[1].trim().split('CPF')[0].split('CNPJ')[0].trim();
     if (rawForn.length > 3) fornecedor = rawForn;
   } else if (lines.length > 2) {
-    const vendorLine = lines.find(l => l.length > 4 && !l.includes('PEDIDO') && !l.includes('DADOS') && !l.includes('Página'));
+    const vendorLine = lines.find(l => l.length > 4 && !l.includes('PEDIDO') && !l.includes('DADOS') && !l.includes('Página') && !l.includes('REQUISIÇÃO'));
     if (vendorLine) fornecedor = vendorLine.substring(0, 40);
   }
 
@@ -59,7 +68,7 @@ export const parsePurchaseOrderPDFText = (fullText) => {
   }
 
   // 5. Dynamic Items Extraction
-  lines.forEach((line, idx) => {
+  lines.forEach((line) => {
     const isItemLine = /\d+/.test(line) && (line.includes('R$') || line.includes('PÇ') || line.includes('UN') || line.includes('KG') || line.includes('M'));
     if (isItemLine && !line.toUpperCase().includes('SUBTOTAL') && !line.toUpperCase().includes('TOTAL')) {
       const currencyInLine = line.match(/R\$\s*([\d\.,]+)/g);
@@ -67,7 +76,7 @@ export const parsePurchaseOrderPDFText = (fullText) => {
       
       const itemDesc = line.replace(/R\$\s*[\d\.,]+/g, '').replace(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g, '').trim();
 
-      if (itemDesc.length > 5 && items.length < 25) {
+      if (itemDesc.length > 3 && items.length < 30) {
         let itemTotal = 0;
         let itemQty = 1;
         if (currencyInLine && currencyInLine.length > 0) {
@@ -82,7 +91,7 @@ export const parsePurchaseOrderPDFText = (fullText) => {
         items.push({
           id: `itm-${Date.now()}-${items.length + 1}`,
           code: `COD-${items.length + 1}`,
-          description: itemDesc.substring(0, 80),
+          description: itemDesc.substring(0, 85),
           unit: line.includes('PÇ') ? 'PÇ' : line.includes('UN') ? 'UN' : 'PÇ',
           quantityOrdered: Math.max(1, Math.round(itemQty)),
           quantityReceived: 0,
@@ -94,21 +103,22 @@ export const parsePurchaseOrderPDFText = (fullText) => {
     }
   });
 
+  // Fallback if items table regex didn't extract lines
   if (items.length === 0) {
-    const mainItemsText = lines.filter(l => l.length > 8 && !l.includes('DADOS') && !l.includes('CNPJ') && !l.includes('CEP')).slice(0, 3);
+    const meaningfulLines = lines.filter(l => l.length > 6 && !l.includes('DADOS') && !l.includes('CNPJ') && !l.includes('CEP') && !l.includes('Página')).slice(0, 4);
     
-    if (mainItemsText.length > 0) {
-      mainItemsText.forEach((l, idx) => {
+    if (meaningfulLines.length > 0) {
+      meaningfulLines.forEach((l, idx) => {
         items.push({
           id: `itm-${Date.now()}-${idx + 1}`,
           code: `ITEM-${idx + 1}`,
-          description: l.substring(0, 70),
+          description: l.substring(0, 80),
           unit: 'PÇ',
           quantityOrdered: 10,
           quantityReceived: 0,
           status: 'Falta Chegar',
-          unitPrice: grandTotal > 0 ? Math.round((grandTotal / mainItemsText.length / 10) * 100) / 100 : 10,
-          totalPrice: grandTotal > 0 ? Math.round((grandTotal / mainItemsText.length) * 100) / 100 : 100
+          unitPrice: grandTotal > 0 ? Math.round((grandTotal / meaningfulLines.length / 10) * 100) / 100 : 10,
+          totalPrice: grandTotal > 0 ? Math.round((grandTotal / meaningfulLines.length) * 100) / 100 : 100
         });
       });
     } else {
@@ -116,7 +126,7 @@ export const parsePurchaseOrderPDFText = (fullText) => {
         {
           id: `itm-${Date.now()}-1`,
           code: 'MAT-01',
-          description: 'Insumos e Materiais Diversos do Pedido',
+          description: `Material Importado (${fileName || 'Pedido de Compra'})`,
           unit: 'UN',
           quantityOrdered: 1,
           quantityReceived: 0,
@@ -142,43 +152,27 @@ export const parsePurchaseOrderPDFText = (fullText) => {
   };
 };
 
-// Pure FileReader text extraction (works on 100% of browsers without any external worker errors)
 export const extractTextFromPDFFile = async (file) => {
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    
-    reader.onload = (e) => {
-      try {
-        const rawContent = e.target.result;
-        // Extract plain text inside PDF text tokens: (text) or Tj / TJ commands
-        let extractedText = '';
-        
-        // Match all strings inside parentheses in PDF streams
-        const textMatches = rawContent.match(/\(([^()]+)\)/g);
-        if (textMatches && textMatches.length > 0) {
-          extractedText = textMatches
-            .map(m => m.replace(/[()]/g, ''))
-            .filter(t => t.length > 1)
-            .join(' ');
-        }
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjsLib.getDocument({
+      data: arrayBuffer,
+      verbosity: 0
+    });
 
-        if (extractedText.trim().length > 15) {
-          resolve(parsePurchaseOrderPDFText(extractedText));
-          return;
-        }
+    const pdf = await loadingTask.promise;
+    let fullText = '';
 
-        // Fallback: parse from file name and raw content regex
-        resolve(parsePurchaseOrderPDFText(`PEDIDO DE COMPRA ${file.name.replace('.pdf', '')} ELETRICA BICHUETTE LTDA R$ 89,44`));
-      } catch (err) {
-        console.error('Erro na leitura do PDF:', err);
-        resolve(parsePurchaseOrderPDFText(`PEDIDO DE COMPRA ${file.name.replace('.pdf', '')}`));
-      }
-    };
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      const pageText = textContent.items.map(item => item.str).join(' ');
+      fullText += pageText + '\n';
+    }
 
-    reader.onerror = () => {
-      resolve(parsePurchaseOrderPDFText(`PEDIDO DE COMPRA ${file.name.replace('.pdf', '')}`));
-    };
-
-    reader.readAsText(file, 'ISO-8859-1');
-  });
+    return parsePurchaseOrderPDFText(fullText, file.name);
+  } catch (err) {
+    console.error('Erro ao ler PDF com PDF.js:', err);
+    return parsePurchaseOrderPDFText(`PEDIDO DE COMPRA ${file.name.replace('.pdf', '')}`, file.name);
+  }
 };

@@ -1,0 +1,18 @@
+{
+  "short_name": "OmniField",
+  "name": "OmniField Pro - Comissionamento & Gestão Corporativa",
+  "description": "Aplicação corporativa PWA para gestão de Obras, Quadros, Kanban em 2 Níveis, Checklists HVAC e Relatórios Financeiros.",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='100' fill='%230f172a'/><path d='M256 64 L416 160 L416 352 L256 448 L96 352 L96 160 Z' fill='none' stroke='%2338bdf8' stroke-width='32'/><path d='M256 160 L320 288 L192 288 L256 352' fill='none' stroke='%23f59e0b' stroke-width='24'/></svg>",
+      "type": "image/svg+xml",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0b0f19",
+  "theme_color": "#0b0f19",
+  "display": "standalone",
+  "orientation": "any"
+}

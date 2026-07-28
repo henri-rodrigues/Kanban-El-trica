@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 170" width="512" height="512">
+  <defs>
+    <linearGradient id="gradTopRight" x1="100" y1="10" x2="190" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="gradTopLeft" x1="100" y1="10" x2="20" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#7dd3fc" />
+      <stop offset="100%" stop-color="#00a3e0" />
+    </linearGradient>
+    <linearGradient id="gradFrontLeft" x1="20" y1="90" x2="100" y2="130" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00a3e0" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="gradFrontRight" x1="100" y1="130" x2="190" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0369a1" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+    <linearGradient id="gradCenter" x1="100" y1="10" x2="100" y2="130" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#bae6fd" />
+      <stop offset="50%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+  </defs>
+
+  {/* 3D Faceted Crystal Geometry */}
+  <polygon points="100,10 190,88 120,70" fill="url(#gradTopRight)" />
+  <polygon points="100,10 120,70 15,90" fill="url(#gradTopLeft)" />
+  <polygon points="100,10 120,70 100,130" fill="url(#gradCenter)" />
+  <polygon points="15,90 120,70 100,130" fill="url(#gradFrontLeft)" />
+  <polygon points="120,70 190,88 100,130" fill="url(#gradFrontRight)" />
+  <polygon points="15,90 100,130 190,88 100,120" fill="#0369a1" opacity="0.5" />
+</svg>

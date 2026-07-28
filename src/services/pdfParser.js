@@ -12,7 +12,7 @@ export const parsePurchaseOrderPDFText = (fullText, fileName = '') => {
     fullText = '';
   }
 
-  const lines = fullText.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
+  const rawLines = fullText.split(/[\r\n]+/).map(l => l.trim()).filter(Boolean);
 
   let reqNum = `REQ-${Math.floor(Math.random() * 9000 + 1000)}`;
   let date = new Date().toLocaleDateString('pt-BR');
@@ -21,7 +21,7 @@ export const parsePurchaseOrderPDFText = (fullText, fileName = '') => {
   let grandTotal = 0;
   let items = [];
 
-  // 1. Check for specific known models first (CAREL 17355 or BICHUETTE 18306)
+  // 1. Known Models Check (Req 17355 CAREL & Req 18306 BICHUETTE)
   if (fullText.includes('17355') || (fullText.includes('CAREL') && fullText.includes('27.988'))) {
     fornecedor = 'CAREL SUD AMERICA INSTRUMENTAÇÃO ELETRONICA LTDA';
     reqNum = '17355';
@@ -59,7 +59,7 @@ export const parsePurchaseOrderPDFText = (fullText, fileName = '') => {
     return { orderNumber: reqNum, date, fornecedor, nfNumber: nfNum, totalValue: grandTotal, items };
   }
 
-  // 2. Dynamic Text Parsing for any Custom Uploaded PDF
+  // 2. Extract Fornecedor & Header info
   const fornMatch = fullText.match(/FORNECEDOR:?\s*([^\n\r]+)/i) || 
                     fullText.match(/RAZÃO\s*SOCIAL:?\s*([^\n\r]+)/i) ||
                     fullText.match(/EMPRESA:?\s*([^\n\r]+)/i) ||
@@ -70,7 +70,6 @@ export const parsePurchaseOrderPDFText = (fullText, fileName = '') => {
   }
 
   if (!fornecedor) {
-    // Infer supplier from PDF filename if no supplier tag in text stream
     fornecedor = cleanFileName.toUpperCase() || 'FORNECEDOR ORÇAMENTO';
   }
 
@@ -87,71 +86,87 @@ export const parsePurchaseOrderPDFText = (fullText, fileName = '') => {
     date = dateMatch[1];
   }
 
-  // Extract Currency Totals
-  const currencyMatches = fullText.match(/R\$\s*([\d\.,]+)/g);
-  if (currencyMatches) {
-    const parsedVals = currencyMatches.map(c => parseFloat(c.replace('R$', '').replace(/\./g, '').replace(',', '.').trim())).filter(v => !isNaN(v) && v > 0);
-    if (parsedVals.length > 0) {
-      grandTotal = Math.max(...parsedVals);
+  // 3. Robust Line-by-Line Product Items Parser
+  let pendingDesc = '';
+
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i];
+    
+    // Ignore header / footer lines
+    if (line.toUpperCase().includes('CNPJ') || line.toUpperCase().includes('DADOS DO') || line.toUpperCase().includes('SUBTOTAL') || line.toUpperCase().includes('ENDEREÇO') || line.toUpperCase().includes('FATURAMENTO')) {
+      continue;
     }
-  }
 
-  // Parse lines to create items
-  lines.forEach((line) => {
-    const isCandidate = /\d+/.test(line) && line.length > 4 && !line.toUpperCase().includes('CNPJ') && !line.toUpperCase().includes('TELEFONE') && !line.toUpperCase().includes('SUBTOTAL');
-    if (isCandidate && items.length < 25) {
-      const currencyInLine = line.match(/R\$\s*([\d\.,]+)/g);
-      const qtyMatch = line.match(/(\d+(?:[\.,]\d+)?)\s*(?:PÇ|UN|M|KG|CX|PC|%)?/i);
-      
-      const itemDesc = line.replace(/R\$\s*[\d\.,]+/g, '').replace(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g, '').trim();
+    // Check if line contains a product code or item indicator
+    const hasCodeOrProduct = /^\d{1,3}\b/.test(line) || /^\d{4,8}\b/.test(line) || line.includes('-') || line.includes('R$');
+    const currencyMatches = line.match(/R\$\s*([\d\.,]+)/g);
+    const qtyMatch = line.match(/\b(\d+(?:[\.,]\d+)?)\s*(?:PÇ|UN|M|KG|CX|PC|METROS|UNIDADE|PEÇA)?\b/i);
 
-      if (itemDesc.length > 3) {
-        let itemTotal = 0;
-        let itemQty = 1;
-        if (currencyInLine && currencyInLine.length > 0) {
-          const lastVal = currencyInLine[currencyInLine.length - 1];
-          itemTotal = parseFloat(lastVal.replace('R$', '').replace(/\./g, '').replace(',', '.').trim()) || 0;
+    if (currencyMatches || hasCodeOrProduct) {
+      let desc = line;
+      let unitPrice = 0;
+      let totalPrice = 0;
+      let qty = 1;
+
+      if (currencyMatches && currencyMatches.length > 0) {
+        // Last currency match is usually total item price
+        const totalStr = currencyMatches[currencyMatches.length - 1].replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+        totalPrice = parseFloat(totalStr) || 0;
+
+        if (currencyMatches.length > 1) {
+          const unitStr = currencyMatches[0].replace('R$', '').replace(/\./g, '').replace(',', '.').trim();
+          unitPrice = parseFloat(unitStr) || totalPrice;
         }
+      }
 
-        if (qtyMatch && qtyMatch[1]) {
-          itemQty = parseFloat(qtyMatch[1].replace(',', '.')) || 1;
+      if (qtyMatch && qtyMatch[1]) {
+        const parsedQty = parseFloat(qtyMatch[1].replace(',', '.'));
+        if (parsedQty > 0 && parsedQty < 10000) {
+          qty = parsedQty;
+        }
+      }
+
+      // Clean item description text
+      desc = desc.replace(/R\$\s*[\d\.,]+/g, '').replace(/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g, '').replace(/[\t]+/g, ' ').trim();
+
+      if (pendingDesc) {
+        desc = `${pendingDesc} ${desc}`;
+        pendingDesc = '';
+      }
+
+      if (desc.length > 4 && items.length < 35) {
+        if (unitPrice === 0 && totalPrice > 0 && qty > 0) {
+          unitPrice = Math.round((totalPrice / qty) * 100) / 100;
         }
 
         items.push({
-          id: `itm-custom-${Date.now()}-${items.length + 1}`,
+          id: `itm-item-${Date.now()}-${items.length + 1}`,
           code: `ITEM-${items.length + 1}`,
-          description: itemDesc.substring(0, 85),
-          unit: line.includes('PÇ') ? 'PÇ' : line.includes('UN') ? 'UN' : 'UN',
-          quantityOrdered: Math.max(1, Math.round(itemQty)),
+          description: desc.substring(0, 90),
+          unit: line.includes('PÇ') ? 'PÇ' : line.includes('M') ? 'M' : 'UN',
+          quantityOrdered: Math.max(1, Math.round(qty)),
           quantityReceived: 0,
           status: 'Falta Chegar',
-          unitPrice: itemQty > 0 && itemTotal > 0 ? Math.round((itemTotal / itemQty) * 100) / 100 : itemTotal,
-          totalPrice: itemTotal
+          unitPrice: unitPrice || totalPrice || 50,
+          totalPrice: totalPrice || (unitPrice * qty) || 50
         });
+      } else if (desc.length > 3) {
+        pendingDesc = desc;
       }
     }
-  });
-
-  // Dynamic Fallback: create item from the actual file name and total
-  if (items.length === 0) {
-    items = [
-      {
-        id: `itm-dynamic-${Date.now()}`,
-        code: `COD-${Math.floor(Math.random() * 900 + 100)}`,
-        description: `Orçamento / Materiais - ${cleanFileName || 'PDF Importado'}`,
-        unit: 'UN',
-        quantityOrdered: 1,
-        quantityReceived: 0,
-        status: 'Falta Chegar',
-        unitPrice: grandTotal || 500,
-        totalPrice: grandTotal || 500
-      }
-    ];
   }
 
-  if (grandTotal === 0) {
-    grandTotal = items.reduce((acc, it) => acc + (it.totalPrice || 0), 0);
+  // Deduplicate and filter items
+  const validItems = items.filter((itm, idx, self) => 
+    idx === self.findIndex(t => t.description === itm.description)
+  );
+
+  if (validItems.length > 0) {
+    items = validItems;
   }
+
+  // Calculate Grand Total sum of items
+  grandTotal = items.reduce((sum, item) => sum + (item.totalPrice || 0), 0);
 
   return {
     orderNumber: reqNum,

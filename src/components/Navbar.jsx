@@ -10,10 +10,10 @@ import {
   Plus, 
   UserCheck,
   Globe,
-  Database
+  Grid
 } from 'lucide-react';
 
-export const Navbar = ({ onOpenObraModal, onOpenLoginModal, onOpenFirebaseModal }) => {
+export const Navbar = ({ onOpenObraModal, onOpenLoginModal, onOpenFirebaseModal, onGoToHub }) => {
   const { currentUser, switchRole, theme, toggleTheme, isAdmin } = useAuth();
   const { obras, selectedObraId, setSelectedObraId, activeObra } = useData();
   const [showObraDropdown, setShowObraDropdown] = useState(false);
@@ -30,9 +30,13 @@ export const Navbar = ({ onOpenObraModal, onOpenLoginModal, onOpenFirebaseModal 
       zIndex: 100,
       borderBottom: '1px solid var(--border-color)'
     }}>
-      {/* Left: Brand & Obra Selector */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      {/* Left: Brand & Hub Selector */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <button 
+          onClick={onGoToHub}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+          title="Ir para Vitrine de Obras (Tela Inicial)"
+        >
           <div style={{
             width: '32px',
             height: '32px',
@@ -47,84 +51,90 @@ export const Navbar = ({ onOpenObraModal, onOpenLoginModal, onOpenFirebaseModal 
           }}>
             ⚡
           </div>
-          <div>
-            <div style={{ fontWeight: 800, fontSize: '1rem', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
-              OmniField <span style={{ color: 'var(--accent-blue)', fontSize: '0.7rem', padding: '1px 5px', background: 'rgba(2, 132, 199, 0.15)', borderRadius: '4px', border: '1px solid rgba(2, 132, 199, 0.3)' }}>PRO</span>
-            </div>
+          <div style={{ fontWeight: 800, fontSize: '1rem', letterSpacing: '-0.02em', color: 'var(--text-primary)' }}>
+            OmniField <span style={{ color: 'var(--accent-blue)', fontSize: '0.7rem', padding: '1px 5px', background: 'rgba(2, 132, 199, 0.15)', borderRadius: '4px', border: '1px solid rgba(2, 132, 199, 0.3)' }}>PRO</span>
           </div>
-        </div>
+        </button>
 
-        {/* Obra Selector Dropdown */}
-        <div style={{ position: 'relative' }}>
-          <button
-            onClick={() => setShowObraDropdown(!showObraDropdown)}
-            className="btn btn-secondary btn-sm"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--bg-main)', borderColor: 'var(--border-color)' }}
-          >
-            <Building2 size={14} style={{ color: 'var(--accent-blue)' }} />
-            <span style={{ fontWeight: 600, maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.775rem' }}>
-              {activeObra?.name || 'Selecione uma Obra'}
-            </span>
-            <ChevronDown size={13} style={{ color: 'var(--text-muted)' }} />
-          </button>
+        {/* Hub Button */}
+        <button onClick={onGoToHub} className="btn btn-secondary btn-sm" style={{ gap: '0.3rem' }}>
+          <Grid size={13} />
+          <span>Vitrine de Obras</span>
+        </button>
 
-          {showObraDropdown && (
-            <div 
-              className="glass-panel"
-              style={{
-                position: 'absolute',
-                top: 'calc(100% + 4px)',
-                left: 0,
-                width: '240px',
-                zIndex: 200,
-                borderRadius: 'var(--radius-md)',
-                padding: '0.4rem'
-              }}
+        {/* Active Obra Dropdown Selector */}
+        {obras.length > 0 && (
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowObraDropdown(!showObraDropdown)}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--bg-main)', borderColor: 'var(--border-color)' }}
             >
-              <div style={{ fontSize: '0.675rem', fontWeight: 700, color: 'var(--text-muted)', padding: '0.3rem 0.5rem', textTransform: 'uppercase' }}>
-                Obras Ativas
-              </div>
-              {obras.map(obra => (
-                <div
-                  key={obra.id}
-                  onClick={() => {
-                    setSelectedObraId(obra.id);
-                    setShowObraDropdown(false);
-                  }}
-                  style={{
-                    padding: '0.45rem 0.65rem',
-                    borderRadius: 'var(--radius-sm)',
-                    cursor: 'pointer',
-                    fontSize: '0.775rem',
-                    background: obra.id === selectedObraId ? 'rgba(2, 132, 199, 0.12)' : 'transparent',
-                    color: obra.id === selectedObraId ? 'var(--accent-blue)' : 'var(--text-primary)',
-                    fontWeight: obra.id === selectedObraId ? 600 : 400,
-                    marginBottom: '2px',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}
-                >
-                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{obra.name}</span>
-                  <span className="badge badge-emerald">{obra.progress}%</span>
-                </div>
-              ))}
+              <Building2 size={13} style={{ color: 'var(--accent-blue)' }} />
+              <span style={{ fontWeight: 600, maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: '0.775rem' }}>
+                {activeObra?.name || 'Selecione uma Obra'}
+              </span>
+              <ChevronDown size={13} style={{ color: 'var(--text-muted)' }} />
+            </button>
 
-              <div style={{ borderTop: '1px solid var(--border-color)', marginTop: '0.3rem', paddingTop: '0.3rem' }}>
-                <button
-                  onClick={() => {
-                    setShowObraDropdown(false);
-                    onOpenObraModal('obra');
-                  }}
-                  className="btn btn-primary btn-sm"
-                  style={{ width: '100%', justifyContent: 'center' }}
-                >
-                  <Plus size={13} /> Nova Obra
-                </button>
+            {showObraDropdown && (
+              <div 
+                className="glass-panel"
+                style={{
+                  position: 'absolute',
+                  top: 'calc(100% + 4px)',
+                  left: 0,
+                  width: '240px',
+                  zIndex: 200,
+                  borderRadius: 'var(--radius-md)',
+                  padding: '0.4rem'
+                }}
+              >
+                <div style={{ fontSize: '0.675rem', fontWeight: 700, color: 'var(--text-muted)', padding: '0.3rem 0.5rem', textTransform: 'uppercase' }}>
+                  Obras Cadastradas
+                </div>
+                {obras.map(obra => (
+                  <div
+                    key={obra.id}
+                    onClick={() => {
+                      setSelectedObraId(obra.id);
+                      setShowObraDropdown(false);
+                    }}
+                    style={{
+                      padding: '0.45rem 0.65rem',
+                      borderRadius: 'var(--radius-sm)',
+                      cursor: 'pointer',
+                      fontSize: '0.775rem',
+                      background: obra.id === selectedObraId ? 'rgba(2, 132, 199, 0.12)' : 'transparent',
+                      color: obra.id === selectedObraId ? 'var(--accent-blue)' : 'var(--text-primary)',
+                      fontWeight: obra.id === selectedObraId ? 600 : 400,
+                      marginBottom: '2px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{obra.name}</span>
+                    <span className="badge badge-emerald">{obra.progress || 0}%</span>
+                  </div>
+                ))}
+
+                <div style={{ borderTop: '1px solid var(--border-color)', marginTop: '0.3rem', paddingTop: '0.3rem' }}>
+                  <button
+                    onClick={() => {
+                      setShowObraDropdown(false);
+                      onOpenObraModal('obra');
+                    }}
+                    className="btn btn-primary btn-sm"
+                    style={{ width: '100%', justifyContent: 'center' }}
+                  >
+                    <Plus size={13} /> Nova Obra
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Right Controls */}
@@ -133,10 +143,10 @@ export const Navbar = ({ onOpenObraModal, onOpenLoginModal, onOpenFirebaseModal 
         <button
           onClick={onOpenFirebaseModal}
           className="btn btn-secondary btn-sm"
-          title="Backup JSON & GitHub Pages Cloud Sync"
+          title="Backup JSON & Cloud Firebase"
         >
           <Globe size={14} className="text-blue" />
-          <span className="mobile-hide">Backup JSON</span>
+          <span className="mobile-hide">Backup / Firebase</span>
         </button>
 
         {/* Role Switcher */}

@@ -4,7 +4,7 @@ import { useData } from '../context/DataContext';
 import { X, Image, Calendar, Clock, Plus, Trash2, Edit3, Save, Paperclip, CheckSquare, Square } from 'lucide-react';
 
 export const CardDetailModal = ({ card, isOpen, onClose }) => {
-  const { currentUser, users } = useAuth();
+  const { currentUser, users, isAdmin } = useAuth();
   const { updateCard, deleteCard, addWorkLogToCard } = useData();
 
   // Editable post-it fields
@@ -192,7 +192,7 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
           </button>
         </form>
 
-        {/* Subtasks Checklist inside Card */}
+        {/* Subtasks Checklist */}
         <div style={{ marginBottom: '1.25rem', background: 'var(--bg-main)', padding: '0.85rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
           <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-primary)', display: 'block', marginBottom: '0.5rem' }}>
             📋 Sub-tarefas & Pendências do Post-it
@@ -259,7 +259,7 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
                 }}
               >
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: u.userColorTag }} />
-                {u.name} (R$ {u.dailyRate}/dia)
+                {u.name} {isAdmin && `(R$ ${u.dailyRate}/dia)`}
               </button>
             ))}
           </div>
@@ -298,7 +298,7 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
           </div>
         </div>
 
-        {/* Operator Work Days & Labor Hours Section */}
+        {/* Operator Work Days Section */}
         <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
             <h4 style={{ fontSize: '0.9rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -315,7 +315,9 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
                 <label style={{ fontSize: '0.725rem' }}>Operador</label>
                 <select className="form-control" style={{ fontSize: '0.775rem' }} value={selectedOperatorId} onChange={(e) => setSelectedOperatorId(e.target.value)}>
                   {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.name} (R$ {u.dailyRate}/dia)</option>
+                    <option key={u.id} value={u.id}>
+                      {u.name} {isAdmin ? `(R$ ${u.dailyRate}/dia)` : ''}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -356,7 +358,9 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <span className="badge badge-amber">{log.hours}h ({log.hours / 8} dia)</span>
-                    <span style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>R$ {costCalculated.toFixed(2)}</span>
+                    {isAdmin && (
+                      <span style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>R$ {costCalculated.toFixed(2)}</span>
+                    )}
                   </div>
                 </div>
               );

@@ -23,7 +23,7 @@ const COLUMNS = [
 ];
 
 export const KanbanBoard = ({ onOpenObraModal }) => {
-  const { currentUser, users } = useAuth();
+  const { currentUser, users, isAdmin } = useAuth();
   const { 
     activeObra, 
     activeQuadros, 
@@ -128,7 +128,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
           </div>
         </div>
 
-        {/* Filter Search Input (Azure DevOps style) */}
+        {/* Filter Search Input */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <div style={{ position: 'relative', width: '180px' }}>
             <Search size={14} style={{ position: 'absolute', left: '8px', top: '8px', color: 'var(--text-muted)' }} />
@@ -148,7 +148,20 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
         </div>
       </div>
 
-      {/* Kanban Board Columns Grid (Azure DevOps & Miro Style) */}
+      {/* User Colors Legend (Only shows R$ values if isAdmin === true) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)', padding: '0 0.25rem' }}>
+        <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Operadores:</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          {users.map(u => (
+            <span key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: u.userColorTag }} />
+              {u.name.split(' ')[0]} {isAdmin && <strong style={{ color: 'var(--accent-emerald)' }}>(R$ {u.dailyRate}/dia)</strong>}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Kanban Board Columns Grid */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
@@ -172,7 +185,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                 gap: '0.55rem'
               }}
             >
-              {/* Column Header (Azure DevOps Style) */}
+              {/* Column Header */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.4rem', borderBottom: '1px solid var(--border-color)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                   <h3 style={{ fontSize: '0.825rem', fontWeight: 700, color: 'var(--text-primary)' }}>
@@ -234,7 +247,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                 </button>
               )}
 
-              {/* Cards List (Azure DevOps / Miro Format) */}
+              {/* Cards List */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', flex: 1, overflowY: 'auto' }}>
                 {colCards.map((card) => {
                   const userColor = card.userColor || '#0284c7';
@@ -263,7 +276,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                         {card.title}
                       </h4>
 
-                      {/* Miro / Azure DevOps Tag Pills */}
+                      {/* Tag Pills */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
                         <span className="tag-pill tag-service">
                           Service
@@ -278,14 +291,14 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                         )}
                       </div>
 
-                      {/* Image Thumbnail preview if attached */}
+                      {/* Image Thumbnail preview */}
                       {card.images && card.images.length > 0 && (
                         <div style={{ height: '55px', borderRadius: '4px', overflow: 'hidden', marginBottom: '0.35rem', border: '1px solid var(--border-color)' }}>
                           <img src={card.images[0]} alt="Thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         </div>
                       )}
 
-                      {/* Footer Info: Subtask count, Story points/hours, Assignee Avatar */}
+                      {/* Footer Info */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: '0.35rem', borderTop: '1px dashed var(--border-color)', fontSize: '0.7rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--text-muted)' }}>
                           {totalSubtasks > 0 && (
@@ -301,7 +314,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                           )}
                         </div>
 
-                        {/* User Circle Avatar (Azure DevOps / Miro Style) */}
+                        {/* User Circle Avatar */}
                         <div 
                           style={{
                             width: '22px',

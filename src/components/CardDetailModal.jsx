@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { X, Image, Calendar, Clock, Plus, Trash2, Edit3, Save, Paperclip, CheckSquare, Square } from 'lucide-react';
+import { POSTIT_GRADIENTS, getGradientById } from '../constants/gradients';
+import { X, Image, Calendar, Clock, Plus, Trash2, Edit3, Save, Paperclip, CheckSquare, Square, Palette } from 'lucide-react';
 
 export const CardDetailModal = ({ card, isOpen, onClose }) => {
   const { currentUser, users, isAdmin } = useAuth();
@@ -11,6 +12,7 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [fieldNotes, setFieldNotes] = useState('');
+  const [gradientId, setGradientId] = useState('cyan');
   const [newSubtask, setNewSubtask] = useState('');
   
   // Work log form state
@@ -24,18 +26,22 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
       setTitle(card.title || '');
       setDescription(card.description || '');
       setFieldNotes(card.fieldNotes || '');
-      setSelectedOperatorId(currentUser?.id || users[0]?.id || 'usr-1');
+      setGradientId(card.gradientId || 'cyan');
+      setSelectedOperatorId(currentUser?.id || users[0]?.id || 'usr-admin');
     }
   }, [card, currentUser, users]);
 
   if (!isOpen || !card) return null;
+
+  const currentGradient = getGradientById(gradientId);
 
   const handleSaveDetails = (e) => {
     e.preventDefault();
     updateCard(card.id, {
       title,
       description,
-      fieldNotes
+      fieldNotes,
+      gradientId
     });
   };
 
@@ -99,7 +105,7 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
       position: 'fixed',
       inset: 0,
       zIndex: 1000,
-      background: 'rgba(0, 0, 0, 0.75)',
+      background: 'rgba(0, 0, 0, 0.8)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -114,14 +120,14 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
           overflowY: 'auto',
           borderRadius: 'var(--radius-lg)',
           padding: '1.5rem',
-          border: `2px solid ${card.userColor || 'var(--accent-blue)'}`
+          border: `2px solid ${currentGradient.border}`
         }}
       >
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
-              <span className="badge" style={{ background: `${card.userColor}22`, color: card.userColor, border: `1px solid ${card.userColor}` }}>
+              <span className="badge" style={{ background: currentGradient.gradient, color: '#fff' }}>
                 👤 {card.assignedUserName || 'Usuário'}
               </span>
               <span className="badge badge-purple">
@@ -159,6 +165,37 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
           </div>
         </div>
 
+        {/* Gradient Selector for Post-it */}
+        <div style={{ marginBottom: '1.25rem' }}>
+          <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.4rem' }}>
+            <Palette size={14} className="text-amber" /> Cor de Gradiente Criativo do Post-it
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '0.4rem' }}>
+            {POSTIT_GRADIENTS.map(g => (
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => {
+                  setGradientId(g.id);
+                  updateCard(card.id, { gradientId: g.id });
+                }}
+                style={{
+                  padding: '0.45rem',
+                  borderRadius: '6px',
+                  border: gradientId === g.id ? '2px solid #ffffff' : '1px solid var(--border-color)',
+                  background: g.gradient,
+                  color: '#ffffff',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                {g.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Editable Description & Field Notes */}
         <form onSubmit={handleSaveDetails} style={{ marginBottom: '1.25rem' }}>
           <div className="form-group">
@@ -183,7 +220,7 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
               rows={2}
               value={fieldNotes}
               onChange={(e) => setFieldNotes(e.target.value)}
-              placeholder="Escreva anotações importantes sobre o status atual, pendências ou observações..."
+              placeholder="Escreva anotações importantes sobre o status atual, pendências..."
             />
           </div>
 
@@ -234,10 +271,10 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
           </div>
         </div>
 
-        {/* Assigned User Selection (Color Coding) */}
+        {/* Assigned User Selection */}
         <div style={{ marginBottom: '1.25rem' }}>
           <label style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: '0.4rem' }}>
-            Usuário Responsável & Cor do Card
+            Usuário Responsável
           </label>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             {users.map(u => (

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { CardDetailModal } from './CardDetailModal';
+import { getGradientById } from '../constants/gradients';
 import { 
   Plus, 
   Layers, 
@@ -54,9 +55,10 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
       description: 'Clique para editar detalhes e anotações.',
       fieldNotes: 'Pendências a verificar...',
       column: columnId,
-      assignedUserId: currentUser?.id || 'usr-1',
+      assignedUserId: currentUser?.id || 'usr-admin',
       assignedUserName: currentUser?.name || 'Operador',
       userColor: currentUser?.userColorTag || '#0284c7',
+      gradientId: currentUser?.gradientId || 'cyan',
       priority: 'Média',
       categoryTag: 'HVAC',
       subtasks: [
@@ -176,7 +178,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
         </div>
       </div>
 
-      {/* User Colors Legend */}
+      {/* User Legend */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)', padding: '0 0.25rem' }}>
         <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Operadores:</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -188,11 +190,11 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
           ))}
         </div>
         <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--accent-blue)' }}>
-          🖐️ Arraste e solte os cards entre as colunas para atualizar o status
+          🖐️ Arraste e solte os cards entre as colunas
         </span>
       </div>
 
-      {/* Kanban Board Columns Grid with Drag & Drop */}
+      {/* Kanban Board Columns Grid */}
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
@@ -278,10 +280,10 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                 </button>
               )}
 
-              {/* Cards List (Draggable Cards) */}
+              {/* Cards List (Draggable Cards with Creative Gradient Theme) */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem', flex: 1, overflowY: 'auto' }}>
                 {colCards.map((card) => {
-                  const userColor = card.userColor || '#0284c7';
+                  const cardGradient = getGradientById(card.gradientId || 'cyan');
                   const totalHours = (card.workedDays || []).reduce((sum, w) => sum + (w.hours || 0), 0);
                   const subtasksDone = (card.subtasks || []).filter(st => st.completed).length;
                   const totalSubtasks = (card.subtasks || []).length;
@@ -296,8 +298,8 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                         padding: '0.65rem',
                         borderRadius: 'var(--radius-md)',
                         background: 'var(--bg-main)',
-                        border: '1px solid var(--border-color)',
-                        borderLeft: `4px solid ${userColor}`,
+                        border: `1px solid ${cardGradient.border}`,
+                        borderLeft: `5px solid ${cardGradient.border}`,
                         cursor: 'grab',
                         transition: 'background 0.15s ease, transform 0.15s ease'
                       }}
@@ -314,8 +316,8 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
 
                       {/* Tag Pills */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
-                        <span className="tag-pill tag-service">
-                          Service
+                        <span className="tag-pill" style={{ background: cardGradient.gradient, color: '#ffffff' }}>
+                          {cardGradient.name}
                         </span>
                         <span className="tag-pill tag-hvac">
                           {card.categoryTag || 'HVAC'}
@@ -356,7 +358,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                             width: '22px',
                             height: '22px',
                             borderRadius: '50%',
-                            background: userColor,
+                            background: cardGradient.gradient,
                             color: '#ffffff',
                             fontWeight: 700,
                             fontSize: '0.65rem',

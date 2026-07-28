@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider, useData } from './context/DataContext';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
@@ -9,18 +9,20 @@ import { KanbanBoard } from './components/KanbanBoard';
 import { QuadrosView } from './components/QuadrosView';
 import { ChecklistModule } from './components/ChecklistModule';
 import { ReportsModule } from './components/ReportsModule';
-import { LoginModal } from './components/LoginModal';
+import { LoginScreenView } from './components/LoginScreenView';
+import { UserManagementModal } from './components/UserManagementModal';
 import { ObraModal } from './components/ObraModal';
 import { FirebaseModal } from './components/FirebaseModal';
 import { PwaInstallModal } from './components/PwaInstallModal';
 import { Kanban, Layers, CheckSquare, BarChart3, Grid, Smartphone } from 'lucide-react';
 
 function MainLayout() {
+  const { currentUser } = useAuth();
   const { obras, selectedObraId, setSelectedObraId, activeObra } = useData();
   const [activeTab, setActiveTab] = useState('hub');
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
   const [isPwaModalOpen, setIsPwaModalOpen] = useState(false);
+  const [isUserManagementModalOpen, setIsUserManagementModalOpen] = useState(false);
   const [obraModalType, setObraModalType] = useState(null);
 
   useEffect(() => {
@@ -30,6 +32,11 @@ function MainLayout() {
       });
     }
   }, []);
+
+  // Show full-screen LoginScreenView when user is not authenticated
+  if (!currentUser) {
+    return <LoginScreenView />;
+  }
 
   const handleSelectObraFromHub = (obraId) => {
     setSelectedObraId(obraId);
@@ -55,7 +62,7 @@ function MainLayout() {
     <div className="app-container">
       <Navbar 
         onOpenObraModal={handleOpenObraModal} 
-        onOpenLoginModal={() => setIsLoginModalOpen(true)}
+        onOpenUserManagementModal={() => setIsUserManagementModalOpen(true)}
         onOpenFirebaseModal={() => setIsFirebaseModalOpen(true)}
         onOpenPwaModal={() => setIsPwaModalOpen(true)}
         onGoToHub={() => setActiveTab('hub')}
@@ -124,9 +131,9 @@ function MainLayout() {
       </nav>
 
       {/* Modals */}
-      <LoginModal 
-        isOpen={isLoginModalOpen} 
-        onClose={() => setIsLoginModalOpen(false)} 
+      <UserManagementModal
+        isOpen={isUserManagementModalOpen}
+        onClose={() => setIsUserManagementModalOpen(false)}
       />
 
       <ObraModal 

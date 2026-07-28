@@ -14,7 +14,8 @@ export const DEFAULT_USERS = [
     email: 'admin@omnifield.com',
     password: 'admin',
     role: 'administrador',
-    avatarColor: '#0284c7',
+    status: 'approved', // 'approved' | 'pending_approval' | 'rejected'
+    gradientId: 'cyan',
     userColorTag: '#0284c7',
     title: 'Gerente de Comissionamento',
     dailyRate: 500
@@ -25,7 +26,8 @@ export const DEFAULT_USERS = [
     email: 'operador@omnifield.com',
     password: '123',
     role: 'usuario',
-    avatarColor: '#059669',
+    status: 'approved',
+    gradientId: 'emerald',
     userColorTag: '#059669',
     title: 'Técnico Especialista HVAC',
     dailyRate: 250
@@ -34,16 +36,16 @@ export const DEFAULT_USERS = [
 
 export const AuthProvider = ({ children }) => {
   const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('omnifield_users_auth_v4');
+    const saved = localStorage.getItem('omnifield_users_approval_v5');
     return saved ? JSON.parse(saved) : DEFAULT_USERS;
   });
 
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('omnifield_active_user_v4');
+    const saved = localStorage.getItem('omnifield_active_user_v5');
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { console.error(e); }
     }
-    return users[0]; // Default logged-in user
+    return users[0];
   });
 
   const [theme, setTheme] = useState(() => {
@@ -51,14 +53,14 @@ export const AuthProvider = ({ children }) => {
   });
 
   useEffect(() => {
-    localStorage.setItem('omnifield_users_auth_v4', JSON.stringify(users));
+    localStorage.setItem('omnifield_users_approval_v5', JSON.stringify(users));
   }, [users]);
 
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem('omnifield_active_user_v4', JSON.stringify(currentUser));
+      localStorage.setItem('omnifield_active_user_v5', JSON.stringify(currentUser));
     } else {
-      localStorage.removeItem('omnifield_active_user_v4');
+      localStorage.removeItem('omnifield_active_user_v5');
     }
   }, [currentUser]);
 
@@ -83,26 +85,75 @@ export const AuthProvider = ({ children }) => {
       (u.password === password || !u.password)
     );
 
-    if (found) {
-      setCurrentUser(found);
-      return { success: true, user: found };
+    if (!found) {
+      return { success: false, message: 'Usuário ou senha incorretos.' };
     }
-    return { success: false, message: 'Usuário ou senha incorretos.' };
+
+    if (found.status === 'pending_approval') {
+      return { success: false, message: 'Sua conta está pendente de aprovação pelo Administrador.' };
+    }
+
+    if (found.status === 'rejected') {
+      return { success: false, message: 'Sua solicitação de acesso foi recusada.' };
+    }
+
+    setCurrentUser(found);
+    return { success: true, user: found };
   };
 
-  const registerNewUser = (userData) => {
+  const registerRequestUser = (userData) => {
     const newUser = {
       id: `usr-${Date.now()}`,
-      avatarColor: userData.role === 'administrador' ? '#0284c7' : '#059669',
-      userColorTag: userData.role === 'administrador' ? '#0284c7' : '#059669',
-      dailyRate: parseFloat(userData.dailyRate) || 250,
+      status: 'pending_approval', // Requires Admin approval
+      role: 'usuario',
+      gradientId: userData.gradientId || 'cyan',
+      userColorTag: '#0284c7',
+      dailyRate: 250,
+      title: 'Técnico Operacional',
+      createdAt: new Date().toISOString(),
       ...userData
     };
 
     setUsers(prev => [...prev, newUser]);
-    setCurrentUser(newUser);
     if (isFirebaseActive()) saveFirestoreDoc('users', newUser.id, newUser);
     return newUser;
+  };
+
+  const approveUser = (userId) => {
+    setUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        const updated = { ...u, status: 'approved' };
+        if (isFirebaseActive()) saveFirestoreDoc('users', userId, updated);
+        return updated;
+      }
+      return u;
+    }));
+  };
+
+  const rejectUser = (userId) => {
+    setUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        const updated = { ...u, status: 'rejected' };
+        if (isFirebaseActive()) saveFirestoreDoc('users', userId, updated);
+        return updated;
+      }
+      return u;
+    }));
+  };
+
+  const updateUserProfileByAdmin = (userId, profileFields) => {
+    setUsers(prev => prev.map(u => {
+      if (u.id === userId) {
+        const updated = { ...u, ...profileFields };
+        if (isFirebaseActive()) saveFirestoreDoc('users', userId, updated);
+        return updated;
+      }
+      return u;
+    }));
+
+    if (currentUser?.id === userId) {
+      setCurrentUser(prev => ({ ...prev, ...profileFields }));
+    }
   };
 
   const logout = () => {
@@ -117,22 +168,6 @@ export const AuthProvider = ({ children }) => {
     if (isFirebaseActive()) saveFirestoreDoc('users', currentUser.id, updated);
   };
 
-  const updateUserDailyRate = (userId, newRate) => {
-    const rateNum = parseFloat(newRate) || 0;
-    setUsers(prev => prev.map(u => {
-      if (u.id === userId) {
-        const updated = { ...u, dailyRate: rateNum };
-        if (isFirebaseActive()) saveFirestoreDoc('users', userId, updated);
-        return updated;
-      }
-      return u;
-    }));
-
-    if (currentUser?.id === userId) {
-      setCurrentUser(prev => ({ ...prev, dailyRate: rateNum }));
-    }
-  };
-
   const toggleTheme = () => {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
@@ -143,10 +178,12 @@ export const AuthProvider = ({ children }) => {
         users,
         currentUser,
         loginWithPassword,
-        registerNewUser,
+        registerRequestUser,
+        approveUser,
+        rejectUser,
+        updateUserProfileByAdmin,
         logout,
         switchRole,
-        updateUserDailyRate,
         theme,
         toggleTheme,
         isAdmin: currentUser?.role === 'administrador',

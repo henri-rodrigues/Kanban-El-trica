@@ -10,13 +10,18 @@ import {
   UserCheck,
   Globe,
   Grid,
-  Smartphone
+  Smartphone,
+  LogOut,
+  ShieldCheck,
+  Clock
 } from 'lucide-react';
 
-export const Navbar = ({ onOpenObraModal, onOpenLoginModal, onOpenFirebaseModal, onOpenPwaModal, onGoToHub }) => {
-  const { currentUser, switchRole, theme, toggleTheme, isAdmin } = useAuth();
+export const Navbar = ({ onOpenObraModal, onOpenUserManagementModal, onOpenFirebaseModal, onOpenPwaModal, onGoToHub }) => {
+  const { currentUser, logout, switchRole, theme, toggleTheme, isAdmin, users } = useAuth();
   const { obras, selectedObraId, setSelectedObraId, activeObra } = useData();
   const [showObraDropdown, setShowObraDropdown] = useState(false);
+
+  const pendingApprovalsCount = users.filter(u => u.status === 'pending_approval').length;
 
   return (
     <header className="glass-panel" style={{
@@ -139,6 +144,24 @@ export const Navbar = ({ onOpenObraModal, onOpenLoginModal, onOpenFirebaseModal,
 
       {/* Right Controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        {/* Admin User Management Button (with pending count indicator) */}
+        {isAdmin && (
+          <button
+            onClick={onOpenUserManagementModal}
+            className="btn btn-secondary btn-sm"
+            style={{ position: 'relative' }}
+            title="Aprovação e Gestão de Usuários (Admin)"
+          >
+            <ShieldCheck size={14} className="text-blue" />
+            <span className="mobile-hide">Gestão Usuários</span>
+            {pendingApprovalsCount > 0 && (
+              <span style={{ position: 'absolute', top: '-4px', right: '-4px', background: 'var(--accent-amber)', color: '#000', fontSize: '0.65rem', fontWeight: 800, width: '16px', height: '16px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {pendingApprovalsCount}
+              </span>
+            )}
+          </button>
+        )}
+
         {/* PWA App Shortcut modal trigger */}
         <button
           onClick={onOpenPwaModal}
@@ -146,17 +169,17 @@ export const Navbar = ({ onOpenObraModal, onOpenLoginModal, onOpenFirebaseModal,
           title="Criar Atalho na Tela de Início do Celular"
         >
           <Smartphone size={14} className="text-emerald" />
-          <span className="mobile-hide">Atalho no Celular</span>
+          <span className="mobile-hide">Atalho Celular</span>
         </button>
 
-        {/* GitHub Pages & Cloud Backup Modal trigger */}
+        {/* Cloud Backup Modal trigger */}
         <button
           onClick={onOpenFirebaseModal}
           className="btn btn-secondary btn-sm"
           title="Backup JSON & Cloud Firebase"
         >
           <Globe size={14} className="text-blue" />
-          <span className="mobile-hide">Backup / Firebase</span>
+          <span className="mobile-hide">Backup</span>
         </button>
 
         {/* Role Switcher */}
@@ -204,7 +227,7 @@ export const Navbar = ({ onOpenObraModal, onOpenLoginModal, onOpenFirebaseModal,
           {theme === 'dark' ? <Sun size={15} className="text-amber" /> : <Moon size={15} />}
         </button>
 
-        {/* Current User Badge */}
+        {/* Logout Button */}
         {currentUser && (
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <div 
@@ -221,12 +244,19 @@ export const Navbar = ({ onOpenObraModal, onOpenLoginModal, onOpenFirebaseModal,
                 fontWeight: 700,
                 fontSize: '0.75rem'
               }}
+              title={currentUser.name}
             >
               {currentUser.name.charAt(0)}
             </div>
 
-            <button onClick={onOpenLoginModal} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem' }} title="Trocar Usuário / Login">
-              <UserCheck size={13} />
+            <button 
+              onClick={logout} 
+              className="btn btn-danger btn-sm" 
+              style={{ padding: '0.35rem 0.6rem' }} 
+              title="Sair / Logout"
+            >
+              <LogOut size={13} />
+              <span className="mobile-hide">Sair</span>
             </button>
           </div>
         )}

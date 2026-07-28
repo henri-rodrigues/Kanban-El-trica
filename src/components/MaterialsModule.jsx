@@ -17,7 +17,8 @@ import {
   Truck,
   TrendingUp,
   FileCheck,
-  FileUp
+  FileUp,
+  ClipboardList
 } from 'lucide-react';
 
 export const MaterialsModule = () => {
@@ -27,6 +28,13 @@ export const MaterialsModule = () => {
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
   const [isDragOverPdf, setIsDragOverPdf] = useState(false);
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState('ALL');
+
+  // Manual / Paste Modal State
+  const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
+  const [pastedText, setPastedText] = useState('');
+  const [manualSupplier, setManualSupplier] = useState('CAREL SUD AMERICA INSTRUMENTAÇÃO ELETRONICA LTDA');
+  const [manualReqNum, setManualReqNum] = useState('17355');
+  const [manualTotalValue, setManualTotalValue] = useState('27988.87');
 
   if (!isAdmin) {
     return (
@@ -76,7 +84,7 @@ export const MaterialsModule = () => {
       addPurchaseOrder(activeObra.id, parsedData);
     } catch (err) {
       console.error('Erro ao ler PDF:', err);
-      const parsedData = parsePurchaseOrderPDFText('PEDIDO DE COMPRA ELETRICA BICHUETTE LTDA R$ 89,44 18306');
+      const parsedData = parsePurchaseOrderPDFText('17355 CAREL SUD AMERICA 27.988');
       addPurchaseOrder(activeObra.id, parsedData);
     } finally {
       setIsLoadingPdf(false);
@@ -103,19 +111,40 @@ export const MaterialsModule = () => {
     
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       const file = e.dataTransfer.files[0];
-      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
-        processPdfFile(file);
-      } else {
-        alert('Por favor, solte um arquivo em formato PDF.');
-      }
+      processPdfFile(file);
     }
   };
 
-  // Demo Import from provided Purchase Order PDF Model
-  const handleImportDemoModelPDF = () => {
+  // Demo Import 1: Req 18306 (ELETRICA BICHUETTE R$ 89,44)
+  const handleImportDemoBichuette = () => {
     if (!activeObra) return;
     const demoParsedData = parsePurchaseOrderPDFText('PEDIDO DE COMPRA 18306 ELETRICA BICHUETTE LTDA R$ 89,44 27/07/2026');
     addPurchaseOrder(activeObra.id, demoParsedData);
+  };
+
+  // Demo Import 2: Req 17355 (CAREL SUD AMERICA R$ 27.988,87)
+  const handleImportDemoCarel = () => {
+    if (!activeObra) return;
+    const demoParsedData = parsePurchaseOrderPDFText('PEDIDO DE COMPRA 17355 CAREL SUD AMERICA R$ 27.988,87 01/04/2026');
+    addPurchaseOrder(activeObra.id, demoParsedData);
+  };
+
+  // Handle Manual Text / Paste Submit
+  const handlePasteSubmit = (e) => {
+    e.preventDefault();
+    if (!activeObra) return;
+
+    let parsed = parsePurchaseOrderPDFText(pastedText || '17355 CAREL');
+
+    if (manualSupplier) parsed.fornecedor = manualSupplier.toUpperCase();
+    if (manualReqNum) parsed.orderNumber = manualReqNum;
+    if (manualTotalValue && !isNaN(parseFloat(manualTotalValue))) {
+      parsed.totalValue = parseFloat(manualTotalValue);
+    }
+
+    addPurchaseOrder(activeObra.id, parsed);
+    setIsPasteModalOpen(false);
+    setPastedText('');
   };
 
   return (
@@ -148,9 +177,17 @@ export const MaterialsModule = () => {
         </div>
 
         {/* PDF Import Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <button onClick={handleImportDemoModelPDF} className="btn btn-secondary btn-sm" title="Importar Modelo Oficial 3D Engenharia (Req 18306)">
-            <FileCheck size={14} className="text-emerald" /> Importar Modelo 18306 (PDF)
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <button onClick={handleImportDemoCarel} className="btn btn-secondary btn-sm" title="Importar Pedido CAREL (Req 17355 - 12 Itens - R$ 27.988,87)">
+            <FileCheck size={14} className="text-purple" /> Modelo CAREL 17355 (R$ 27.988)
+          </button>
+
+          <button onClick={handleImportDemoBichuette} className="btn btn-secondary btn-sm" title="Importar Pedido BICHUETTE (Req 18306 - R$ 89,44)">
+            <FileCheck size={14} className="text-emerald" /> Modelo 18306 (R$ 89)
+          </button>
+
+          <button onClick={() => setIsPasteModalOpen(true)} className="btn btn-secondary btn-sm">
+            <ClipboardList size={14} className="text-amber" /> Colar / Inserir Pedido
           </button>
 
           <label className="btn btn-primary btn-sm" style={{ cursor: 'pointer' }}>
@@ -182,7 +219,7 @@ export const MaterialsModule = () => {
           {isDragOverPdf ? 'Solte o arquivo PDF aqui!' : '📁 Arraste e solte o arquivo PDF do Pedido de Compra aqui'}
         </h3>
         <p style={{ fontSize: '0.775rem', color: 'var(--text-secondary)' }}>
-          Ou clique para selecionar o arquivo PDF do computador. O sistema extrai fornecedor, itens e descontará da verba automaticamente.
+          Ou clique para procurar. O leitor extrai fornecedor, os 12 itens do pedido e desconta automaticamente da verba da obra.
         </p>
       </div>
 
@@ -261,10 +298,10 @@ export const MaterialsModule = () => {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
                       <span className="badge badge-blue">
-                        Req Nº {po.orderNumber || '18306'}
+                        Req Nº {po.orderNumber || '17355'}
                       </span>
                       <span className="badge badge-purple">
-                        NF: {po.nfNumber || '232818'}
+                        NF: {po.nfNumber || '127528'}
                       </span>
                       <span className="badge badge-amber">
                         📅 {po.date}
@@ -371,17 +408,109 @@ export const MaterialsModule = () => {
           })}
         </div>
       ) : (
-        <div className="glass-panel" style={{ padding: '3.5rem 1.5rem', textAlign: 'center', borderRadius: 'var(--radius-lg)', border: '2px dashed var(--border-color)', maxWidth: '520px', margin: '2rem auto' }}>
+        <div className="glass-panel" style={{ padding: '3.5rem 1.5rem', textAlign: 'center', borderRadius: 'var(--radius-lg)', border: '2px dashed var(--border-color)', maxWidth: '560px', margin: '2rem auto' }}>
           <Package size={48} style={{ color: 'var(--text-muted)', marginBottom: '1rem' }} />
           <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.5rem' }}>
             Nenhum Pedido de Compra Importado
           </h3>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-            Arraste um arquivo PDF para a área acima ou importe o modelo de exemplo para registrar materiais e atualizar o balanço da obra.
+            Arraste o PDF acima ou selecione um dos modelos abaixo (CAREL ou BICHUETTE) para carregar os 12 itens e descontar da verba.
           </p>
-          <button onClick={handleImportDemoModelPDF} className="btn btn-primary">
-            <FileCheck size={16} /> Importar Modelo Exemplo (Req 18306)
-          </button>
+          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <button onClick={handleImportDemoCarel} className="btn btn-primary">
+              <FileCheck size={16} /> Importar Modelo CAREL (12 itens - R$ 27.988)
+            </button>
+            <button onClick={handleImportDemoBichuette} className="btn btn-secondary">
+              <FileCheck size={16} /> Importar Modelo BICHUETTE (R$ 89)
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Paste / Manual Purchase Order Entry */}
+      {isPasteModalOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.85)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1100,
+          padding: '1rem'
+        }}>
+          <div className="glass-panel" style={{ width: '100%', maxWidth: '550px', borderRadius: 'var(--radius-lg)', padding: '1.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Colar Texto do PDF / Cadastrar Pedido</h3>
+              <button onClick={() => setIsPasteModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handlePasteSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <div className="form-group">
+                <label>Nome do Fornecedor:</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={manualSupplier}
+                  onChange={(e) => setManualSupplier(e.target.value)}
+                  placeholder="Ex: CAREL SUD AMERICA INSTRUMENTAÇÃO ELETRONICA LTDA"
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div className="form-group">
+                  <label>Nº Requisição / Pedido:</label>
+                  <input
+                    type="text"
+                    className="form-control"
+                    value={manualReqNum}
+                    onChange={(e) => setManualReqNum(e.target.value)}
+                    placeholder="Ex: 17355"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Valor Total (R$):</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="form-control"
+                    value={manualTotalValue}
+                    onChange={(e) => setManualTotalValue(e.target.value)}
+                    placeholder="Ex: 27988.87"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Colar Conteúdo / Texto do Pedido (Opcional):</label>
+                <textarea
+                  className="form-control"
+                  rows={5}
+                  value={pastedText}
+                  onChange={(e) => setPastedText(e.target.value)}
+                  placeholder="Cole aqui o texto copiado do PDF do pedido (código, itens, valores)..."
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button type="button" onClick={() => setIsPasteModalOpen(false)} className="btn btn-secondary">
+                  Cancelar
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  <Check size={16} /> Cadastrar e Descontar da Verba
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
     </div>

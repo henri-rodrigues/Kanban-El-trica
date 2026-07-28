@@ -14,7 +14,7 @@ export const DEFAULT_USERS = [
     email: 'admin@omnifield.com',
     password: 'admin',
     role: 'administrador',
-    status: 'approved', // 'approved' | 'pending_approval' | 'rejected'
+    status: 'approved',
     gradientId: 'cyan',
     userColorTag: '#0284c7',
     title: 'Gerente de Comissionamento',
@@ -69,15 +69,34 @@ export const AuthProvider = ({ children }) => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Sync users real-time from Firestore
+  // Real-time synchronization of users AND active user role/status from Firestore
   useEffect(() => {
     if (isFirebaseActive()) {
       const unsubUsers = subscribeFirestoreCollection('users', (data) => {
-        if (data.length) setUsers(data);
+        if (data.length) {
+          setUsers(data);
+          
+          // Instant active user role/status synchronization
+          if (currentUser) {
+            const updatedSelf = data.find(u => u.id === currentUser.id);
+            if (updatedSelf) {
+              if (updatedSelf.status === 'rejected') {
+                setCurrentUser(null); // Auto logout if rejected
+              } else if (
+                updatedSelf.role !== currentUser.role || 
+                updatedSelf.status !== currentUser.status ||
+                updatedSelf.dailyRate !== currentUser.dailyRate ||
+                updatedSelf.title !== currentUser.title
+              ) {
+                setCurrentUser(updatedSelf); // Instant live role update!
+              }
+            }
+          }
+        }
       });
       return () => unsubUsers();
     }
-  }, []);
+  }, [currentUser?.id]);
 
   const loginWithPassword = (emailOrName, password) => {
     const found = users.find(u => 
@@ -104,7 +123,7 @@ export const AuthProvider = ({ children }) => {
   const registerRequestUser = (userData) => {
     const newUser = {
       id: `usr-${Date.now()}`,
-      status: 'pending_approval', // Requires Admin approval
+      status: 'pending_approval',
       role: 'usuario',
       gradientId: userData.gradientId || 'cyan',
       userColorTag: '#0284c7',
@@ -146,26 +165,20 @@ export const AuthProvider = ({ children }) => {
       if (u.id === userId) {
         const updated = { ...u, ...profileFields };
         if (isFirebaseActive()) saveFirestoreDoc('users', userId, updated);
+        
+        // Immediate local role update if editing current user
+        if (currentUser?.id === userId) {
+          setCurrentUser(updated);
+        }
+
         return updated;
       }
       return u;
     }));
-
-    if (currentUser?.id === userId) {
-      setCurrentUser(prev => ({ ...prev, ...profileFields }));
-    }
   };
 
   const logout = () => {
     setCurrentUser(null);
-  };
-
-  const switchRole = (newRole) => {
-    if (!currentUser) return;
-    const updated = { ...currentUser, role: newRole };
-    setCurrentUser(updated);
-    setUsers(prev => prev.map(u => u.id === currentUser.id ? updated : u));
-    if (isFirebaseActive()) saveFirestoreDoc('users', currentUser.id, updated);
   };
 
   const toggleTheme = () => {
@@ -183,7 +196,6 @@ export const AuthProvider = ({ children }) => {
         rejectUser,
         updateUserProfileByAdmin,
         logout,
-        switchRole,
         theme,
         toggleTheme,
         isAdmin: currentUser?.role === 'administrador',

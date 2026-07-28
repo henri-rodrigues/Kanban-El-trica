@@ -20,9 +20,9 @@ function MainLayout() {
   const [obraModalType, setObraModalType] = useState(null);
 
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(err => {
-        console.log('Service Worker registration:', err);
+    if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+      navigator.serviceWorker.register('./sw.js').catch(err => {
+        console.warn('Service Worker registration skipped on subpath:', err);
       });
     }
   }, []);

@@ -9,48 +9,54 @@ import {
 const DataContext = createContext();
 
 export const DataProvider = ({ children }) => {
-  const { users } = useAuth();
+  const { currentUser, isAdmin, users } = useAuth();
 
-  const [obras, setObras] = useState(() => {
-    const saved = localStorage.getItem('omnifield_obras_clean');
+  const [rawObras, setRawObras] = useState(() => {
+    const saved = localStorage.getItem('omnifield_obras_v6');
     return saved ? JSON.parse(saved) : [];
   });
 
   const [selectedObraId, setSelectedObraId] = useState(() => {
-    return localStorage.getItem('omnifield_selected_obra_clean') || null;
+    return localStorage.getItem('omnifield_selected_obra_v6') || null;
   });
 
   const [quadros, setQuadros] = useState(() => {
-    const saved = localStorage.getItem('omnifield_quadros_clean');
+    const saved = localStorage.getItem('omnifield_quadros_v6');
     return saved ? JSON.parse(saved) : [];
   });
 
   const [selectedQuadroId, setSelectedQuadroId] = useState(null);
 
   const [cards, setCards] = useState(() => {
-    const saved = localStorage.getItem('omnifield_cards_clean');
+    const saved = localStorage.getItem('omnifield_cards_v6');
     return saved ? JSON.parse(saved) : [];
   });
 
   const [checklists, setChecklists] = useState(() => {
-    const saved = localStorage.getItem('omnifield_checklists_clean');
+    const saved = localStorage.getItem('omnifield_checklists_v6');
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Sync to localStorage
-  useEffect(() => { localStorage.setItem('omnifield_obras_clean', JSON.stringify(obras)); }, [obras]);
-  useEffect(() => { if (selectedObraId) localStorage.setItem('omnifield_selected_obra_clean', selectedObraId); }, [selectedObraId]);
-  useEffect(() => { localStorage.setItem('omnifield_quadros_clean', JSON.stringify(quadros)); }, [quadros]);
-  useEffect(() => { localStorage.setItem('omnifield_cards_clean', JSON.stringify(cards)); }, [cards]);
-  useEffect(() => { localStorage.setItem('omnifield_checklists_clean', JSON.stringify(checklists)); }, [checklists]);
+  // Filter Obras based on User Access Control List (ACL)
+  const obras = rawObras.filter(o => {
+    if (isAdmin) return true; // Admin sees all Obras
+    if (!currentUser) return false;
+    // User sees Obra if assignedUserIds contains user.id or if assignedUserIds is not set yet
+    if (!o.assignedUserIds || o.assignedUserIds.length === 0) return true;
+    return o.assignedUserIds.includes(currentUser.id);
+  });
 
-  // Real-time synchronization with Firestore when Firebase is configured
+  // Sync to localStorage
+  useEffect(() => { localStorage.setItem('omnifield_obras_v6', JSON.stringify(rawObras)); }, [rawObras]);
+  useEffect(() => { if (selectedObraId) localStorage.setItem('omnifield_selected_obra_v6', selectedObraId); }, [selectedObraId]);
+  useEffect(() => { localStorage.setItem('omnifield_quadros_v6', JSON.stringify(quadros)); }, [quadros]);
+  useEffect(() => { localStorage.setItem('omnifield_cards_v6', JSON.stringify(cards)); }, [cards]);
+  useEffect(() => { localStorage.setItem('omnifield_checklists_v6', JSON.stringify(checklists)); }, [checklists]);
+
+  // Automatic Real-time Synchronization with Firestore
   useEffect(() => {
     if (isFirebaseActive()) {
-      const unsubObras = subscribeFirestoreCollection('obras', (data) => {
-        setObras(data);
-        if (data.length && !selectedObraId) setSelectedObraId(data[0].id);
-      });
+      const unsubObras = subscribeFirestoreCollection('obras', (data) => setRawObras(data));
       const unsubQuadros = subscribeFirestoreCollection('quadros', (data) => setQuadros(data));
       const unsubCards = subscribeFirestoreCollection('cards', (data) => setCards(data));
       const unsubChecklists = subscribeFirestoreCollection('checklists', (data) => setChecklists(data));
@@ -89,7 +95,9 @@ export const DataProvider = ({ children }) => {
     return { totalLaborCost, daysSpent, totalHours };
   };
 
+  // Add Obra (Admin Only)
   const addObra = (obraData) => {
+    if (!isAdmin) return;
     const newObra = {
       id: `ob-${Date.now()}`,
       progress: 0,
@@ -97,15 +105,29 @@ export const DataProvider = ({ children }) => {
       addedBudget: parseFloat(obraData.addedBudget) || 0,
       materialCosts: parseFloat(obraData.materialCosts) || 0,
       plannedDays: parseInt(obraData.plannedDays) || 90,
+      assignedUserIds: obraData.assignedUserIds || [],
       ...obraData
     };
-    setObras(prev => [newObra, ...prev]);
+    setRawObras(prev => [newObra, ...prev]);
     setSelectedObraId(newObra.id);
     if (isFirebaseActive()) saveFirestoreDoc('obras', newObra.id, newObra);
   };
 
+  const updateObra = (obraId, updatedFields) => {
+    if (!isAdmin) return;
+    setRawObras(prev => prev.map(o => {
+      if (o.id === obraId) {
+        const updated = { ...o, ...updatedFields };
+        if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updated);
+        return updated;
+      }
+      return o;
+    }));
+  };
+
   const updateObraFinancials = (obraId, financialData) => {
-    setObras(prev => prev.map(o => {
+    if (!isAdmin) return;
+    setRawObras(prev => prev.map(o => {
       if (o.id === obraId) {
         const updated = { ...o, ...financialData };
         if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updated);
@@ -242,6 +264,7 @@ export const DataProvider = ({ children }) => {
         checklists,
         getObraLaborCostsAndDays,
         addObra,
+        updateObra,
         updateObraFinancials,
         addQuadro,
         addCard,

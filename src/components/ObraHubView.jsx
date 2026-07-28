@@ -1,10 +1,10 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { Building2, Plus, ArrowRight, MapPin, Calendar, CheckCircle2, TrendingUp, Layers, User } from 'lucide-react';
+import { Building2, Plus, ArrowRight, MapPin, Users } from 'lucide-react';
 
 export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
-  const { isAdmin } = useAuth();
+  const { isAdmin, currentUser } = useAuth();
   const { obras, quadros, getObraLaborCostsAndDays } = useData();
 
   const formatBRL = (val) => {
@@ -43,17 +43,22 @@ export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
               Painel Principal de Projetos
             </span>
             <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-              Seleção de Obras & Projetos Corporativos
+              Vitrine de Obras & Projetos
             </h1>
             <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
-              Selecione uma obra abaixo para abrir os quadros, Kanban em 2 níveis e checklists de comissionamento.
+              {isAdmin 
+                ? 'Selecione ou cadastre uma obra abaixo para gerenciar quadros e permissões de usuários.' 
+                : 'Selecione uma das obras atribuídas a você para visualizar o Kanban e os subníveis.'}
             </p>
           </div>
         </div>
 
-        <button onClick={() => onOpenObraModal('obra')} className="btn btn-primary">
-          <Plus size={16} /> Cadastrar Nova Obra
-        </button>
+        {/* Add Obra Button - ONLY for Admin */}
+        {isAdmin && (
+          <button onClick={() => onOpenObraModal('obra')} className="btn btn-primary">
+            <Plus size={16} /> Cadastrar Nova Obra
+          </button>
+        )}
       </div>
 
       {/* Grid of Obras */}
@@ -67,6 +72,7 @@ export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
             const obraQuadrosCount = quadros.filter(q => q.obraId === obra.id).length;
             const { totalLaborCost, daysSpent } = getObraLaborCostsAndDays(obra.id);
             const totalBudget = (obra.initialBudget || 0) + (obra.addedBudget || 0);
+            const assignedCount = obra.assignedUserIds?.length || 0;
 
             return (
               <div
@@ -111,6 +117,12 @@ export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                         <MapPin size={13} className="text-amber" />
                         <span>{obra.location}</span>
+                      </div>
+                    )}
+                    {assignedCount > 0 && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--accent-blue)' }}>
+                        <Users size={13} />
+                        <span>{assignedCount} Usuários Autorizados</span>
                       </div>
                     )}
                   </div>
@@ -172,14 +184,18 @@ export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
         >
           <Building2 size={48} style={{ color: 'var(--text-muted)', marginBottom: '1rem' }} />
           <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-            Nenhuma Obra Cadastrada
+            {isAdmin ? 'Nenhuma Obra Cadastrada' : 'Nenhuma Obra Liberada'}
           </h3>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-            Comece cadastrando a sua primeira obra para gerenciar quadros, post-its e comissionamento.
+            {isAdmin 
+              ? 'Comece cadastrando a sua primeira obra para gerenciar quadros, post-its e comissionamento.'
+              : 'Aguarde o Administrador vincular você às Obras do projeto.'}
           </p>
-          <button onClick={() => onOpenObraModal('obra')} className="btn btn-primary">
-            <Plus size={16} /> Cadastrar Primeira Obra
-          </button>
+          {isAdmin && (
+            <button onClick={() => onOpenObraModal('obra')} className="btn btn-primary">
+              <Plus size={16} /> Cadastrar Primeira Obra
+            </button>
+          )}
         </div>
       )}
     </div>

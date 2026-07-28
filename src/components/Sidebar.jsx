@@ -51,9 +51,11 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
             </div>
           </>
         ) : (
-          <button onClick={() => onOpenObraModal('obra')} className="btn btn-primary btn-sm" style={{ width: '100%', fontSize: '0.75rem', padding: '0.25rem' }}>
-            <Plus size={13} /> Criar Primeira Obra
-          </button>
+          isAdmin && (
+            <button onClick={() => onOpenObraModal('obra')} className="btn btn-primary btn-sm" style={{ width: '100%', fontSize: '0.75rem', padding: '0.25rem' }}>
+              <Plus size={13} /> Criar Obra (Admin)
+            </button>
+          )
         )}
       </div>
 
@@ -126,33 +128,32 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
           <span>Checklist HVAC</span>
         </button>
 
-        <button
-          onClick={() => setActiveTab('reports')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0.55rem 0.75rem',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '0.8rem',
-            fontWeight: activeTab === 'reports' ? 600 : 400,
-            background: activeTab === 'reports' ? 'rgba(124, 58, 237, 0.15)' : 'transparent',
-            color: activeTab === 'reports' ? 'var(--accent-purple)' : 'var(--text-secondary)',
-            textAlign: 'left'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            <BarChart3 size={16} />
-            <span>Relatórios</span>
-          </div>
-          {isAdmin ? (
+        {/* Reports Tab ONLY for Admin */}
+        {isAdmin && (
+          <button
+            onClick={() => setActiveTab('reports')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.55rem 0.75rem',
+              borderRadius: 'var(--radius-md)',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '0.8rem',
+              fontWeight: activeTab === 'reports' ? 600 : 400,
+              background: activeTab === 'reports' ? 'rgba(124, 58, 237, 0.15)' : 'transparent',
+              color: activeTab === 'reports' ? 'var(--accent-purple)' : 'var(--text-secondary)',
+              textAlign: 'left'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <BarChart3 size={16} />
+              <span>Relatórios</span>
+            </div>
             <span className="badge badge-purple" style={{ fontSize: '0.6rem' }}>Admin</span>
-          ) : (
-            <Lock size={13} style={{ color: 'var(--accent-rose)' }} />
-          )}
-        </button>
+          </button>
+        )}
       </div>
 
       {/* Subníveis (Quadros Filter List) */}

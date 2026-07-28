@@ -12,6 +12,7 @@ export const DEFAULT_USERS = [
     id: 'usr-admin',
     name: 'Administrador Geral',
     email: 'admin@omnifield.com',
+    password: 'admin',
     role: 'administrador',
     avatarColor: '#0284c7',
     userColorTag: '#0284c7',
@@ -20,8 +21,9 @@ export const DEFAULT_USERS = [
   },
   {
     id: 'usr-operador',
-    name: 'Operador de Campo',
+    name: 'Carlos Eduardo',
     email: 'operador@omnifield.com',
+    password: '123',
     role: 'usuario',
     avatarColor: '#059669',
     userColorTag: '#059669',
@@ -32,32 +34,31 @@ export const DEFAULT_USERS = [
 
 export const AuthProvider = ({ children }) => {
   const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('omnifield_users_v3');
+    const saved = localStorage.getItem('omnifield_users_auth_v4');
     return saved ? JSON.parse(saved) : DEFAULT_USERS;
   });
 
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('omnifield_active_user_v3');
+    const saved = localStorage.getItem('omnifield_active_user_v4');
     if (saved) {
       try { return JSON.parse(saved); } catch (e) { console.error(e); }
     }
-    return users[0];
+    return users[0]; // Default logged-in user
   });
 
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem('omnifield_theme') || 'dark';
   });
 
-  // Sync to localStorage
   useEffect(() => {
-    localStorage.setItem('omnifield_users_v3', JSON.stringify(users));
+    localStorage.setItem('omnifield_users_auth_v4', JSON.stringify(users));
   }, [users]);
 
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem('omnifield_active_user_v3', JSON.stringify(currentUser));
+      localStorage.setItem('omnifield_active_user_v4', JSON.stringify(currentUser));
     } else {
-      localStorage.removeItem('omnifield_active_user_v3');
+      localStorage.removeItem('omnifield_active_user_v4');
     }
   }, [currentUser]);
 
@@ -66,7 +67,7 @@ export const AuthProvider = ({ children }) => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Real-time synchronization with Firestore users collection
+  // Sync users real-time from Firestore
   useEffect(() => {
     if (isFirebaseActive()) {
       const unsubUsers = subscribeFirestoreCollection('users', (data) => {
@@ -76,8 +77,32 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
-  const login = (user) => {
-    setCurrentUser(user);
+  const loginWithPassword = (emailOrName, password) => {
+    const found = users.find(u => 
+      (u.email?.toLowerCase() === emailOrName?.toLowerCase() || u.name?.toLowerCase() === emailOrName?.toLowerCase()) &&
+      (u.password === password || !u.password)
+    );
+
+    if (found) {
+      setCurrentUser(found);
+      return { success: true, user: found };
+    }
+    return { success: false, message: 'Usuário ou senha incorretos.' };
+  };
+
+  const registerNewUser = (userData) => {
+    const newUser = {
+      id: `usr-${Date.now()}`,
+      avatarColor: userData.role === 'administrador' ? '#0284c7' : '#059669',
+      userColorTag: userData.role === 'administrador' ? '#0284c7' : '#059669',
+      dailyRate: parseFloat(userData.dailyRate) || 250,
+      ...userData
+    };
+
+    setUsers(prev => [...prev, newUser]);
+    setCurrentUser(newUser);
+    if (isFirebaseActive()) saveFirestoreDoc('users', newUser.id, newUser);
+    return newUser;
   };
 
   const logout = () => {
@@ -108,20 +133,6 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const addUser = (userData) => {
-    const newUser = {
-      id: `usr-${Date.now()}`,
-      avatarColor: userData.role === 'administrador' ? '#0284c7' : '#059669',
-      userColorTag: userData.role === 'administrador' ? '#0284c7' : '#059669',
-      dailyRate: 250,
-      ...userData
-    };
-
-    setUsers(prev => [...prev, newUser]);
-    if (isFirebaseActive()) saveFirestoreDoc('users', newUser.id, newUser);
-    return newUser;
-  };
-
   const toggleTheme = () => {
     setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
   };
@@ -131,11 +142,11 @@ export const AuthProvider = ({ children }) => {
       value={{
         users,
         currentUser,
-        login,
+        loginWithPassword,
+        registerNewUser,
         logout,
         switchRole,
         updateUserDailyRate,
-        addUser,
         theme,
         toggleTheme,
         isAdmin: currentUser?.role === 'administrador',

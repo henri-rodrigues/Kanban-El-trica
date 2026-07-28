@@ -1,30 +1,49 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { X, Check, Sparkles, UserPlus, ShieldCheck, User } from 'lucide-react';
+import { X, Check, Sparkles, UserPlus, LogIn, Lock, Mail, AlertCircle } from 'lucide-react';
 
 export const LoginModal = ({ isOpen, onClose }) => {
-  const { currentUser, login, users, addUser, isAdmin } = useAuth();
+  const { currentUser, loginWithPassword, registerNewUser, users } = useAuth();
 
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [activeTab, setActiveTab] = useState('login'); // 'login' | 'register'
+  
+  // Login form state
+  const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
+
+  // Register form state
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [newRole, setNewRole] = useState('usuario');
   const [newTitle, setNewTitle] = useState('Técnico Operacional');
 
   if (!isOpen) return null;
 
-  const handleCreateUser = (e) => {
+  const handleLoginSubmit = (e) => {
     e.preventDefault();
-    if (!newName) return;
-    const created = addUser({
+    setLoginError('');
+    if (!loginIdentifier) return;
+
+    const res = loginWithPassword(loginIdentifier, loginPassword);
+    if (res.success) {
+      onClose();
+    } else {
+      setLoginError(res.message || 'Dados de acesso incorretos.');
+    }
+  };
+
+  const handleRegisterSubmit = (e) => {
+    e.preventDefault();
+    if (!newName || !newPassword) return;
+    const created = registerNewUser({
       name: newName,
       email: newEmail || `${newName.toLowerCase().replace(/\s+/g, '')}@omnifield.com`,
+      password: newPassword,
       role: newRole,
       title: newTitle
     });
-    login(created);
-    setNewName('');
-    setShowAddForm(false);
     onClose();
   };
 
@@ -33,7 +52,7 @@ export const LoginModal = ({ isOpen, onClose }) => {
       position: 'fixed',
       inset: 0,
       zIndex: 1000,
-      background: 'rgba(0, 0, 0, 0.75)',
+      background: 'rgba(0, 0, 0, 0.8)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -82,109 +101,146 @@ export const LoginModal = ({ isOpen, onClose }) => {
             ⚡
           </div>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-            Autenticação OmniField Pro
+            Autenticação de Usuário
           </h2>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            Selecione uma conta ou cadastre um novo usuário
+            Acesse o OmniField Pro com E-mail/Usuário e Senha
           </p>
         </div>
 
-        {/* List of Users in Firebase */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', marginBottom: '1.25rem' }}>
-          {users.map((user) => {
-            const isSelected = currentUser?.id === user.id;
-            return (
-              <div
-                key={user.id}
-                onClick={() => {
-                  login(user);
-                  onClose();
-                }}
-                style={{
-                  padding: '0.85rem',
-                  borderRadius: 'var(--radius-md)',
-                  border: isSelected ? '2px solid var(--accent-blue)' : '1px solid var(--border-color)',
-                  background: isSelected ? 'rgba(2, 132, 199, 0.12)' : 'var(--bg-main)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
-                }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <div style={{
-                    width: '38px',
-                    height: '38px',
-                    borderRadius: '50%',
-                    background: user.avatarColor,
-                    border: `2px solid ${user.userColorTag}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#fff',
-                    fontWeight: 700,
-                    fontSize: '1rem'
-                  }}>
-                    {user.name.charAt(0)}
-                  </div>
-                  
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>
-                      {user.name}
-                    </div>
-                    <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
-                      {user.title}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.15rem' }}>
-                      <span className={`badge ${user.role === 'administrador' ? 'badge-purple' : 'badge-emerald'}`}>
-                        {user.role === 'administrador' ? '🛡️ Administrador' : '👤 Usuário Operacional'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {isSelected && (
-                  <div style={{
-                    width: '22px',
-                    height: '22px',
-                    borderRadius: '50%',
-                    background: 'var(--accent-blue)',
-                    color: '#fff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <Check size={14} />
-                  </div>
-                )}
-              </div>
-            );
-          })}
+        {/* Tab Switcher: Login vs Register */}
+        <div style={{
+          display: 'flex',
+          background: 'var(--bg-main)',
+          borderRadius: 'var(--radius-md)',
+          padding: '3px',
+          border: '1px solid var(--border-color)',
+          marginBottom: '1.25rem'
+        }}>
+          <button
+            type="button"
+            onClick={() => setActiveTab('login')}
+            style={{
+              flex: 1,
+              padding: '0.45rem',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              borderRadius: 'var(--radius-sm)',
+              border: 'none',
+              cursor: 'pointer',
+              background: activeTab === 'login' ? 'var(--accent-blue)' : 'transparent',
+              color: activeTab === 'login' ? '#ffffff' : 'var(--text-muted)'
+            }}
+          >
+            🔑 Entrar (Login)
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('register')}
+            style={{
+              flex: 1,
+              padding: '0.45rem',
+              fontSize: '0.8rem',
+              fontWeight: 600,
+              borderRadius: 'var(--radius-sm)',
+              border: 'none',
+              cursor: 'pointer',
+              background: activeTab === 'register' ? 'var(--accent-blue)' : 'transparent',
+              color: activeTab === 'register' ? '#ffffff' : 'var(--text-muted)'
+            }}
+          >
+            👤 Criar Nova Conta
+          </button>
         </div>
 
-        {/* Add User Toggle Button */}
-        {!showAddForm ? (
-          <button 
-            onClick={() => setShowAddForm(true)} 
-            className="btn btn-secondary btn-sm"
-            style={{ width: '100%', justifyContent: 'center', marginBottom: '1rem' }}
-          >
-            <UserPlus size={14} /> Cadastrar Novo Usuário
-          </button>
-        ) : (
-          <form onSubmit={handleCreateUser} style={{ background: 'var(--bg-main)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>
-            <h4 style={{ fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.75rem', color: 'var(--accent-blue)' }}>
-              ➕ Cadastrar Novo Usuário no Banco de Dados
-            </h4>
+        {/* Login Form */}
+        {activeTab === 'login' && (
+          <form onSubmit={handleLoginSubmit}>
+            {loginError && (
+              <div style={{ padding: '0.6rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'rgba(220, 38, 38, 0.15)', border: '1px solid rgba(220, 38, 38, 0.3)', color: '#f87171', fontSize: '0.775rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <AlertCircle size={15} />
+                <span>{loginError}</span>
+              </div>
+            )}
 
             <div className="form-group">
-              <label>Nome Completo *</label>
-              <input type="text" required className="form-control" placeholder="Ex: João Souza" value={newName} onChange={(e) => setNewName(e.target.value)} />
+              <label>E-mail ou Nome de Usuário *</label>
+              <input 
+                type="text" 
+                required 
+                placeholder="admin@omnifield.com ou Administrador Geral" 
+                className="form-control" 
+                value={loginIdentifier} 
+                onChange={(e) => setLoginIdentifier(e.target.value)} 
+              />
             </div>
 
             <div className="form-group">
-              <label>E-mail</label>
-              <input type="email" className="form-control" placeholder="joao@omnifield.com" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+              <label>Senha *</label>
+              <input 
+                type="password" 
+                required 
+                placeholder="••••••••" 
+                className="form-control" 
+                value={loginPassword} 
+                onChange={(e) => setLoginPassword(e.target.value)} 
+              />
+            </div>
+
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem', padding: '0.65rem' }}>
+              <LogIn size={16} /> Acessar Conta
+            </button>
+
+            {/* Quick Login Accounts Preview */}
+            <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
+              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+                Contas Cadastradas (Clique para preencher)
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                {users.map(u => (
+                  <div
+                    key={u.id}
+                    onClick={() => {
+                      setLoginIdentifier(u.email || u.name);
+                      setLoginPassword(u.password || 'admin');
+                    }}
+                    style={{
+                      padding: '0.4rem 0.6rem',
+                      borderRadius: '4px',
+                      background: 'var(--bg-main)',
+                      border: '1px solid var(--border-color)',
+                      cursor: 'pointer',
+                      fontSize: '0.75rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <span>{u.name} ({u.role})</span>
+                    <span style={{ color: 'var(--text-muted)' }}>{u.email}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </form>
+        )}
+
+        {/* Register Form */}
+        {activeTab === 'register' && (
+          <form onSubmit={handleRegisterSubmit}>
+            <div className="form-group">
+              <label>Nome Completo *</label>
+              <input type="text" required className="form-control" placeholder="Ex: Roberto Silva" value={newName} onChange={(e) => setNewName(e.target.value)} />
+            </div>
+
+            <div className="form-group">
+              <label>E-mail *</label>
+              <input type="email" required className="form-control" placeholder="roberto@omnifield.com" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+            </div>
+
+            <div className="form-group">
+              <label>Senha *</label>
+              <input type="password" required className="form-control" placeholder="Crie uma senha..." value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
@@ -202,27 +258,11 @@ export const LoginModal = ({ isOpen, onClose }) => {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.75rem' }}>
-              <button type="button" onClick={() => setShowAddForm(false)} className="btn btn-secondary btn-sm" style={{ flex: 1 }}>Cancelar</button>
-              <button type="submit" className="btn btn-primary btn-sm" style={{ flex: 1 }}>Cadastrar</button>
-            </div>
+            <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem', padding: '0.65rem' }}>
+              <UserPlus size={16} /> Criar Conta & Entrar
+            </button>
           </form>
         )}
-
-        <div style={{
-          padding: '0.65rem 0.85rem',
-          borderRadius: 'var(--radius-sm)',
-          background: 'rgba(2, 132, 199, 0.1)',
-          border: '1px solid rgba(2, 132, 199, 0.2)',
-          fontSize: '0.725rem',
-          color: 'var(--text-secondary)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.4rem'
-        }}>
-          <Sparkles size={14} className="text-blue" />
-          <span>Usuários sincronizados em tempo real com o Firebase Firestore.</span>
-        </div>
       </div>
     </div>
   );

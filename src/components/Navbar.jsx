@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { PwaInstallBanner } from './PwaInstallBanner';
 import { 
   Building2, 
   Sun, 
@@ -10,10 +9,11 @@ import {
   Plus, 
   UserCheck,
   Globe,
-  Grid
+  Grid,
+  Smartphone
 } from 'lucide-react';
 
-export const Navbar = ({ onOpenObraModal, onOpenLoginModal, onOpenFirebaseModal, onGoToHub }) => {
+export const Navbar = ({ onOpenObraModal, onOpenLoginModal, onOpenFirebaseModal, onOpenPwaModal, onGoToHub }) => {
   const { currentUser, switchRole, theme, toggleTheme, isAdmin } = useAuth();
   const { obras, selectedObraId, setSelectedObraId, activeObra } = useData();
   const [showObraDropdown, setShowObraDropdown] = useState(false);
@@ -35,7 +35,7 @@ export const Navbar = ({ onOpenObraModal, onOpenLoginModal, onOpenFirebaseModal,
         <button 
           onClick={onGoToHub}
           style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-          title="Ir para Vitrine de Obras (Tela Inicial)"
+          title="Ir para Vitrine de Obras"
         >
           <div style={{
             width: '32px',
@@ -139,6 +139,16 @@ export const Navbar = ({ onOpenObraModal, onOpenLoginModal, onOpenFirebaseModal,
 
       {/* Right Controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        {/* PWA App Shortcut modal trigger */}
+        <button
+          onClick={onOpenPwaModal}
+          className="btn btn-secondary btn-sm"
+          title="Criar Atalho na Tela de Início do Celular"
+        >
+          <Smartphone size={14} className="text-emerald" />
+          <span className="mobile-hide">Atalho no Celular</span>
+        </button>
+
         {/* GitHub Pages & Cloud Backup Modal trigger */}
         <button
           onClick={onOpenFirebaseModal}
@@ -215,7 +225,7 @@ export const Navbar = ({ onOpenObraModal, onOpenLoginModal, onOpenFirebaseModal,
               {currentUser.name.charAt(0)}
             </div>
 
-            <button onClick={onOpenLoginModal} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem' }}>
+            <button onClick={onOpenLoginModal} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem' }} title="Trocar Usuário / Login">
               <UserCheck size={13} />
             </button>
           </div>

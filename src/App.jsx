@@ -12,17 +12,19 @@ import { ReportsModule } from './components/ReportsModule';
 import { LoginModal } from './components/LoginModal';
 import { ObraModal } from './components/ObraModal';
 import { FirebaseModal } from './components/FirebaseModal';
-import { Kanban, Layers, CheckSquare, BarChart3, Grid } from 'lucide-react';
+import { PwaInstallModal } from './components/PwaInstallModal';
+import { Kanban, Layers, CheckSquare, BarChart3, Grid, Smartphone } from 'lucide-react';
 
 function MainLayout() {
   const { obras, selectedObraId, setSelectedObraId, activeObra } = useData();
-  const [activeTab, setActiveTab] = useState('hub'); // 'hub' | 'kanban' | 'quadros' | 'checklist' | 'reports'
+  const [activeTab, setActiveTab] = useState('hub');
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
+  const [isPwaModalOpen, setIsPwaModalOpen] = useState(false);
   const [obraModalType, setObraModalType] = useState(null);
 
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
+    if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
       navigator.serviceWorker.register('./sw.js').catch(err => {
         console.log('Service Worker skipped:', err);
       });
@@ -55,6 +57,7 @@ function MainLayout() {
         onOpenObraModal={handleOpenObraModal} 
         onOpenLoginModal={() => setIsLoginModalOpen(true)}
         onOpenFirebaseModal={() => setIsFirebaseModalOpen(true)}
+        onOpenPwaModal={() => setIsPwaModalOpen(true)}
         onGoToHub={() => setActiveTab('hub')}
       />
 
@@ -114,9 +117,9 @@ function MainLayout() {
           <Layers size={18} />
           <span>Quadros</span>
         </button>
-        <button onClick={() => setActiveTab('checklist')} className={`mobile-nav-item ${activeTab === 'checklist' ? 'active' : ''}`}>
-          <CheckSquare size={18} />
-          <span>Checklist</span>
+        <button onClick={() => setIsPwaModalOpen(true)} className="mobile-nav-item">
+          <Smartphone size={18} />
+          <span>Atalho App</span>
         </button>
       </nav>
 
@@ -135,6 +138,11 @@ function MainLayout() {
       <FirebaseModal
         isOpen={isFirebaseModalOpen}
         onClose={() => setIsFirebaseModalOpen(false)}
+      />
+
+      <PwaInstallModal
+        isOpen={isPwaModalOpen}
+        onClose={() => setIsPwaModalOpen(false)}
       />
     </div>
   );

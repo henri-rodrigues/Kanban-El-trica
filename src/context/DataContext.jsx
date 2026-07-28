@@ -1,5 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+import { 
+  saveFirestoreDoc, 
+  subscribeFirestoreCollection, 
+  isFirebaseActive 
+} from '../services/firebase';
 
 const DataContext = createContext();
 
@@ -11,9 +16,9 @@ const INITIAL_OBRAS = [
     location: 'São Paulo, SP',
     client: 'Rede Saúde Alfa',
     initialBudget: 1500000,
-    addedBudget: 350000, // Verbas Adicionais
-    materialCosts: 720000, // Custos com Materiais
-    plannedDays: 120, // Dias Planejados
+    addedBudget: 350000,
+    materialCosts: 720000,
+    plannedDays: 120,
     startDate: '2026-01-15',
     endDate: '2026-09-30',
     status: 'Em Andamento',
@@ -33,21 +38,6 @@ const INITIAL_OBRAS = [
     endDate: '2026-08-15',
     status: 'Comissionamento',
     progress: 88
-  },
-  {
-    id: 'ob-3',
-    name: 'Torre Comercial Horizon',
-    code: 'OBR-2026-TH',
-    location: 'Rio de Janeiro, RJ',
-    client: 'Horizon Empreendimentos',
-    initialBudget: 900000,
-    addedBudget: 80000,
-    materialCosts: 140000,
-    plannedDays: 90,
-    startDate: '2026-03-01',
-    endDate: '2026-11-20',
-    status: 'Planejamento',
-    progress: 25
   }
 ];
 
@@ -69,15 +59,6 @@ const INITIAL_QUADROS = [
     location: '4º Andar - Bloco Cirúrgico',
     status: 'Em Teste',
     description: 'Filtragem HEPA H14, controle estrito de pressão positiva e umidade.'
-  },
-  {
-    id: 'qd-103',
-    obraId: 'ob-1',
-    name: 'QTA-EMERG - Transferência Automática',
-    category: 'Painel Elétrico',
-    location: 'Subsolo 1 - Sala Elétrica',
-    status: 'Concluído',
-    description: 'Quadro de comutação rede/gerador para alimentação crítica.'
   }
 ];
 
@@ -88,46 +69,23 @@ const INITIAL_CARDS = [
     quadroId: null,
     level: 'obra',
     title: 'Desenvolvimento da Programação & Vistoria de Dutos',
-    description: 'Ajustar rotinas de controle Modbus e inspecionar alinhamento e isolamento térmico nos andares 1 a 4.',
-    fieldNotes: 'O que falta fazer: concluir rotina de trip de emergência e ajustar ganhos PID da malha de temperatura.',
+    description: 'Ajustar rotinas de controle Modbus e inspecionar alinhamento e isolamento térmico.',
+    fieldNotes: 'Pendência: concluir rotina de trip de emergência.',
     column: 'in_progress',
     assignedUserId: 'usr-1',
     assignedUserName: 'Eng. Ricardo Silva',
-    userColor: '#2563eb',
+    userColor: '#0284c7',
     priority: 'Alta',
+    categoryTag: 'HVAC',
     subtasks: [
       { id: 'st-1', title: 'Teste de pressão nos dutos do 3º andar', completed: true },
-      { id: 'st-2', title: 'Ajuste de ganho PID do sensor de temperatura', completed: false },
-      { id: 'st-3', title: 'Validação da rotina Modbus no supervisório', completed: false }
+      { id: 'st-2', title: 'Ajuste de ganho PID do sensor', completed: false }
     ],
-    images: [
-      'https://images.unsplash.com/photo-1581094794329-c8112a89af12?auto=format&fit=crop&w=600&q=80'
-    ],
-    workedDays: [
-      { id: 'w-1', date: '2026-07-24', hours: 8, operatorId: 'usr-2', operatorName: 'Carlos Eduardo', notes: 'Inspeção visual dos dutos no 3º e 4º pavimento concluída.' },
-      { id: 'w-2', date: '2026-07-25', hours: 8, operatorId: 'usr-3', operatorName: 'Mariana Costa', notes: 'Teste de pressão preliminar na prumada principal.' }
-    ],
-    createdAt: '2026-07-20'
-  },
-  {
-    id: 'c-2',
-    obraId: 'ob-1',
-    quadroId: 'qd-101',
-    level: 'quadro',
-    title: 'Teste TAB de Vazão d\'Água Gelada nas Bombas',
-    description: 'Ajustar balanceamento hidráulico de acordo com a planilha de projeto (120 m³/h).',
-    fieldNotes: 'Medição realizada com manômetro diferencial calibrado.',
-    column: 'commissioning',
-    assignedUserId: 'usr-2',
-    assignedUserName: 'Carlos Eduardo',
-    userColor: '#d97706',
-    priority: 'Alta',
-    subtasks: [],
     images: [],
     workedDays: [
-      { id: 'w-4', date: '2026-07-26', hours: 8, operatorId: 'usr-2', operatorName: 'Carlos Eduardo', notes: 'Ajuste de válvulas de balanceamento estático.' }
+      { id: 'w-1', date: '2026-07-24', hours: 8, operatorId: 'usr-2', operatorName: 'Carlos Eduardo', notes: 'Inspeção visual concluída.' }
     ],
-    createdAt: '2026-07-23'
+    createdAt: '2026-07-20'
   }
 ];
 
@@ -176,21 +134,37 @@ export const DataProvider = ({ children }) => {
     return saved ? JSON.parse(saved) : INITIAL_CHECKLISTS;
   });
 
+  // Sync to localStorage
   useEffect(() => { localStorage.setItem('omnifield_obras_v2', JSON.stringify(obras)); }, [obras]);
   useEffect(() => { localStorage.setItem('omnifield_selected_obra_v2', selectedObraId); }, [selectedObraId]);
   useEffect(() => { localStorage.setItem('omnifield_quadros_v2', JSON.stringify(quadros)); }, [quadros]);
   useEffect(() => { localStorage.setItem('omnifield_cards_v2', JSON.stringify(cards)); }, [cards]);
   useEffect(() => { localStorage.setItem('omnifield_checklists_v2', JSON.stringify(checklists)); }, [checklists]);
 
+  // Real-time synchronization with Firestore when Firebase is configured
+  useEffect(() => {
+    if (isFirebaseActive()) {
+      const unsubObras = subscribeFirestoreCollection('obras', (data) => { if (data.length) setObras(data); });
+      const unsubQuadros = subscribeFirestoreCollection('quadros', (data) => { if (data.length) setQuadros(data); });
+      const unsubCards = subscribeFirestoreCollection('cards', (data) => { if (data.length) setCards(data); });
+      const unsubChecklists = subscribeFirestoreCollection('checklists', (data) => { if (data.length) setChecklists(data); });
+
+      return () => {
+        unsubObras();
+        unsubQuadros();
+        unsubCards();
+        unsubChecklists();
+      };
+    }
+  }, []);
+
   const activeObra = obras.find(o => o.id === selectedObraId) || obras[0];
   const activeQuadros = quadros.filter(q => q.obraId === selectedObraId);
   const activeQuadro = quadros.find(q => q.id === selectedQuadroId);
 
-  // Calculate dynamic labor costs & total days spent for an Obra
   const getObraLaborCostsAndDays = (obraId) => {
     const obraCards = cards.filter(c => c.obraId === obraId);
     let totalLaborCost = 0;
-    const uniqueDaysSet = new Set();
     let totalHours = 0;
 
     obraCards.forEach(c => {
@@ -201,10 +175,6 @@ export const DataProvider = ({ children }) => {
         const dayCost = (hours / 8) * dailyRate;
         totalLaborCost += dayCost;
         totalHours += hours;
-
-        if (w.date) {
-          uniqueDaysSet.add(`${w.date}-${w.operatorName}`);
-        }
       });
     });
 
@@ -224,10 +194,18 @@ export const DataProvider = ({ children }) => {
     };
     setObras(prev => [newObra, ...prev]);
     setSelectedObraId(newObra.id);
+    if (isFirebaseActive()) saveFirestoreDoc('obras', newObra.id, newObra);
   };
 
   const updateObraFinancials = (obraId, financialData) => {
-    setObras(prev => prev.map(o => o.id === obraId ? { ...o, ...financialData } : o));
+    setObras(prev => prev.map(o => {
+      if (o.id === obraId) {
+        const updated = { ...o, ...financialData };
+        if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updated);
+        return updated;
+      }
+      return o;
+    }));
   };
 
   const addQuadro = (quadroData) => {
@@ -239,6 +217,7 @@ export const DataProvider = ({ children }) => {
     };
     setQuadros(prev => [...prev, newQuadro]);
     setSelectedQuadroId(newQuadro.id);
+    if (isFirebaseActive()) saveFirestoreDoc('quadros', newQuadro.id, newQuadro);
   };
 
   const addCard = (cardData) => {
@@ -256,14 +235,29 @@ export const DataProvider = ({ children }) => {
       ...cardData
     };
     setCards(prev => [newCard, ...prev]);
+    if (isFirebaseActive()) saveFirestoreDoc('cards', newCard.id, newCard);
   };
 
   const updateCardStatus = (cardId, newColumn) => {
-    setCards(prev => prev.map(c => c.id === cardId ? { ...c, column: newColumn } : c));
+    setCards(prev => prev.map(c => {
+      if (c.id === cardId) {
+        const updated = { ...c, column: newColumn };
+        if (isFirebaseActive()) saveFirestoreDoc('cards', cardId, updated);
+        return updated;
+      }
+      return c;
+    }));
   };
 
   const updateCard = (cardId, updatedFields) => {
-    setCards(prev => prev.map(c => c.id === cardId ? { ...c, ...updatedFields } : c));
+    setCards(prev => prev.map(c => {
+      if (c.id === cardId) {
+        const updated = { ...c, ...updatedFields };
+        if (isFirebaseActive()) saveFirestoreDoc('cards', cardId, updated);
+        return updated;
+      }
+      return c;
+    }));
   };
 
   const deleteCard = (cardId) => {
@@ -277,10 +271,12 @@ export const DataProvider = ({ children }) => {
     };
     setCards(prev => prev.map(c => {
       if (c.id === cardId) {
-        return {
+        const updated = {
           ...c,
           workedDays: [...(c.workedDays || []), newLog]
         };
+        if (isFirebaseActive()) saveFirestoreDoc('cards', cardId, updated);
+        return updated;
       }
       return c;
     }));
@@ -289,7 +285,7 @@ export const DataProvider = ({ children }) => {
   const updateChecklistStatus = (checkId, status, notes, evidenceImage, user) => {
     setChecklists(prev => prev.map(item => {
       if (item.id === checkId) {
-        return {
+        const updated = {
           ...item,
           status,
           notes: notes !== undefined ? notes : item.notes,
@@ -297,6 +293,8 @@ export const DataProvider = ({ children }) => {
           testedBy: user ? user.name : item.testedBy,
           testedDate: new Date().toISOString().split('T')[0]
         };
+        if (isFirebaseActive()) saveFirestoreDoc('checklists', checkId, updated);
+        return updated;
       }
       return item;
     }));
@@ -315,6 +313,7 @@ export const DataProvider = ({ children }) => {
       ...itemData
     };
     setChecklists(prev => [...prev, newItem]);
+    if (isFirebaseActive()) saveFirestoreDoc('checklists', newItem.id, newItem);
   };
 
   return (

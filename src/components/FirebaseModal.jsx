@@ -1,13 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useData } from '../context/DataContext';
-import { X, Download, Upload, Database, Globe, Check, Sparkles } from 'lucide-react';
+import { getStoredFirebaseConfig, initFirebase } from '../services/firebase';
+import { X, Download, Upload, Database, Globe, Check, Sparkles, Flame } from 'lucide-react';
 
 export const FirebaseModal = ({ isOpen, onClose }) => {
   const { obras, quadros, cards, checklists } = useData();
 
-  const [firebaseApiKey, setFirebaseApiKey] = useState('');
-  const [firebaseProjectId, setFirebaseProjectId] = useState('');
+  const [apiKey, setApiKey] = useState('');
+  const [authDomain, setAuthDomain] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [storageBucket, setStorageBucket] = useState('');
+  const [messagingSenderId, setMessagingSenderId] = useState('');
+  const [appId, setAppId] = useState('');
   const [isSaved, setIsSaved] = useState(false);
+
+  useEffect(() => {
+    const stored = getStoredFirebaseConfig();
+    if (stored) {
+      setApiKey(stored.apiKey || '');
+      setAuthDomain(stored.authDomain || '');
+      setProjectId(stored.projectId || '');
+      setStorageBucket(stored.storageBucket || '');
+      setMessagingSenderId(stored.messagingSenderId || '');
+      setAppId(stored.appId || '');
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -53,9 +70,22 @@ export const FirebaseModal = ({ isOpen, onClose }) => {
 
   const handleSaveFirebaseConfig = (e) => {
     e.preventDefault();
-    localStorage.setItem('omnifield_firebase_config', JSON.stringify({ firebaseApiKey, firebaseProjectId }));
+    const config = {
+      apiKey,
+      authDomain,
+      projectId,
+      storageBucket,
+      messagingSenderId,
+      appId
+    };
+
+    localStorage.setItem('omnifield_firebase_config', JSON.stringify(config));
+    initFirebase(config);
     setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 3000);
+    setTimeout(() => {
+      setIsSaved(false);
+      window.location.reload();
+    }, 1500);
   };
 
   return (
@@ -73,7 +103,9 @@ export const FirebaseModal = ({ isOpen, onClose }) => {
         className="glass-panel"
         style={{
           width: '100%',
-          maxWidth: '520px',
+          maxWidth: '560px',
+          maxHeight: '90vh',
+          overflowY: 'auto',
           borderRadius: 'var(--radius-lg)',
           padding: '1.5rem',
           position: 'relative'
@@ -84,66 +116,75 @@ export const FirebaseModal = ({ isOpen, onClose }) => {
         </button>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
-          <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-            <Globe size={22} />
+          <div style={{ width: '42px', height: '42px', borderRadius: '10px', background: 'var(--accent-amber)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
+            <Flame size={24} />
           </div>
           <div>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Deploy GitHub Pages & Firebase Sync</h3>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Backup local em JSON e sincronização em nuvem sem custo</p>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>Conectar Banco de Dados Firebase (Grátis)</h3>
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Sincronize em tempo real entre celular e computador</p>
           </div>
         </div>
 
+        {/* Firebase Config Form */}
+        <form onSubmit={handleSaveFirebaseConfig} style={{ background: 'var(--bg-main)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', marginBottom: '1.25rem' }}>
+          <h4 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--accent-amber)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            🔥 Chaves de Conexão do seu Projeto Firebase
+          </h4>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+            <div className="form-group">
+              <label>apiKey *</label>
+              <input type="text" required placeholder="AIzaSy..." className="form-control" value={apiKey} onChange={(e) => setApiKey(e.target.value)} />
+            </div>
+
+            <div className="form-group">
+              <label>projectId *</label>
+              <input type="text" required placeholder="omnifield-pro-123" className="form-control" value={projectId} onChange={(e) => setProjectId(e.target.value)} />
+            </div>
+
+            <div className="form-group">
+              <label>authDomain</label>
+              <input type="text" placeholder="projeto.firebaseapp.com" className="form-control" value={authDomain} onChange={(e) => setAuthDomain(e.target.value)} />
+            </div>
+
+            <div className="form-group">
+              <label>appId</label>
+              <input type="text" placeholder="1:123456:web:abcd" className="form-control" value={appId} onChange={(e) => setAppId(e.target.value)} />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.85rem' }}>
+            {isSaved ? (
+              <span style={{ fontSize: '0.75rem', color: 'var(--accent-emerald)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
+                <Check size={14} /> Firebase conectado com sucesso!
+              </span>
+            ) : <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Insira os dados do Console do Firebase</span>}
+
+            <button type="submit" className="btn btn-primary btn-sm">
+              <Flame size={14} /> Conectar Firebase
+            </button>
+          </div>
+        </form>
+
         {/* JSON Export / Import Section */}
-        <div style={{ background: 'var(--bg-main)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', marginBottom: '1.25rem' }}>
-          <h4 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <Database size={15} className="text-blue" /> Exportar / Importar Dados em JSON (Gratuito)
+        <div style={{ background: 'var(--bg-main)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+          <h4 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Database size={15} className="text-blue" /> Backup Local em JSON
           </h4>
           <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
-            Baixe um backup estático dos seus dados para salvar no GitHub Pages ou restaurar em qualquer computador.
+            Faça download dos seus dados ou carregue um arquivo salvo anteriormente sem precisar de internet.
           </p>
 
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button onClick={handleExportJSON} className="btn btn-primary btn-sm" style={{ flex: 1 }}>
-              <Download size={14} /> Baixar Backup JSON
+            <button onClick={handleExportJSON} className="btn btn-secondary btn-sm" style={{ flex: 1 }}>
+              <Download size={14} /> Exportar JSON
             </button>
             <label className="btn btn-secondary btn-sm" style={{ flex: 1, cursor: 'pointer' }}>
-              <Upload size={14} /> Importar Backup
+              <Upload size={14} /> Importar JSON
               <input type="file" accept=".json" onChange={handleImportJSON} style={{ display: 'none' }} />
             </label>
           </div>
         </div>
-
-        {/* Optional Firebase Config */}
-        <form onSubmit={handleSaveFirebaseConfig} style={{ background: 'var(--bg-main)', padding: '1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-          <h4 style={{ fontSize: '0.85rem', fontWeight: 600, marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--accent-amber)' }}>
-            🔥 Configuração Opcional Firebase Firestore (Nuvem Grátis)
-          </h4>
-          <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: '0.75rem' }}>
-            Para sincronização em tempo real entre múltiplos celulares/desktops no GitHub Pages:
-          </p>
-
-          <div className="form-group">
-            <label>Firebase API Key</label>
-            <input type="text" placeholder="AIzaSy..." className="form-control" value={firebaseApiKey} onChange={(e) => setFirebaseApiKey(e.target.value)} />
-          </div>
-
-          <div className="form-group">
-            <label>Firebase Project ID</label>
-            <input type="text" placeholder="omnifield-pro" className="form-control" value={firebaseProjectId} onChange={(e) => setFirebaseProjectId(e.target.value)} />
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem' }}>
-            {isSaved ? (
-              <span style={{ fontSize: '0.75rem', color: 'var(--accent-emerald)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '3px' }}>
-                <Check size={14} /> Configurações salvas!
-              </span>
-            ) : <span />}
-
-            <button type="submit" className="btn btn-secondary btn-sm">
-              Salvar Conexão Firebase
-            </button>
-          </div>
-        </form>
       </div>
     </div>
   );

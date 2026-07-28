@@ -16,7 +16,8 @@ import {
   X,
   Truck,
   TrendingUp,
-  FileCheck
+  FileCheck,
+  FileUp
 } from 'lucide-react';
 
 export const MaterialsModule = () => {
@@ -24,6 +25,7 @@ export const MaterialsModule = () => {
   const { activeObra, purchaseOrders, addPurchaseOrder, updatePOItemStatus } = useData();
 
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
+  const [isDragOverPdf, setIsDragOverPdf] = useState(false);
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState('ALL');
 
   if (!isAdmin) {
@@ -65,11 +67,9 @@ export const MaterialsModule = () => {
 
   const formatBRL = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
 
-  // Handle PDF File Import
-  const handlePdfUpload = async (e) => {
-    const file = e.target.files[0];
+  // Process File (via input or drag & drop)
+  const processPdfFile = async (file) => {
     if (!file || !activeObra) return;
-
     setIsLoadingPdf(true);
     try {
       const parsedData = await extractTextFromPDFFile(file);
@@ -80,11 +80,38 @@ export const MaterialsModule = () => {
       addPurchaseOrder(activeObra.id, parsedData);
     } finally {
       setIsLoadingPdf(false);
-      e.target.value = null;
     }
   };
 
-  // Demo Import from provided Purchase Order PDF Model (Req 18306 - ELETRICA BICHUETTE)
+  // Drag and Drop PDF Handlers
+  const handleDragOverArea = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDragOverPdf) setIsDragOverPdf(true);
+  };
+
+  const handleDragLeaveArea = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverPdf(false);
+  };
+
+  const handleDropArea = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOverPdf(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const file = e.dataTransfer.files[0];
+      if (file.type === 'application/pdf' || file.name.endsWith('.pdf')) {
+        processPdfFile(file);
+      } else {
+        alert('Por favor, solte um arquivo em formato PDF.');
+      }
+    }
+  };
+
+  // Demo Import from provided Purchase Order PDF Model
   const handleImportDemoModelPDF = () => {
     if (!activeObra) return;
     const demoParsedData = parsePurchaseOrderPDFText('PEDIDO DE COMPRA 18306 ELETRICA BICHUETTE LTDA R$ 89,44 27/07/2026');
@@ -122,16 +149,41 @@ export const MaterialsModule = () => {
 
         {/* PDF Import Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <button onClick={handleImportDemoModelPDF} className="btn btn-secondary btn-sm" title="Importar Modelo Oficial 3D Engenharia (Req 18306 - Eletrica Bichuette)">
+          <button onClick={handleImportDemoModelPDF} className="btn btn-secondary btn-sm" title="Importar Modelo Oficial 3D Engenharia (Req 18306)">
             <FileCheck size={14} className="text-emerald" /> Importar Modelo 18306 (PDF)
           </button>
 
           <label className="btn btn-primary btn-sm" style={{ cursor: 'pointer' }}>
             <Upload size={14} />
-            <span>{isLoadingPdf ? 'Lendo PDF...' : 'Importar PDF de Compra'}</span>
-            <input type="file" accept=".pdf" onChange={handlePdfUpload} style={{ display: 'none' }} disabled={isLoadingPdf} />
+            <span>{isLoadingPdf ? 'Lendo PDF...' : 'Importar PDF'}</span>
+            <input type="file" accept=".pdf" onChange={(e) => processPdfFile(e.target.files[0])} style={{ display: 'none' }} disabled={isLoadingPdf} />
           </label>
         </div>
+      </div>
+
+      {/* Drag & Drop PDF Zone */}
+      <div 
+        onDragOver={handleDragOverArea}
+        onDragLeave={handleDragLeaveArea}
+        onDrop={handleDropArea}
+        className="glass-panel"
+        style={{
+          padding: '1.5rem 1rem',
+          borderRadius: 'var(--radius-lg)',
+          border: isDragOverPdf ? '2px dashed var(--accent-blue)' : '2px dashed var(--border-color)',
+          background: isDragOverPdf ? 'rgba(2, 132, 199, 0.12)' : 'var(--bg-card)',
+          textAlign: 'center',
+          cursor: 'pointer',
+          transition: 'all 0.15s ease'
+        }}
+      >
+        <FileUp size={36} style={{ color: isDragOverPdf ? 'var(--accent-blue)' : 'var(--text-muted)', marginBottom: '0.5rem' }} />
+        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>
+          {isDragOverPdf ? 'Solte o arquivo PDF aqui!' : '📁 Arraste e solte o arquivo PDF do Pedido de Compra aqui'}
+        </h3>
+        <p style={{ fontSize: '0.775rem', color: 'var(--text-secondary)' }}>
+          Ou clique para selecionar o arquivo PDF do computador. O sistema extrai fornecedor, itens e descontará da verba automaticamente.
+        </p>
       </div>
 
       {/* KPI Cards Grid */}
@@ -325,7 +377,7 @@ export const MaterialsModule = () => {
             Nenhum Pedido de Compra Importado
           </h3>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-            Importe o PDF do Pedido de Compra (modelo 3D AR CONDICIONADO) para registrar materiais, fornecedores e atualizar o balanço da obra.
+            Arraste um arquivo PDF para a área acima ou importe o modelo de exemplo para registrar materiais e atualizar o balanço da obra.
           </p>
           <button onClick={handleImportDemoModelPDF} className="btn btn-primary">
             <FileCheck size={16} /> Importar Modelo Exemplo (Req 18306)

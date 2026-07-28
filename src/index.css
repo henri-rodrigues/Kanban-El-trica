@@ -1,0 +1,269 @@
+:root {
+  --bg-main: #0f172a;
+  --bg-card: #1e293b;
+  --bg-card-hover: #334155;
+  --bg-sidebar: #0f172a;
+  --bg-header: #0f172a;
+  --border-color: #334155;
+  --border-highlight: #475569;
+  
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  
+  --accent-blue: #0284c7;
+  --accent-indigo: #4f46e5;
+  --accent-emerald: #059669;
+  --accent-amber: #d97706;
+  --accent-rose: #dc2626;
+  --accent-purple: #7c3aed;
+  
+  --font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --shadow-main: 0 1px 3px 0 rgba(0, 0, 0, 0.2), 0 1px 2px 0 rgba(0, 0, 0, 0.12);
+}
+
+[data-theme="light"] {
+  --bg-main: #f3f4f6;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f9fafb;
+  --bg-sidebar: #ffffff;
+  --bg-header: #ffffff;
+  --border-color: #e5e7eb;
+  --border-highlight: #d1d5db;
+  
+  --text-primary: #111827;
+  --text-secondary: #374151;
+  --text-muted: #6b7280;
+  
+  --shadow-main: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  line-height: 1.5;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-main);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-highlight);
+  border-radius: 4px;
+}
+
+/* Azure DevOps / Miro Inspired Boards & Panels */
+.glass-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow-main);
+}
+
+.breadcrumb-bar {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0.55rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.breadcrumb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.breadcrumb-active {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.85rem;
+  font-size: 0.825rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--accent-blue);
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background: #0369a1;
+}
+
+.btn-secondary {
+  background: var(--bg-main);
+  border-color: var(--border-color);
+  color: var(--text-primary);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--border-highlight);
+}
+
+.btn-accent {
+  background: var(--accent-emerald);
+  color: #ffffff;
+}
+
+.btn-accent:hover {
+  background: #047857;
+}
+
+.btn-danger {
+  background: rgba(220, 38, 38, 0.12);
+  color: #f87171;
+  border-color: rgba(220, 38, 38, 0.3);
+}
+
+.btn-danger:hover {
+  background: rgba(220, 38, 38, 0.25);
+}
+
+.btn-sm {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.75rem;
+}
+
+/* Azure DevOps & Miro Tag Pills */
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.tag-phone { background: #22c55e; color: #ffffff; }
+.tag-service { background: #0284c7; color: #ffffff; }
+.tag-web { background: #eab308; color: #111827; }
+.tag-hvac { background: #f97316; color: #ffffff; }
+.tag-high { background: #ef4444; color: #ffffff; }
+.tag-medium { background: #a855f7; color: #ffffff; }
+
+/* Layout Grid */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app-main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.content-body {
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto;
+  height: calc(100vh - 60px);
+}
+
+/* Mobile Bottom Navigation Bar */
+.mobile-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .content-body {
+    padding: 0.6rem;
+    height: calc(100vh - 115px);
+  }
+  .desktop-sidebar {
+    display: none !important;
+  }
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 55px;
+    background: var(--bg-card);
+    border-top: 1px solid var(--border-color);
+    z-index: 999;
+    justify-content: space-around;
+    align-items: center;
+  }
+  .mobile-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    cursor: pointer;
+  }
+  .mobile-nav-item.active {
+    color: var(--accent-blue);
+    font-weight: 700;
+  }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-bottom: 0.75rem;
+}
+
+.form-group label {
+  font-size: 0.775rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  background: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.825rem;
+  outline: none;
+}
+
+.form-control:focus {
+  border-color: var(--accent-blue);
+}

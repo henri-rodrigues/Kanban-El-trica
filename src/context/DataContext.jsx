@@ -8,146 +8,52 @@ import {
 
 const DataContext = createContext();
 
-const INITIAL_OBRAS = [
-  {
-    id: 'ob-1',
-    name: 'Hospital Central - Edifício Anexo',
-    code: 'OBR-2026-HC',
-    location: 'São Paulo, SP',
-    client: 'Rede Saúde Alfa',
-    initialBudget: 1500000,
-    addedBudget: 350000,
-    materialCosts: 720000,
-    plannedDays: 120,
-    startDate: '2026-01-15',
-    endDate: '2026-09-30',
-    status: 'Em Andamento',
-    progress: 68
-  },
-  {
-    id: 'ob-2',
-    name: 'Data Center Alpha - HVAC & Automação',
-    code: 'OBR-2026-DC',
-    location: 'Barueri, SP',
-    client: 'CloudTech Telecom',
-    initialBudget: 3000000,
-    addedBudget: 400000,
-    materialCosts: 1850000,
-    plannedDays: 180,
-    startDate: '2025-11-01',
-    endDate: '2026-08-15',
-    status: 'Comissionamento',
-    progress: 88
-  }
-];
-
-const INITIAL_QUADROS = [
-  {
-    id: 'qd-101',
-    obraId: 'ob-1',
-    name: 'CAG-01 - Central de Água Gelada',
-    category: 'HVAC Chiller',
-    location: 'Subsolo 2 - Casa de Máquinas',
-    status: 'Em Comissionamento',
-    description: 'Chillers de parafuso 350 TR e conjunto de bombas primárias/secundárias.'
-  },
-  {
-    id: 'qd-102',
-    obraId: 'ob-1',
-    name: 'AHU-UTI - Unidade Tratamento de Ar UTI',
-    category: 'Filtragem & Ar Limpo',
-    location: '4º Andar - Bloco Cirúrgico',
-    status: 'Em Teste',
-    description: 'Filtragem HEPA H14, controle estrito de pressão positiva e umidade.'
-  }
-];
-
-const INITIAL_CARDS = [
-  {
-    id: 'c-1',
-    obraId: 'ob-1',
-    quadroId: null,
-    level: 'obra',
-    title: 'Desenvolvimento da Programação & Vistoria de Dutos',
-    description: 'Ajustar rotinas de controle Modbus e inspecionar alinhamento e isolamento térmico.',
-    fieldNotes: 'Pendência: concluir rotina de trip de emergência.',
-    column: 'in_progress',
-    assignedUserId: 'usr-1',
-    assignedUserName: 'Eng. Ricardo Silva',
-    userColor: '#0284c7',
-    priority: 'Alta',
-    categoryTag: 'HVAC',
-    subtasks: [
-      { id: 'st-1', title: 'Teste de pressão nos dutos do 3º andar', completed: true },
-      { id: 'st-2', title: 'Ajuste de ganho PID do sensor', completed: false }
-    ],
-    images: [],
-    workedDays: [
-      { id: 'w-1', date: '2026-07-24', hours: 8, operatorId: 'usr-2', operatorName: 'Carlos Eduardo', notes: 'Inspeção visual concluída.' }
-    ],
-    createdAt: '2026-07-20'
-  }
-];
-
-const INITIAL_CHECKLISTS = [
-  {
-    id: 'chk-1',
-    obraId: 'ob-1',
-    quadroId: 'qd-101',
-    category: 'HVAC - Balanço & TAB',
-    title: 'Medição de Pressão Diferencial no Evaporador do Chiller',
-    description: 'Verificar se a queda de pressão d\'água está conforme a curva do fabricante.',
-    status: 'pass',
-    evidenceImage: null,
-    testedBy: 'Carlos Eduardo',
-    testedDate: '2026-07-26',
-    notes: 'Queda de pressão aferida: 45 kPa. Aprovado.'
-  }
-];
-
 export const DataProvider = ({ children }) => {
   const { users } = useAuth();
 
   const [obras, setObras] = useState(() => {
-    const saved = localStorage.getItem('omnifield_obras_v2');
-    return saved ? JSON.parse(saved) : INITIAL_OBRAS;
+    const saved = localStorage.getItem('omnifield_obras_clean');
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [selectedObraId, setSelectedObraId] = useState(() => {
-    return localStorage.getItem('omnifield_selected_obra_v2') || 'ob-1';
+    return localStorage.getItem('omnifield_selected_obra_clean') || null;
   });
 
   const [quadros, setQuadros] = useState(() => {
-    const saved = localStorage.getItem('omnifield_quadros_v2');
-    return saved ? JSON.parse(saved) : INITIAL_QUADROS;
+    const saved = localStorage.getItem('omnifield_quadros_clean');
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [selectedQuadroId, setSelectedQuadroId] = useState(null);
 
   const [cards, setCards] = useState(() => {
-    const saved = localStorage.getItem('omnifield_cards_v2');
-    return saved ? JSON.parse(saved) : INITIAL_CARDS;
+    const saved = localStorage.getItem('omnifield_cards_clean');
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [checklists, setChecklists] = useState(() => {
-    const saved = localStorage.getItem('omnifield_checklists_v2');
-    return saved ? JSON.parse(saved) : INITIAL_CHECKLISTS;
+    const saved = localStorage.getItem('omnifield_checklists_clean');
+    return saved ? JSON.parse(saved) : [];
   });
 
   // Sync to localStorage
-  useEffect(() => { localStorage.setItem('omnifield_obras_v2', JSON.stringify(obras)); }, [obras]);
-  useEffect(() => { localStorage.setItem('omnifield_selected_obra_v2', selectedObraId); }, [selectedObraId]);
-  useEffect(() => { localStorage.setItem('omnifield_quadros_v2', JSON.stringify(quadros)); }, [quadros]);
-  useEffect(() => { localStorage.setItem('omnifield_cards_v2', JSON.stringify(cards)); }, [cards]);
-  useEffect(() => { localStorage.setItem('omnifield_checklists_v2', JSON.stringify(checklists)); }, [checklists]);
+  useEffect(() => { localStorage.setItem('omnifield_obras_clean', JSON.stringify(obras)); }, [obras]);
+  useEffect(() => { if (selectedObraId) localStorage.setItem('omnifield_selected_obra_clean', selectedObraId); }, [selectedObraId]);
+  useEffect(() => { localStorage.setItem('omnifield_quadros_clean', JSON.stringify(quadros)); }, [quadros]);
+  useEffect(() => { localStorage.setItem('omnifield_cards_clean', JSON.stringify(cards)); }, [cards]);
+  useEffect(() => { localStorage.setItem('omnifield_checklists_clean', JSON.stringify(checklists)); }, [checklists]);
 
   // Real-time synchronization with Firestore when Firebase is configured
   useEffect(() => {
     if (isFirebaseActive()) {
-      const unsubObras = subscribeFirestoreCollection('obras', (data) => { if (data.length) setObras(data); });
-      const unsubQuadros = subscribeFirestoreCollection('quadros', (data) => { if (data.length) setQuadros(data); });
-      const unsubCards = subscribeFirestoreCollection('cards', (data) => { if (data.length) setCards(data); });
-      const unsubChecklists = subscribeFirestoreCollection('checklists', (data) => { if (data.length) setChecklists(data); });
+      const unsubObras = subscribeFirestoreCollection('obras', (data) => {
+        setObras(data);
+        if (data.length && !selectedObraId) setSelectedObraId(data[0].id);
+      });
+      const unsubQuadros = subscribeFirestoreCollection('quadros', (data) => setQuadros(data));
+      const unsubCards = subscribeFirestoreCollection('cards', (data) => setCards(data));
+      const unsubChecklists = subscribeFirestoreCollection('checklists', (data) => setChecklists(data));
 
       return () => {
         unsubObras();
@@ -158,11 +64,12 @@ export const DataProvider = ({ children }) => {
     }
   }, []);
 
-  const activeObra = obras.find(o => o.id === selectedObraId) || obras[0];
-  const activeQuadros = quadros.filter(q => q.obraId === selectedObraId);
+  const activeObra = obras.find(o => o.id === selectedObraId) || obras[0] || null;
+  const activeQuadros = selectedObraId ? quadros.filter(q => q.obraId === selectedObraId) : [];
   const activeQuadro = quadros.find(q => q.id === selectedQuadroId);
 
   const getObraLaborCostsAndDays = (obraId) => {
+    if (!obraId) return { totalLaborCost: 0, daysSpent: 0, totalHours: 0 };
     const obraCards = cards.filter(c => c.obraId === obraId);
     let totalLaborCost = 0;
     let totalHours = 0;
@@ -209,6 +116,7 @@ export const DataProvider = ({ children }) => {
   };
 
   const addQuadro = (quadroData) => {
+    if (!selectedObraId) return;
     const newQuadro = {
       id: `qd-${Date.now()}`,
       obraId: selectedObraId,
@@ -221,6 +129,7 @@ export const DataProvider = ({ children }) => {
   };
 
   const addCard = (cardData) => {
+    if (!selectedObraId) return;
     const newCard = {
       id: `c-${Date.now()}`,
       obraId: selectedObraId,
@@ -301,6 +210,7 @@ export const DataProvider = ({ children }) => {
   };
 
   const addChecklistItem = (itemData) => {
+    if (!selectedObraId) return;
     const newItem = {
       id: `chk-${Date.now()}`,
       obraId: selectedObraId,

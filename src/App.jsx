@@ -119,7 +119,7 @@ function MainLayout() {
 
   const isMoreTabActive = moreMenuTabs.some(t => t.id === activeTab);
 
-  const showSidebar = !!selectedObraId && activeTab !== 'hub' && activeTab !== 'personal_agenda';
+  const showSidebar = (!!selectedObraId && activeTab !== 'hub') || activeTab === 'personal_agenda';
 
   return (
     <div className="app-container">

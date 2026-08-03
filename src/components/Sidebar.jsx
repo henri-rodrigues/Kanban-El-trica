@@ -13,7 +13,8 @@ import {
   Calendar,
   Wrench,
   FileText,
-  Grid
+  Grid,
+  UserCheck
 } from 'lucide-react';
 
 export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
@@ -101,6 +102,27 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
         >
           <Grid size={16} />
           <span>Vitrine de Obras</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('personal_agenda')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
+            padding: '0.55rem 0.75rem',
+            borderRadius: 'var(--radius-md)',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '0.8rem',
+            fontWeight: activeTab === 'personal_agenda' ? 600 : 400,
+            background: activeTab === 'personal_agenda' ? 'rgba(124, 58, 237, 0.15)' : 'transparent',
+            color: activeTab === 'personal_agenda' ? 'var(--accent-purple)' : 'var(--text-secondary)',
+            textAlign: 'left'
+          }}
+        >
+          <UserCheck size={16} />
+          <span>Minha Agenda Pessoal</span>
         </button>
 
         <button

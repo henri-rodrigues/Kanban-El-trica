@@ -139,7 +139,7 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
   const totalHoursWorked = (activeCard.workedDays || []).reduce((acc, curr) => acc + (curr.hours || 0), 0);
 
   return (
-    <div className="mobile-modal-overlay" style={{
+    <div className="mobile-modal-overlay" onClick={onClose} style={{
       position: 'fixed',
       inset: 0,
       zIndex: 1000,
@@ -151,6 +151,7 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
     }}>
       <div 
         className="glass-panel mobile-modal-content"
+        onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
           maxWidth: '750px',

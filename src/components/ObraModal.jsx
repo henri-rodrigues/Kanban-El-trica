@@ -119,7 +119,7 @@ export const ObraModal = ({ isOpen, type, editingObra, onClose }) => {
   };
 
   return (
-    <div style={{
+    <div className="mobile-modal-overlay" onClick={onClose} style={{
       position: 'fixed',
       inset: 0,
       zIndex: 1000,
@@ -130,7 +130,8 @@ export const ObraModal = ({ isOpen, type, editingObra, onClose }) => {
       padding: '1rem'
     }}>
       <div 
-        className="glass-panel"
+        className="glass-panel mobile-modal-content"
+        onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
           maxWidth: '580px',

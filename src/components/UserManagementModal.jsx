@@ -43,7 +43,7 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
   };
 
   return (
-    <div style={{
+    <div className="mobile-modal-overlay" onClick={onClose} style={{
       position: 'fixed',
       inset: 0,
       zIndex: 1000,
@@ -54,7 +54,8 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
       padding: '1rem'
     }}>
       <div 
-        className="glass-panel"
+        className="glass-panel mobile-modal-content"
+        onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%',
           maxWidth: '650px',

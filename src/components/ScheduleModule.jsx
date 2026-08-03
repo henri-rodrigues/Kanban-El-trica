@@ -21,11 +21,17 @@ import {
   Briefcase
 } from 'lucide-react';
 
-export const ScheduleModule = () => {
+export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
   const { isAdmin, users, currentUser } = useAuth();
   const { obras, activeObra, addScheduledTrip, deleteScheduledTrip } = useData();
 
-  const [activeViewMode, setActiveViewMode] = useState('obra'); // 'obra' | 'personal'
+  const [activeViewMode, setActiveViewMode] = useState(defaultViewMode); // 'obra' | 'personal'
+
+  React.useEffect(() => {
+    if (defaultViewMode) {
+      setActiveViewMode(defaultViewMode);
+    }
+  }, [defaultViewMode]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedUserIds, setSelectedUserIds] = useState([]);
   const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);

@@ -16,7 +16,8 @@ import {
   MessageSquare,
   Check,
   Trash2,
-  Menu
+  Menu,
+  Calendar
 } from 'lucide-react';
 
 export const Navbar = ({ 
@@ -24,6 +25,7 @@ export const Navbar = ({
   onOpenUserManagementModal, 
   onOpenPwaModal, 
   onGoToHub,
+  onOpenPersonalAgenda,
   onOpenChatModal,
   onToggleMobileDrawer
 }) => {
@@ -168,6 +170,19 @@ export const Navbar = ({
 
       {/* Right Controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+        {/* Minha Agenda Pessoal Trigger Button */}
+        {currentUser && (
+          <button
+            onClick={onOpenPersonalAgenda}
+            className="btn btn-secondary btn-sm"
+            title="Abrir Minha Agenda Pessoal de Viagens"
+            style={{ gap: '0.3rem', borderColor: 'var(--accent-purple)', padding: '0.35rem 0.5rem' }}
+          >
+            <Calendar size={14} className="text-purple" />
+            <span className="mobile-hide">Minha Agenda</span>
+          </button>
+        )}
+
         {/* Live Obra Chat Trigger Button */}
         {activeObra && (
           <button

@@ -94,6 +94,7 @@ function MainLayout() {
       case 'checklist': return 'Checklist HVAC';
       case 'materials': return 'Controle de Materiais & PDF';
       case 'agenda': return 'Agenda & Escala de Viagens';
+      case 'personal_agenda': return 'Minha Agenda Pessoal';
       case 'infra': return 'Kanban de Infraestrutura';
       case 'field_reports': return 'Diário de Campo & Mídias';
       case 'reports': return 'Relatórios Financeiros';
@@ -118,7 +119,7 @@ function MainLayout() {
 
   const isMoreTabActive = moreMenuTabs.some(t => t.id === activeTab);
 
-  const showSidebar = !!selectedObraId && activeTab !== 'hub';
+  const showSidebar = !!selectedObraId && activeTab !== 'hub' && activeTab !== 'personal_agenda';
 
   return (
     <div className="app-container">
@@ -128,6 +129,7 @@ function MainLayout() {
         onOpenFirebaseModal={() => setIsFirebaseModalOpen(true)}
         onOpenPwaModal={() => setIsPwaModalOpen(true)}
         onGoToHub={() => setActiveTab('hub')}
+        onOpenPersonalAgenda={() => setActiveTab('personal_agenda')}
         onOpenChatModal={() => setIsChatModalOpen(true)}
         onToggleMobileDrawer={() => setIsMobileDrawerOpen(!isMobileDrawerOpen)}
       />
@@ -168,7 +170,11 @@ function MainLayout() {
             )}
 
             {activeTab === 'agenda' && (
-              <ScheduleModule />
+              <ScheduleModule defaultViewMode="obra" />
+            )}
+
+            {activeTab === 'personal_agenda' && (
+              <ScheduleModule defaultViewMode="personal" />
             )}
 
             {activeTab === 'infra' && (

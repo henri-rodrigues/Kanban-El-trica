@@ -63,11 +63,7 @@ export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
 
       {/* Grid of Obras */}
       {obras.length > 0 ? (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-          gap: '1.25rem'
-        }}>
+        <div className="obra-hub-grid">
           {obras.map((obra) => {
             const obraQuadrosCount = quadros.filter(q => q.obraId === obra.id).length;
             const { totalLaborCost, daysSpent } = getObraLaborCostsAndDays(obra.id);

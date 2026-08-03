@@ -53,11 +53,7 @@ export const QuadrosView = ({ onOpenObraModal, setActiveTab }) => {
       </div>
 
       {/* Grid of Quadros */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
-        gap: '1.25rem'
-      }}>
+      <div className="obra-hub-grid">
         {activeQuadros.map((quadro) => (
           <div
             key={quadro.id}

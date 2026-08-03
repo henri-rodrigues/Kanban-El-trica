@@ -163,12 +163,10 @@ body {
   font-size: 0.75rem;
 }
 
-/* Badges & Tag Pills - Clean Auto Wrapping */
 /* Badges & Tag Pills - Clean Auto Wrapping & Truncation */
 .badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
+  display: inline-block;
+  vertical-align: middle;
   padding: 0.15rem 0.5rem;
   border-radius: 4px;
   font-size: 0.7rem;
@@ -177,6 +175,7 @@ body {
   max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
+  box-sizing: border-box;
 }
 
 .badge-blue { background: rgba(2, 132, 199, 0.15); color: var(--accent-blue); border: 1px solid rgba(2, 132, 199, 0.3); }

@@ -93,11 +93,24 @@ export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
                 onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
               >
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', gap: '0.5rem' }}>
-                    <span className="badge badge-blue" style={{ maxWidth: '65%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={obra.code || 'OBRA'}>
-                      {obra.code || 'OBRA'}
-                    </span>
-                    <span className="badge badge-emerald" style={{ flexShrink: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', gap: '0.5rem', width: '100%', minWidth: 0 }}>
+                    <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                      <span 
+                        className="badge badge-blue" 
+                        style={{ 
+                          display: 'inline-block',
+                          maxWidth: '100%', 
+                          overflow: 'hidden', 
+                          textOverflow: 'ellipsis', 
+                          whiteSpace: 'nowrap',
+                          verticalAlign: 'middle'
+                        }} 
+                        title={obra.code || 'OBRA'}
+                      >
+                        {obra.code || 'OBRA'}
+                      </span>
+                    </div>
+                    <span className="badge badge-emerald" style={{ flexShrink: 0, marginLeft: '0.35rem' }}>
                       {obra.status || 'Em Andamento'}
                     </span>
                   </div>

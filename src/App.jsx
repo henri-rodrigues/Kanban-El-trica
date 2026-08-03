@@ -38,8 +38,29 @@ function MainLayout() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   useEffect(() => {
-    if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
-      navigator.serviceWorker.register('./sw.js').catch(err => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js').then((registration) => {
+        // Force immediate check for new deployments on GitHub Pages
+        registration.update();
+
+        registration.addEventListener('updatefound', () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener('statechange', () => {
+              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                console.log('[PWA] Nova versão detectada! Limpando cache e atualizando...');
+                if (window.caches) {
+                  caches.keys().then((keys) => Promise.all(keys.map((k) => caches.delete(k)))).then(() => {
+                    window.location.reload();
+                  });
+                } else {
+                  window.location.reload();
+                }
+              }
+            });
+          }
+        });
+      }).catch(err => {
         console.log('Service Worker skipped:', err);
       });
     }

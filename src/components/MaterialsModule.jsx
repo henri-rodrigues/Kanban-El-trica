@@ -24,12 +24,13 @@ import {
 
 export const MaterialsModule = () => {
   const { isAdmin } = useAuth();
-  const { activeObra, purchaseOrders, addPurchaseOrder, updatePOItemStatus, deletePurchaseOrder } = useData();
+  const { activeObra, purchaseOrders, addPurchaseOrder, updatePurchaseOrderCategory, updatePOItemStatus, deletePurchaseOrder } = useData();
 
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
   const [isDragOverPdf, setIsDragOverPdf] = useState(false);
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState('ALL');
   const [pdfStatus, setPdfStatus] = useState(null);
+  const [pdfImportCategory, setPdfImportCategory] = useState('material'); // 'material' | 'infraestrutura'
 
   // Manual / Paste Modal State
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
@@ -53,11 +54,18 @@ export const MaterialsModule = () => {
 
   // Calculate totals and delivery percentage
   let totalMaterialsValue = 0;
+  let totalInfraValue = 0;
   let totalItemsOrderedCount = 0;
   let totalItemsArrivedCount = 0;
 
   obraPOs.forEach(po => {
-    totalMaterialsValue += (parseFloat(po.totalValue) || 0);
+    const val = parseFloat(po.totalValue) || 0;
+    if (po.destination === 'infraestrutura') {
+      totalInfraValue += val;
+    } else {
+      totalMaterialsValue += val;
+    }
+
     (po.items || []).forEach(itm => {
       totalItemsOrderedCount++;
       if (itm.status === 'Já Chegou') {
@@ -85,6 +93,9 @@ export const MaterialsModule = () => {
     setPdfStatus(null);
     try {
       const parsedData = await extractTextFromPDFFile(file);
+      const destination = pdfImportCategory;
+      const orderPayload = { ...parsedData, destination };
+
       if (parsedData.error) {
         setPdfStatus({
           type: 'warning',
@@ -94,10 +105,10 @@ export const MaterialsModule = () => {
         const itemsCount = (parsedData.items || []).length;
         setPdfStatus({
           type: 'success',
-          message: `PDF Lido com sucesso! Fornecedor: ${parsedData.fornecedor} | Req: ${parsedData.orderNumber} | ${itemsCount} itens encontrados | Total: ${formatBRL(parsedData.totalValue)}`
+          message: `PDF Lido com sucesso (${destination === 'infraestrutura' ? 'Infraestrutura' : 'Material'})! Fornecedor: ${parsedData.fornecedor} | Req: ${parsedData.orderNumber} | Total: ${formatBRL(parsedData.totalValue)}`
         });
       }
-      addPurchaseOrder(activeObra.id, parsedData);
+      addPurchaseOrder(activeObra.id, orderPayload);
     } catch (err) {
       console.error('Erro ao ler PDF:', err);
       setPdfStatus({
@@ -207,15 +218,53 @@ export const MaterialsModule = () => {
           </div>
         </div>
 
-        {/* PDF Import Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+        {/* PDF Import Controls & Verba Selector */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          {/* Category Toggle: Material vs Infraestrutura */}
+          <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-main)', padding: '3px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+            <button
+              type="button"
+              onClick={() => setPdfImportCategory('material')}
+              style={{
+                padding: '0.25rem 0.6rem',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                borderRadius: '4px',
+                border: 'none',
+                cursor: 'pointer',
+                background: pdfImportCategory === 'material' ? 'var(--accent-blue)' : 'transparent',
+                color: pdfImportCategory === 'material' ? '#ffffff' : 'var(--text-muted)'
+              }}
+              title="Pedidos de Quadros, Componentes e Painéis (Verba de Materiais)"
+            >
+              ⚡ Material (Quadros)
+            </button>
+            <button
+              type="button"
+              onClick={() => setPdfImportCategory('infraestrutura')}
+              style={{
+                padding: '0.25rem 0.6rem',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                borderRadius: '4px',
+                border: 'none',
+                cursor: 'pointer',
+                background: pdfImportCategory === 'infraestrutura' ? 'var(--accent-purple)' : 'transparent',
+                color: pdfImportCategory === 'infraestrutura' ? '#ffffff' : 'var(--text-muted)'
+              }}
+              title="Pedidos de Infraestrutura em Campo, Eletrocalhas e Cabos (Verba de Infraestrutura)"
+            >
+              🛠️ Infraestrutura
+            </button>
+          </div>
+
           <button onClick={() => setIsPasteModalOpen(true)} className="btn btn-secondary btn-sm">
             <ClipboardList size={14} className="text-amber" /> Colar / Inserir Pedido
           </button>
 
           <label className="btn btn-primary btn-sm" style={{ cursor: 'pointer' }}>
             <Upload size={14} />
-            <span>{isLoadingPdf ? 'Lendo PDF...' : 'Importar PDF'}</span>
+            <span>{isLoadingPdf ? 'Lendo PDF...' : `Importar PDF (${pdfImportCategory === 'infraestrutura' ? 'Infra' : 'Material'})`}</span>
             <input type="file" accept=".pdf" onChange={(e) => processPdfFile(e.target.files[0])} style={{ display: 'none' }} disabled={isLoadingPdf} />
           </label>
         </div>
@@ -282,37 +331,37 @@ export const MaterialsModule = () => {
       >
         <FileUp size={36} style={{ color: isDragOverPdf ? 'var(--accent-blue)' : 'var(--text-muted)', marginBottom: '0.5rem' }} />
         <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>
-          {isDragOverPdf ? 'Solte o arquivo PDF aqui!' : '📁 Arraste e solte o arquivo PDF do Pedido de Compra aqui'}
+          {isDragOverPdf ? 'Solte o arquivo PDF aqui!' : `📁 Solte o PDF aqui (Destinado à Verba de ${pdfImportCategory === 'infraestrutura' ? 'Infraestrutura' : 'Materiais'})`}
         </h3>
         <p style={{ fontSize: '0.775rem', color: 'var(--text-secondary)' }}>
-          Ou clique para procurar. O leitor extrai fornecedor, os 12 itens do pedido e desconta automaticamente da verba da obra.
+          Ou clique para procurar. O leitor extrai fornecedor, os itens do pedido e desconta automaticamente da verba da obra.
         </p>
       </div>
 
       {/* KPI Cards Grid */}
       <div className="kpi-grid-mobile" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
         <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-blue)' }}>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.2rem' }}>Total Investido em Materiais</div>
+          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.2rem' }}>Verba de Materiais (Quadros)</div>
           <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-blue)' }}>{formatBRL(totalMaterialsValue)}</div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Descontado automaticamente da Verba</div>
-        </div>
-
-        <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-emerald)' }}>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.2rem' }}>Taxa de Entrega de Materiais</div>
-          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>{totalDeliveryPct}%</div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>{totalItemsArrivedCount} de {totalItemsOrderedCount} itens já chegaram</div>
-        </div>
-
-        <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-amber)' }}>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.2rem' }}>Itens Pendentes (Falta Chegar)</div>
-          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-amber)' }}>{totalItemsOrderedCount - totalItemsArrivedCount} itens</div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Aguardando entrega do fornecedor</div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Debitado da Verba de Materiais</div>
         </div>
 
         <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-purple)' }}>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.2rem' }}>Fornecedores Ativos</div>
-          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-purple)' }}>{suppliersList.length} Fornecedores</div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>{obraPOs.length} Pedidos de Compra</div>
+          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.2rem' }}>Verba de Infraestrutura</div>
+          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-purple)' }}>{formatBRL(totalInfraValue)}</div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Debitado da Verba de Infraestrutura</div>
+        </div>
+
+        <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-emerald)' }}>
+          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.2rem' }}>Taxa de Entrega</div>
+          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>{totalDeliveryPct}%</div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>{totalItemsArrivedCount} de {totalItemsOrderedCount} itens recebidos</div>
+        </div>
+
+        <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-amber)' }}>
+          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.2rem' }}>Itens Pendentes</div>
+          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-amber)' }}>{totalItemsOrderedCount - totalItemsArrivedCount} itens</div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>{suppliersList.length} fornecedores ativos</div>
         </div>
       </div>
 
@@ -362,7 +411,7 @@ export const MaterialsModule = () => {
                 {/* PO Header */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
                       <span className="badge badge-blue">
                         Req Nº {po.orderNumber || '17355'}
                       </span>
@@ -372,6 +421,15 @@ export const MaterialsModule = () => {
                       <span className="badge badge-amber">
                         📅 {po.date}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => updatePurchaseOrderCategory(po.id, po.destination === 'infraestrutura' ? 'material' : 'infraestrutura')}
+                        className={`badge ${po.destination === 'infraestrutura' ? 'badge-purple' : 'badge-emerald'}`}
+                        style={{ cursor: 'pointer', border: 'none' }}
+                        title="Clique para alternar a verba debitada (Material vs Infraestrutura)"
+                      >
+                        {po.destination === 'infraestrutura' ? '🛠️ Verba: Infraestrutura' : '⚡ Verba: Material (Quadros)'}
+                      </button>
                     </div>
 
                     <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>

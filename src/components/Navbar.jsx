@@ -238,14 +238,27 @@ export const Navbar = ({
                     <div style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                       <Bell size={14} className="text-amber" /> Central de Notificações
                     </div>
-                    {myNotifications.length > 0 && (
-                      <button 
-                        onClick={clearAllNotifications}
-                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.7rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
-                      >
-                        <Trash2 size={12} /> Limpar
-                      </button>
-                    )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      {typeof window !== 'undefined' && 'Notification' in window && Notification.permission !== 'granted' && (
+                        <button
+                          type="button"
+                          onClick={() => Notification.requestPermission()}
+                          className="badge badge-blue"
+                          style={{ cursor: 'pointer', border: 'none' }}
+                          title="Permitir popups de mensagem no celular ou PC"
+                        >
+                          🔔 Ativar Alertas
+                        </button>
+                      )}
+                      {myNotifications.length > 0 && (
+                        <button 
+                          onClick={clearAllNotifications}
+                          style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.7rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+                        >
+                          <Trash2 size={12} /> Limpar
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {myNotifications.length > 0 ? (

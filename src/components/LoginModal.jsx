@@ -173,37 +173,6 @@ export const LoginModal = ({ isOpen, onClose }) => {
               <LogIn size={16} /> Acessar Conta
             </button>
 
-            {/* Quick Login Accounts Preview */}
-            <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
-                Contas Cadastradas (Clique para preencher)
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                {users.map(u => (
-                  <div
-                    key={u.id}
-                    onClick={() => {
-                      setLoginIdentifier(u.email || u.name);
-                      setLoginPassword(u.password || 'admin');
-                    }}
-                    style={{
-                      padding: '0.4rem 0.6rem',
-                      borderRadius: '4px',
-                      background: 'var(--bg-main)',
-                      border: '1px solid var(--border-color)',
-                      cursor: 'pointer',
-                      fontSize: '0.75rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
-                    }}
-                  >
-                    <span>{u.name} ({u.role})</span>
-                    <span style={{ color: 'var(--text-muted)' }}>{u.email}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
           </form>
         )}
 

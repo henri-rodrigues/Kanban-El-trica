@@ -162,28 +162,6 @@ export const LoginScreenView = () => {
               <LogIn size={16} /> Acessar Sistema
             </button>
 
-            {/* Quick Demo Credentials Preset */}
-            <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border-color)' }}>
-              <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
-                Contas Padrão de Teste (Clique para preencher):
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                <div
-                  onClick={() => { setIdentifier('admin@omnifield.com'); setPassword('admin'); }}
-                  style={{ padding: '0.45rem 0.65rem', borderRadius: '4px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.775rem', display: 'flex', justifyContent: 'space-between' }}
-                >
-                  <span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>🛡️ Admin: admin@omnifield.com</span>
-                  <span style={{ color: 'var(--text-muted)' }}>Senha: admin</span>
-                </div>
-                <div
-                  onClick={() => { setIdentifier('operador@omnifield.com'); setPassword('123'); }}
-                  style={{ padding: '0.45rem 0.65rem', borderRadius: '4px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', cursor: 'pointer', fontSize: '0.775rem', display: 'flex', justifyContent: 'space-between' }}
-                >
-                  <span style={{ color: 'var(--accent-emerald)', fontWeight: 600 }}>👤 Operador: operador@omnifield.com</span>
-                  <span style={{ color: 'var(--text-muted)' }}>Senha: 123</span>
-                </div>
-              </div>
-            </div>
           </form>
         )}
 

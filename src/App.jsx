@@ -118,6 +118,8 @@ function MainLayout() {
 
   const isMoreTabActive = moreMenuTabs.some(t => t.id === activeTab);
 
+  const showSidebar = !!selectedObraId && activeTab !== 'hub';
+
   return (
     <div className="app-container">
       <Navbar 
@@ -131,13 +133,15 @@ function MainLayout() {
       />
 
       <div className="app-main">
-        <div className="desktop-sidebar">
-          <Sidebar 
-            activeTab={activeTab} 
-            setActiveTab={setActiveTab} 
-            onOpenObraModal={handleOpenObraModal} 
-          />
-        </div>
+        {showSidebar && (
+          <div className="desktop-sidebar">
+            <Sidebar 
+              activeTab={activeTab} 
+              setActiveTab={setActiveTab} 
+              onOpenObraModal={handleOpenObraModal} 
+            />
+          </div>
+        )}
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
           {/* Location Breadcrumb Bar */}

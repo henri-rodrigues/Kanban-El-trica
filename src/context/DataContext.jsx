@@ -285,11 +285,18 @@ export const DataProvider = ({ children }) => {
       if (o.id === obraId) {
         const currentTrips = o.scheduledTrips || [];
         const distKm = parseFloat(tripData.distanceKm || o.distanceKm || 0) || 0;
-        const tripCost = tripData.cost || (distKm * 1.5);
+        const targetUserIds = tripData.userIds || (tripData.userId ? [tripData.userId] : []);
+        const numColabs = targetUserIds.length || 1;
+        const isDoubleCar = numColabs > 4;
+        const baseCost = distKm * 1.5;
+        const tripCost = tripData.cost !== undefined ? tripData.cost : (isDoubleCar ? baseCost * 2 : baseCost);
 
         const newTrip = {
           id: `trip-${Date.now()}`,
           cost: tripCost,
+          userIds: targetUserIds,
+          userNames: tripData.userNames || [tripData.userName || 'Operador'],
+          isDoubleCar,
           createdAt: new Date().toISOString().split('T')[0],
           ...tripData
         };
@@ -300,18 +307,20 @@ export const DataProvider = ({ children }) => {
         };
         if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updated);
 
-        // Notify booked user
-        if (tripData.userId && currentUser) {
-          addNotification({
-            recipientUserId: tripData.userId,
-            senderUserId: currentUser.id,
-            senderName: currentUser.name,
-            type: 'travel_schedule',
-            title: `🛫 Viagem Agendada!`,
-            message: `${currentUser.name} agendou sua viagem para a Obra "${o.name}" de ${tripData.startDate} a ${tripData.endDate}.`,
-            obraId: obraId
-          });
-        }
+        // Notify all booked users
+        targetUserIds.forEach(targetId => {
+          if (currentUser && targetId !== currentUser.id) {
+            addNotification({
+              recipientUserId: targetId,
+              senderUserId: currentUser.id,
+              senderName: currentUser.name,
+              type: 'travel_schedule',
+              title: `🛫 Viagem Agendada!`,
+              message: `${currentUser.name} agendou sua viagem para a Obra "${o.name}" (${tripData.startDate} a ${tripData.endDate}). Total: ${numColabs} colaboradores (${isDoubleCar ? '2 carros - custo dobrado' : '1 carro'}).`,
+              obraId: obraId
+            });
+          }
+        });
 
         return updated;
       }
@@ -522,11 +531,20 @@ export const DataProvider = ({ children }) => {
     const targetPO = purchaseOrders.find(po => po.id === orderId);
     if (targetPO) {
       const poValue = parseFloat(targetPO.totalValue) || 0;
+      const dest = targetPO.destination || 'quadros';
+
       setRawObras(prev => prev.map(o => {
         if (o.id === targetPO.obraId) {
-          const currentMatCost = parseFloat(o.materialCosts) || 0;
-          const updatedMatCost = Math.max(0, currentMatCost - poValue);
-          const updatedObra = { ...o, materialCosts: updatedMatCost };
+          let updatedObra;
+          if (dest === 'infraestrutura') {
+            const currentInfraCost = parseFloat(o.infraSpentCost) || 0;
+            const updatedInfraCost = Math.max(0, currentInfraCost - poValue);
+            updatedObra = { ...o, infraSpentCost: updatedInfraCost };
+          } else {
+            const currentMatCost = parseFloat(o.materialCosts) || 0;
+            const updatedMatCost = Math.max(0, currentMatCost - poValue);
+            updatedObra = { ...o, materialCosts: updatedMatCost };
+          }
           if (isFirebaseActive()) saveFirestoreDoc('obras', o.id, updatedObra);
           return updatedObra;
         }
@@ -536,6 +554,44 @@ export const DataProvider = ({ children }) => {
 
     setPurchaseOrders(prev => prev.filter(po => po.id !== orderId));
     if (isFirebaseActive()) deleteFirestoreDoc('purchase_orders', orderId);
+  };
+
+  const updatePurchaseOrderCategory = (orderId, newDestination) => {
+    if (!isAdmin || !orderId) return;
+
+    setPurchaseOrders(prev => prev.map(po => {
+      if (po.id === orderId) {
+        const oldDest = po.destination || 'quadros';
+        if (oldDest === newDestination) return po;
+
+        const poValue = parseFloat(po.totalValue) || 0;
+        setRawObras(rawPrev => rawPrev.map(o => {
+          if (o.id === po.obraId) {
+            let updatedObra = { ...o };
+            if (oldDest === 'infraestrutura') {
+              updatedObra.infraSpentCost = Math.max(0, (parseFloat(o.infraSpentCost) || 0) - poValue);
+            } else {
+              updatedObra.materialCosts = Math.max(0, (parseFloat(o.materialCosts) || 0) - poValue);
+            }
+
+            if (newDestination === 'infraestrutura') {
+              updatedObra.infraSpentCost = (parseFloat(updatedObra.infraSpentCost) || 0) + poValue;
+            } else {
+              updatedObra.materialCosts = (parseFloat(updatedObra.materialCosts) || 0) + poValue;
+            }
+
+            if (isFirebaseActive()) saveFirestoreDoc('obras', o.id, updatedObra);
+            return updatedObra;
+          }
+          return o;
+        }));
+
+        const updatedPO = { ...po, destination: newDestination };
+        if (isFirebaseActive()) saveFirestoreDoc('purchase_orders', orderId, updatedPO);
+        return updatedPO;
+      }
+      return po;
+    }));
   };
 
   const addWorkLogToCard = (cardId, log) => {
@@ -687,6 +743,7 @@ export const DataProvider = ({ children }) => {
         sendChatMessage,
         getObraLaborCostsAndDays,
         addPurchaseOrder,
+        updatePurchaseOrderCategory,
         updatePOItemStatus,
         deletePurchaseOrder,
         addObra,

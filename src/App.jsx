@@ -131,17 +131,15 @@ function MainLayout() {
       />
 
       <div className="app-main">
-        {activeTab !== 'hub' && (
-          <div className="desktop-sidebar">
-            <Sidebar 
-              activeTab={activeTab} 
-              setActiveTab={setActiveTab} 
-              onOpenObraModal={handleOpenObraModal} 
-            />
-          </div>
-        )}
+        <div className="desktop-sidebar">
+          <Sidebar 
+            activeTab={activeTab} 
+            setActiveTab={setActiveTab} 
+            onOpenObraModal={handleOpenObraModal} 
+          />
+        </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
           {/* Location Breadcrumb Bar */}
           <Breadcrumb activeTabName={getTabLabel(activeTab)} />
 

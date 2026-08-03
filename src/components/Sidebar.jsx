@@ -12,7 +12,8 @@ import {
   Edit3,
   Calendar,
   Wrench,
-  FileText
+  FileText,
+  Grid
 } from 'lucide-react';
 
 export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
@@ -80,6 +81,27 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
         <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '0 0.4rem 0.2rem' }}>
           Navegação
         </div>
+
+        <button
+          onClick={() => setActiveTab('hub')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
+            padding: '0.55rem 0.75rem',
+            borderRadius: 'var(--radius-md)',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '0.8rem',
+            fontWeight: activeTab === 'hub' ? 600 : 400,
+            background: activeTab === 'hub' ? 'rgba(2, 132, 199, 0.15)' : 'transparent',
+            color: activeTab === 'hub' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+            textAlign: 'left'
+          }}
+        >
+          <Grid size={16} />
+          <span>Vitrine de Obras</span>
+        </button>
 
         <button
           onClick={() => setActiveTab('kanban')}

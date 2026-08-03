@@ -172,12 +172,12 @@ export const Navbar = ({
         {activeObra && (
           <button
             onClick={onOpenChatModal}
-            className="btn btn-secondary btn-sm"
+            className="btn btn-secondary btn-sm mobile-hide"
             title={`Abrir Chat da Obra (${activeObra.name})`}
             style={{ gap: '0.3rem', borderColor: 'var(--accent-blue)', padding: '0.35rem 0.5rem' }}
           >
             <MessageSquare size={14} className="text-blue" />
-            <span className="mobile-hide">Chat Obra</span>
+            <span>Chat Obra</span>
           </button>
         )}
 

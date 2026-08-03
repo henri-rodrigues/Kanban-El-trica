@@ -129,7 +129,7 @@ export const DataProvider = ({ children }) => {
   };
 
   const activeObra = obras.find(o => o.id === selectedObraId) || obras[0] || null;
-  const activeQuadros = selectedObraId ? quadros.filter(q => q.obraId === selectedObraId) : [];
+  const activeQuadros = activeObra ? quadros.filter(q => q.obraId === activeObra.id) : [];
   const activeQuadro = quadros.find(q => q.id === selectedQuadroId);
 
   const getObraLaborCostsAndDays = (obraId) => {

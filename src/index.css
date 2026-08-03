@@ -226,9 +226,14 @@ body {
   gap: 0.75rem;
 }
 
+/* Mobile Bottom Navigation Bar - Hide on Desktop */
+.mobile-bottom-nav {
+  display: none !important;
+}
+
 /* Mobile More Menu */
 .mobile-more-menu {
-  display: none;
+  display: none !important;
 }
 
 /* ===== MOBILE BREAKPOINT ===== */

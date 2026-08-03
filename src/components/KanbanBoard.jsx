@@ -43,10 +43,19 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
   const [dragOverColId, setDragOverColId] = useState(null);
   const [permissionErrorMsg, setPermissionErrorMsg] = useState('');
 
+  if (!activeObra) {
+    return (
+      <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
+        <AlertCircle size={48} className="text-amber" style={{ marginBottom: '1rem', opacity: 0.7 }} />
+        <h3>Nenhuma Obra Selecionada</h3>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Selecione ou crie uma obra na vitrine para gerenciar o quadro Kanban e post-its.</p>
+      </div>
+    );
+  }
+
   const filteredCards = cards.filter(c => {
-    if (c.obraId !== activeObra?.id) return false;
+    if (c.obraId !== activeObra.id) return false;
     if (selectedQuadroId && c.quadroId !== selectedQuadroId) return false;
-    if (!selectedQuadroId && (c.level !== 'obra' && c.quadroId)) return false;
     if (searchFilter && !c.title.toLowerCase().includes(searchFilter.toLowerCase())) return false;
     return true;
   });

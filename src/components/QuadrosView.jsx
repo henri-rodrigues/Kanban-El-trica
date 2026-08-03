@@ -1,9 +1,11 @@
 import React from 'react';
+import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { Layers, Plus, Building, CheckCircle2, Clock, MapPin, Tag } from 'lucide-react';
+import { Layers, Plus, Building, CheckCircle2, Clock, MapPin, Tag, Trash2 } from 'lucide-react';
 
-export const QuadrosView = ({ onOpenObraModal }) => {
-  const { activeObra, activeQuadros, setSelectedQuadroId, selectedQuadroId } = useData();
+export const QuadrosView = ({ onOpenObraModal, setActiveTab }) => {
+  const { isAdmin } = useAuth();
+  const { activeObra, activeQuadros, setSelectedQuadroId, selectedQuadroId, deleteQuadro, cards } = useData();
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -43,15 +45,17 @@ export const QuadrosView = ({ onOpenObraModal }) => {
           </div>
         </div>
 
-        <button onClick={() => onOpenObraModal('quadro')} className="btn btn-primary btn-sm">
-          <Plus size={15} /> Adicionar Novo Quadro
-        </button>
+        {isAdmin && (
+          <button onClick={() => onOpenObraModal('quadro')} className="btn btn-primary btn-sm">
+            <Plus size={15} /> Adicionar Novo Quadro
+          </button>
+        )}
       </div>
 
       {/* Grid of Quadros */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+        gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
         gap: '1.25rem'
       }}>
         {activeQuadros.map((quadro) => (
@@ -95,12 +99,29 @@ export const QuadrosView = ({ onOpenObraModal }) => {
 
             <div style={{ display: 'flex', gap: '0.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.85rem' }}>
               <button
-                onClick={() => setSelectedQuadroId(quadro.id)}
+                onClick={() => {
+                  setSelectedQuadroId(quadro.id);
+                  if (setActiveTab) setActiveTab('kanban');
+                }}
                 className="btn btn-primary btn-sm"
-                style={{ flex: 1, justifyContent: 'center' }}
+                style={{ flex: 1, justifyContent: 'center', fontWeight: 700 }}
               >
-                ⚡ Ver Post-its do Quadro
+                ⚡ Ver Post-its do Quadro ({cards.filter(c => c.quadroId === quadro.id).length})
               </button>
+
+              {isAdmin && (
+                <button
+                  onClick={() => {
+                    if (window.confirm(`Tem certeza que deseja EXCLUIR o quadro "${quadro.name}"?\nEsta ação excluirá todos os post-its vinculados.`)) {
+                      deleteQuadro(quadro.id);
+                    }
+                  }}
+                  className="btn btn-danger btn-sm"
+                  title="Excluir Quadro"
+                >
+                  <Trash2 size={14} />
+                </button>
+              )}
             </div>
           </div>
         ))}

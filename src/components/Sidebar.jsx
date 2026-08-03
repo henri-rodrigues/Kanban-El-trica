@@ -8,7 +8,11 @@ import {
   BarChart3, 
   Plus, 
   Package,
-  ChevronRight
+  ChevronRight,
+  Edit3,
+  Calendar,
+  Wrench,
+  FileText
 } from 'lucide-react';
 
 export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
@@ -36,8 +40,20 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
         <div style={{ fontSize: '0.675rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.15rem' }}>
           Obra Ativa
         </div>
-        <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)', marginBottom: '0.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {activeObra?.name || 'Nenhuma Obra'}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+          <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+            {activeObra?.name || 'Nenhuma Obra'}
+          </div>
+          {activeObra && isAdmin && (
+            <button
+              type="button"
+              onClick={() => onOpenObraModal('edit_obra', activeObra)}
+              style={{ background: 'none', border: 'none', color: 'var(--accent-blue)', cursor: 'pointer', padding: '2px', display: 'flex', alignItems: 'center' }}
+              title="Editar Dados e Permissões da Obra"
+            >
+              <Edit3 size={13} />
+            </button>
+          )}
         </div>
 
         {activeObra ? (
@@ -126,6 +142,69 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
         >
           <CheckSquare size={16} />
           <span>Checklist HVAC</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('agenda')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
+            padding: '0.55rem 0.75rem',
+            borderRadius: 'var(--radius-md)',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '0.8rem',
+            fontWeight: activeTab === 'agenda' ? 600 : 400,
+            background: activeTab === 'agenda' ? 'rgba(2, 132, 199, 0.15)' : 'transparent',
+            color: activeTab === 'agenda' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+            textAlign: 'left'
+          }}
+        >
+          <Calendar size={16} />
+          <span>Agenda & Escala Viagens</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('infra')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
+            padding: '0.55rem 0.75rem',
+            borderRadius: 'var(--radius-md)',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '0.8rem',
+            fontWeight: activeTab === 'infra' ? 600 : 400,
+            background: activeTab === 'infra' ? 'rgba(2, 132, 199, 0.15)' : 'transparent',
+            color: activeTab === 'infra' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+            textAlign: 'left'
+          }}
+        >
+          <Wrench size={16} />
+          <span>Kanban de Infraestrutura</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('field_reports')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
+            padding: '0.55rem 0.75rem',
+            borderRadius: 'var(--radius-md)',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '0.8rem',
+            fontWeight: activeTab === 'field_reports' ? 600 : 400,
+            background: activeTab === 'field_reports' ? 'rgba(2, 132, 199, 0.15)' : 'transparent',
+            color: activeTab === 'field_reports' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+            textAlign: 'left'
+          }}
+        >
+          <FileText size={16} />
+          <span>Diário de Campo & Mídia</span>
         </button>
 
         {/* Materials Control Tab ONLY for Admin */}

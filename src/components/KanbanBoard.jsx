@@ -155,78 +155,82 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
         padding: '0.65rem 0.85rem',
         borderRadius: 'var(--radius-md)',
         display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
+        flexDirection: 'column',
         gap: '0.65rem'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.95rem' }}>
-            <Layers size={18} style={{ color: 'var(--accent-blue)' }} />
-            <span>{selectedQuadroId ? activeQuadro?.name : activeObra?.name}</span>
+        {/* First row: Title + Search */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.95rem', minWidth: 0 }}>
+            <Layers size={18} style={{ color: 'var(--accent-blue)', flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {selectedQuadroId ? activeQuadro?.name : activeObra?.name}
+            </span>
           </div>
 
-          {/* 2-Level Scope Pills */}
-          <div style={{ display: 'flex', background: 'var(--bg-main)', borderRadius: 'var(--radius-md)', padding: '2px', border: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ position: 'relative', width: '150px' }}>
+              <Search size={14} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                type="text"
+                placeholder="Pesquisar..."
+                className="form-control"
+                style={{ paddingLeft: '28px', fontSize: '0.75rem', padding: '0.35rem 0.6rem 0.35rem 28px' }}
+                value={searchFilter}
+                onChange={(e) => setSearchFilter(e.target.value)}
+              />
+            </div>
+
+            <button onClick={() => onOpenObraModal('quadro')} className="btn btn-secondary btn-sm">
+              <Plus size={14} /> <span className="mobile-hide">Quadro</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Second row: Scope Pills — horizontal scroll on mobile */}
+        <div style={{ display: 'flex', overflowX: 'auto', WebkitOverflowScrolling: 'touch', gap: '2px', background: 'var(--bg-main)', borderRadius: 'var(--radius-md)', padding: '2px', border: '1px solid var(--border-color)' }}>
+          <button
+            onClick={() => setSelectedQuadroId(null)}
+            style={{
+              padding: '0.3rem 0.6rem',
+              fontSize: '0.725rem',
+              fontWeight: 600,
+              borderRadius: 'var(--radius-sm)',
+              border: 'none',
+              cursor: 'pointer',
+              background: selectedQuadroId === null ? 'var(--accent-blue)' : 'transparent',
+              color: selectedQuadroId === null ? '#ffffff' : 'var(--text-muted)',
+              whiteSpace: 'nowrap',
+              flexShrink: 0
+            }}
+          >
+            🌐 Obra Geral
+          </button>
+
+          {activeQuadros.map(q => (
             <button
-              onClick={() => setSelectedQuadroId(null)}
+              key={q.id}
+              onClick={() => setSelectedQuadroId(q.id)}
               style={{
-                padding: '0.25rem 0.6rem',
+                padding: '0.3rem 0.55rem',
                 fontSize: '0.725rem',
                 fontWeight: 600,
                 borderRadius: 'var(--radius-sm)',
                 border: 'none',
                 cursor: 'pointer',
-                background: selectedQuadroId === null ? 'var(--accent-blue)' : 'transparent',
-                color: selectedQuadroId === null ? '#ffffff' : 'var(--text-muted)'
+                background: selectedQuadroId === q.id ? 'var(--accent-purple)' : 'transparent',
+                color: selectedQuadroId === q.id ? '#ffffff' : 'var(--text-muted)',
+                whiteSpace: 'nowrap',
+                flexShrink: 0
               }}
             >
-              🌐 Obra Geral
+              ⚡ {q.name}
             </button>
-
-            {activeQuadros.map(q => (
-              <button
-                key={q.id}
-                onClick={() => setSelectedQuadroId(q.id)}
-                style={{
-                  padding: '0.25rem 0.55rem',
-                  fontSize: '0.725rem',
-                  fontWeight: 600,
-                  borderRadius: 'var(--radius-sm)',
-                  border: 'none',
-                  cursor: 'pointer',
-                  background: selectedQuadroId === q.id ? 'var(--accent-purple)' : 'transparent',
-                  color: selectedQuadroId === q.id ? '#ffffff' : 'var(--text-muted)'
-                }}
-              >
-                ⚡ {q.name.split('-')[0]}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Filter Search Input */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{ position: 'relative', width: '180px' }}>
-            <Search size={14} style={{ position: 'absolute', left: '8px', top: '8px', color: 'var(--text-muted)' }} />
-            <input
-              type="text"
-              placeholder="Pesquisar..."
-              className="form-control"
-              style={{ paddingLeft: '28px', fontSize: '0.75rem', padding: '0.35rem 0.6rem 0.35rem 28px' }}
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-            />
-          </div>
-
-          <button onClick={() => onOpenObraModal('quadro')} className="btn btn-secondary btn-sm">
-            <Plus size={14} /> Quadro
-          </button>
+          ))}
         </div>
       </div>
 
-      {/* User Legend */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)', padding: '0 0.25rem' }}>
+      {/* User Legend — hidden on mobile */}
+      <div className="mobile-hide" style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)', padding: '0 0.25rem' }}>
         <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Operadores:</span>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           {users.map(u => (
@@ -241,13 +245,45 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
         </span>
       </div>
 
-      {/* Kanban Board Columns Grid */}
-      <div style={{
-        display: 'grid',
+      {/* Mobile Column Quick Filter Pills */}
+      <div className="mobile-show" style={{ display: 'none', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.2rem', WebkitOverflowScrolling: 'touch' }}>
+        {COLUMNS.map(col => {
+          const count = filteredCards.filter(c => c.column === col.id).length;
+          return (
+            <button
+              key={col.id}
+              onClick={() => {
+                const el = document.getElementById(`kanban-col-${col.id}`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
+              }}
+              style={{
+                padding: '0.35rem 0.65rem',
+                borderRadius: '16px',
+                fontSize: '0.7rem',
+                fontWeight: 700,
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-card)',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                flexShrink: 0
+              }}
+            >
+              <span>{col.title}</span>
+              <span className="badge badge-blue" style={{ fontSize: '0.65rem', padding: '0 4px' }}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Kanban Board Columns — Horizontal scroll on mobile */}
+      <div className="kanban-scroll-container" style={{
         gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        gap: '0.75rem',
         flex: 1,
-        alignItems: 'start'
+        alignItems: 'stretch'
       }}>
         {COLUMNS.map((col) => {
           const colCards = filteredCards.filter(c => c.column === col.id);
@@ -256,6 +292,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
           return (
             <div 
               key={col.id}
+              id={`kanban-col-${col.id}`}
               className={`glass-panel ${isDragOver ? 'kanban-col-dragover' : ''}`}
               onDragOver={(e) => handleDragOver(e, col.id)}
               onDragLeave={(e) => handleDragLeave(e, col.id)}
@@ -263,7 +300,6 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
               style={{
                 borderRadius: 'var(--radius-md)',
                 padding: '0.65rem',
-                minHeight: '460px',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '0.55rem',
@@ -289,7 +325,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                   <input
                     type="text"
                     autoFocus
-                    placeholder="Enter title..."
+                    placeholder="Título do post-it..."
                     className="form-control"
                     style={{ fontSize: '0.775rem', padding: '0.35rem 0.5rem' }}
                     value={newCardTitle}
@@ -298,10 +334,10 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                   />
                   <div style={{ display: 'flex', gap: '0.2rem' }}>
                     <button onClick={() => handleCreateQuickCard(col.id)} className="btn btn-primary btn-sm" style={{ flex: 1 }}>
-                      Add
+                      Criar
                     </button>
                     <button onClick={() => setActiveNewCardCol(null)} className="btn btn-secondary btn-sm">
-                      Cancel
+                      ✕
                     </button>
                   </div>
                 </div>
@@ -312,7 +348,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.3rem',
-                    padding: '0.35rem 0.5rem',
+                    padding: '0.4rem 0.5rem',
                     borderRadius: '4px',
                     border: '1px dashed var(--border-color)',
                     background: 'var(--bg-main)',
@@ -323,7 +359,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                     justifyContent: 'center'
                   }}
                 >
-                  <Plus size={13} /> + Adicionar Item
+                  <Plus size={13} /> Adicionar Item
                 </button>
               )}
 
@@ -344,13 +380,17 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                       onDragStart={(e) => handleDragStart(e, card)}
                       onClick={() => handleCardClick(card)}
                       style={{
-                        padding: '0.65rem',
-                        borderRadius: 'var(--radius-md)',
+                        padding: '0.75rem',
+                        borderRadius: 'var(--radius-sm)',
                         background: 'var(--bg-main)',
                         border: `1px solid ${cardGradient.border}`,
                         borderLeft: `5px solid ${cardGradient.border}`,
                         cursor: canTouch ? 'grab' : 'not-allowed',
                         opacity: canTouch ? 1 : 0.8,
+                        minHeight: '110px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
                         transition: 'background 0.15s ease, transform 0.15s ease'
                       }}
                       onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-card-hover)'}
@@ -362,25 +402,43 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                           {card.title}
                         </h4>
                         {canTouch ? (
-                          <GripVertical size={13} style={{ color: 'var(--text-muted)', cursor: 'grab' }} />
+                          <GripVertical size={13} style={{ color: 'var(--text-muted)', cursor: 'grab', flexShrink: 0 }} />
                         ) : (
-                          <Lock size={13} style={{ color: 'var(--accent-rose)' }} title="Post-it pertence a outro operador" />
+                          <Lock size={13} style={{ color: 'var(--accent-rose)', flexShrink: 0 }} title="Post-it pertence a outro operador" />
                         )}
                       </div>
 
-                      {/* Tag Pills */}
+                      {/* Priority / Severity Badge */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
-                        <span className="tag-pill" style={{ background: cardGradient.gradient, color: '#ffffff' }}>
-                          {cardGradient.name}
+                        <span className={`badge ${
+                          card.priority === 'Crítica' || card.priority === 'Alta' ? 'badge-danger' : 
+                          card.priority === 'Média' ? 'badge-amber' : 'badge-emerald'
+                        }`} style={{ fontSize: '0.65rem', padding: '1px 6px' }}>
+                          {card.priority || 'Normal'}
                         </span>
                         <span className="tag-pill tag-hvac">
                           {card.categoryTag || 'HVAC'}
                         </span>
                       </div>
 
+                      {/* Mentioned User Tags (@) */}
+                      {card.mentionedUserIds && card.mentionedUserIds.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', flexWrap: 'wrap', marginBottom: '0.35rem' }}>
+                          {card.mentionedUserIds.map(uid => {
+                            const u = users.find(usr => usr.id === uid);
+                            if (!u) return null;
+                            return (
+                              <span key={uid} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '10px', background: 'rgba(2, 132, 199, 0.15)', color: 'var(--accent-blue)', fontWeight: 700, border: '1px solid rgba(2, 132, 199, 0.3)' }}>
+                                @{u.name.split(' ')[0]}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+
                       {/* Image Thumbnail preview */}
                       {card.images && card.images.length > 0 && (
-                        <div style={{ height: '55px', borderRadius: '4px', overflow: 'hidden', marginBottom: '0.35rem', border: '1px solid var(--border-color)' }}>
+                        <div style={{ height: '50px', borderRadius: '4px', overflow: 'hidden', marginBottom: '0.35rem', border: '1px solid var(--border-color)' }}>
                           <img src={card.images[0]} alt="Thumbnail" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         </div>
                       )}
@@ -435,9 +493,9 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
         })}
       </div>
 
-      {/* Card Detail Modal */}
+      {/* Card Detail Modal (Passing Real-time activeSelectedCard) */}
       <CardDetailModal
-        card={selectedCard}
+        card={cards.find(c => c.id === selectedCard?.id) || selectedCard}
         isOpen={!!selectedCard}
         onClose={() => setSelectedCard(null)}
       />

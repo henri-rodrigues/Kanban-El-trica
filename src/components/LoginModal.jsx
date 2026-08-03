@@ -1,50 +1,51 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { X, Check, Sparkles, UserPlus, LogIn, Lock, Mail, AlertCircle } from 'lucide-react';
+import { Logo3DCrystal } from './Logo';
+import { X, LogIn, UserPlus, Sparkles, Check, AlertCircle } from 'lucide-react';
 
 export const LoginModal = ({ isOpen, onClose }) => {
-  const { currentUser, loginWithPassword, registerNewUser, users } = useAuth();
-
+  const { loginWithPassword, registerRequestUser, users } = useAuth();
   const [activeTab, setActiveTab] = useState('login'); // 'login' | 'register'
-  
-  // Login form state
-  const [loginIdentifier, setLoginIdentifier] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
 
-  // Register form state
+  const [identifier, setIdentifier] = useState('');
+  const [password, setPassword] = useState('');
+  const [errorMsg, setErrorMsg] = useState('');
+
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [newRole, setNewRole] = useState('usuario');
-  const [newTitle, setNewTitle] = useState('Técnico Operacional');
+  const [newRole, setNewRole] = useState('operador');
+  const [newTitle, setNewTitle] = useState('');
+  const [regSuccess, setRegSuccess] = useState(false);
 
   if (!isOpen) return null;
 
   const handleLoginSubmit = (e) => {
     e.preventDefault();
-    setLoginError('');
-    if (!loginIdentifier) return;
-
-    const res = loginWithPassword(loginIdentifier, loginPassword);
+    setErrorMsg('');
+    const res = loginWithPassword(identifier, password);
     if (res.success) {
       onClose();
     } else {
-      setLoginError(res.message || 'Dados de acesso incorretos.');
+      setErrorMsg(res.error || 'Erro ao realizar login.');
     }
   };
 
   const handleRegisterSubmit = (e) => {
     e.preventDefault();
-    if (!newName || !newPassword) return;
-    const created = registerNewUser({
+    setErrorMsg('');
+    const res = registerRequestUser({
       name: newName,
-      email: newEmail || `${newName.toLowerCase().replace(/\s+/g, '')}@omnifield.com`,
+      email: newEmail || `${newName.toLowerCase().replace(/\s+/g, '')}@gestaoeletrica.com`,
       password: newPassword,
       role: newRole,
-      title: newTitle
+      title: newTitle || (newRole === 'admin' ? 'Engenheiro Eletricista' : 'Técnico de Campo')
     });
-    onClose();
+    if (res.success) {
+      setRegSuccess(true);
+    } else {
+      setErrorMsg(res.error || 'Erro ao solicitar cadastro.');
+    }
   };
 
   return (
@@ -52,7 +53,7 @@ export const LoginModal = ({ isOpen, onClose }) => {
       position: 'fixed',
       inset: 0,
       zIndex: 1000,
-      background: 'rgba(0, 0, 0, 0.8)',
+      background: 'rgba(0,0,0,0.75)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -62,49 +63,30 @@ export const LoginModal = ({ isOpen, onClose }) => {
         className="glass-panel"
         style={{
           width: '100%',
-          maxWidth: '480px',
-          maxHeight: '90vh',
-          overflowY: 'auto',
+          maxWidth: '440px',
           borderRadius: 'var(--radius-lg)',
-          padding: '1.5rem',
-          position: 'relative'
+          padding: '1.75rem',
+          position: 'relative',
+          border: '1px solid var(--border-color)'
         }}
       >
-        <button
+        <button 
           onClick={onClose}
-          style={{
-            position: 'absolute',
-            top: '1rem',
-            right: '1rem',
-            background: 'none',
-            border: 'none',
-            color: 'var(--text-muted)',
-            cursor: 'pointer'
-          }}
+          style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
         >
           <X size={20} />
         </button>
 
-        <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            borderRadius: '12px',
-            background: 'var(--accent-blue)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '1.5rem',
-            marginBottom: '0.5rem',
-            color: '#fff'
-          }}>
-            ⚡
+        {/* Header Logo */}
+        <div style={{ textAlign: 'center', marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ marginBottom: '0.4rem' }}>
+            <Logo3DCrystal size={44} showText={false} />
           </div>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-            Autenticação de Usuário
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            Gestão Elétrica <span style={{ color: '#00a3e0', fontSize: '0.65rem', padding: '1px 5px', background: 'rgba(0, 163, 224, 0.15)', borderRadius: '4px', border: '1px solid rgba(0, 163, 224, 0.3)' }}>3D</span>
           </h2>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            Acesse o OmniField Pro com E-mail/Usuário e Senha
+            Autenticação de Usuário e Acesso ao Sistema
           </p>
         </div>
 

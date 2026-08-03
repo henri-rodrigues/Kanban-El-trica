@@ -18,23 +18,26 @@ import {
   TrendingUp,
   FileCheck,
   FileUp,
-  ClipboardList
+  ClipboardList,
+  Trash2
 } from 'lucide-react';
 
 export const MaterialsModule = () => {
   const { isAdmin } = useAuth();
-  const { activeObra, purchaseOrders, addPurchaseOrder, updatePOItemStatus } = useData();
+  const { activeObra, purchaseOrders, addPurchaseOrder, updatePOItemStatus, deletePurchaseOrder } = useData();
 
   const [isLoadingPdf, setIsLoadingPdf] = useState(false);
   const [isDragOverPdf, setIsDragOverPdf] = useState(false);
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState('ALL');
+  const [pdfStatus, setPdfStatus] = useState(null);
 
   // Manual / Paste Modal State
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const [pastedText, setPastedText] = useState('');
-  const [manualSupplier, setManualSupplier] = useState('CAREL SUD AMERICA INSTRUMENTAÇÃO ELETRONICA LTDA');
-  const [manualReqNum, setManualReqNum] = useState('17355');
-  const [manualTotalValue, setManualTotalValue] = useState('27988.87');
+  const [manualSupplier, setManualSupplier] = useState('');
+  const [manualReqNum, setManualReqNum] = useState('');
+  const [manualTotalValue, setManualTotalValue] = useState('');
+  const [materialCategory, setMaterialCategory] = useState('quadros');
 
   if (!isAdmin) {
     return (
@@ -68,7 +71,7 @@ export const MaterialsModule = () => {
     : 0;
 
   // Filter POs by supplier
-  const suppliersList = Array.from(new Set(obraPOs.map(po => po.fornecedor)));
+  const suppliersList = Array.from(new Set(obraPOs.map(po => po.fornecedor).filter(Boolean)));
   const filteredPOs = selectedSupplierFilter === 'ALL' 
     ? obraPOs 
     : obraPOs.filter(po => po.fornecedor === selectedSupplierFilter);
@@ -79,13 +82,28 @@ export const MaterialsModule = () => {
   const processPdfFile = async (file) => {
     if (!file || !activeObra) return;
     setIsLoadingPdf(true);
+    setPdfStatus(null);
     try {
       const parsedData = await extractTextFromPDFFile(file);
+      if (parsedData.error) {
+        setPdfStatus({
+          type: 'warning',
+          message: parsedData.error
+        });
+      } else {
+        const itemsCount = (parsedData.items || []).length;
+        setPdfStatus({
+          type: 'success',
+          message: `PDF Lido com sucesso! Fornecedor: ${parsedData.fornecedor} | Req: ${parsedData.orderNumber} | ${itemsCount} itens encontrados | Total: ${formatBRL(parsedData.totalValue)}`
+        });
+      }
       addPurchaseOrder(activeObra.id, parsedData);
     } catch (err) {
       console.error('Erro ao ler PDF:', err);
-      const parsedData = parsePurchaseOrderPDFText('17355 CAREL SUD AMERICA 27.988');
-      addPurchaseOrder(activeObra.id, parsedData);
+      setPdfStatus({
+        type: 'error',
+        message: 'Erro ao processar PDF: ' + (err.message || 'Formato incompatível.')
+      });
     } finally {
       setIsLoadingPdf(false);
     }
@@ -115,18 +133,23 @@ export const MaterialsModule = () => {
     }
   };
 
-  // Demo Import 1: Req 18306 (ELETRICA BICHUETTE R$ 89,44)
-  const handleImportDemoBichuette = () => {
-    if (!activeObra) return;
-    const demoParsedData = parsePurchaseOrderPDFText('PEDIDO DE COMPRA 18306 ELETRICA BICHUETTE LTDA R$ 89,44 27/07/2026');
-    addPurchaseOrder(activeObra.id, demoParsedData);
-  };
 
-  // Demo Import 2: Req 17355 (CAREL SUD AMERICA R$ 27.988,87)
-  const handleImportDemoCarel = () => {
-    if (!activeObra) return;
-    const demoParsedData = parsePurchaseOrderPDFText('PEDIDO DE COMPRA 17355 CAREL SUD AMERICA R$ 27.988,87 01/04/2026');
-    addPurchaseOrder(activeObra.id, demoParsedData);
+
+  // Handle live auto-parse when pasting text into modal
+  const handlePastedTextChange = (text) => {
+    setPastedText(text);
+    if (text && text.trim().length > 10) {
+      const autoParsed = parsePurchaseOrderPDFText(text);
+      if (autoParsed.fornecedor && autoParsed.fornecedor !== 'FORNECEDOR NÃO IDENTIFICADO') {
+        setManualSupplier(autoParsed.fornecedor);
+      }
+      if (autoParsed.orderNumber && !autoParsed.orderNumber.startsWith('REQ-')) {
+        setManualReqNum(autoParsed.orderNumber);
+      }
+      if (autoParsed.totalValue > 0) {
+        setManualTotalValue(autoParsed.totalValue.toString());
+      }
+    }
   };
 
   // Handle Manual Text / Paste Submit
@@ -134,17 +157,25 @@ export const MaterialsModule = () => {
     e.preventDefault();
     if (!activeObra) return;
 
-    let parsed = parsePurchaseOrderPDFText(pastedText || '17355 CAREL');
+    let parsed = parsePurchaseOrderPDFText(pastedText || `${manualReqNum} ${manualSupplier} ${manualTotalValue}`);
 
     if (manualSupplier) parsed.fornecedor = manualSupplier.toUpperCase();
     if (manualReqNum) parsed.orderNumber = manualReqNum;
     if (manualTotalValue && !isNaN(parseFloat(manualTotalValue))) {
       parsed.totalValue = parseFloat(manualTotalValue);
     }
+    parsed.destination = materialCategory || 'quadros';
 
     addPurchaseOrder(activeObra.id, parsed);
     setIsPasteModalOpen(false);
     setPastedText('');
+    setManualSupplier('');
+    setManualReqNum('');
+    setManualTotalValue('');
+    setPdfStatus({
+      type: 'success',
+      message: `Pedido cadastrado com sucesso! Fornecedor: ${parsed.fornecedor} | Total: ${formatBRL(parsed.totalValue)}`
+    });
   };
 
   return (
@@ -178,14 +209,6 @@ export const MaterialsModule = () => {
 
         {/* PDF Import Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button onClick={handleImportDemoCarel} className="btn btn-secondary btn-sm" title="Importar Pedido CAREL (Req 17355 - 12 Itens - R$ 27.988,87)">
-            <FileCheck size={14} className="text-purple" /> Modelo CAREL 17355 (R$ 27.988)
-          </button>
-
-          <button onClick={handleImportDemoBichuette} className="btn btn-secondary btn-sm" title="Importar Pedido BICHUETTE (Req 18306 - R$ 89,44)">
-            <FileCheck size={14} className="text-emerald" /> Modelo 18306 (R$ 89)
-          </button>
-
           <button onClick={() => setIsPasteModalOpen(true)} className="btn btn-secondary btn-sm">
             <ClipboardList size={14} className="text-amber" /> Colar / Inserir Pedido
           </button>
@@ -197,6 +220,49 @@ export const MaterialsModule = () => {
           </label>
         </div>
       </div>
+
+      {/* Status Banner do PDF */}
+      {pdfStatus && (
+        <div 
+          className="glass-panel" 
+          style={{ 
+            padding: '0.85rem 1.25rem', 
+            borderRadius: 'var(--radius-md)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'space-between',
+            background: pdfStatus.type === 'success' 
+              ? 'rgba(16, 185, 129, 0.12)' 
+              : pdfStatus.type === 'warning' 
+              ? 'rgba(245, 158, 11, 0.12)' 
+              : 'rgba(244, 63, 94, 0.12)',
+            borderLeft: `4px solid ${
+              pdfStatus.type === 'success' 
+                ? 'var(--accent-emerald, #10b981)' 
+                : pdfStatus.type === 'warning' 
+                ? 'var(--accent-amber, #f59e0b)' 
+                : 'var(--accent-rose, #f43f5e)'
+            }`
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            {pdfStatus.type === 'success' ? (
+              <CheckCircle2 size={18} style={{ color: 'var(--accent-emerald, #10b981)' }} />
+            ) : pdfStatus.type === 'warning' ? (
+              <AlertCircle size={18} style={{ color: 'var(--accent-amber, #f59e0b)' }} />
+            ) : (
+              <AlertCircle size={18} style={{ color: 'var(--accent-rose, #f43f5e)' }} />
+            )}
+            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{pdfStatus.message}</span>
+          </div>
+          <button 
+            onClick={() => setPdfStatus(null)} 
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Drag & Drop PDF Zone */}
       <div 
@@ -224,7 +290,7 @@ export const MaterialsModule = () => {
       </div>
 
       {/* KPI Cards Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+      <div className="kpi-grid-mobile" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
         <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-blue)' }}>
           <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.2rem' }}>Total Investido em Materiais</div>
           <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-blue)' }}>{formatBRL(totalMaterialsValue)}</div>
@@ -313,13 +379,33 @@ export const MaterialsModule = () => {
                     </h3>
                   </div>
 
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>
-                      {formatBRL(po.totalValue)}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ textAlign: 'right' }}>
+                      <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>
+                        {formatBRL(po.totalValue)}
+                      </div>
+                      <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
+                        Descontado do Saldo da Obra
+                      </div>
                     </div>
-                    <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
-                      Descontado do Saldo da Obra
-                    </div>
+
+                    {isAdmin && (
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Tem certeza que deseja EXCLUIR o pedido ${po.orderNumber} (${po.fornecedor})?\nO valor de ${formatBRL(po.totalValue)} será reembolsado na verba da obra.`)) {
+                            deletePurchaseOrder(po.id);
+                            setPdfStatus({
+                              type: 'warning',
+                              message: `Pedido ${po.orderNumber} excluído e ${formatBRL(po.totalValue)} reembolsado na verba da obra.`
+                            });
+                          }
+                        }}
+                        className="btn btn-danger btn-sm"
+                        title="Excluir Pedido / Orçamento"
+                      >
+                        <Trash2 size={14} /> Excluir
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -337,7 +423,7 @@ export const MaterialsModule = () => {
                 </div>
 
                 {/* Table of Items */}
-                <div style={{ overflowX: 'auto', marginTop: '0.5rem' }}>
+                <div className="table-responsive" style={{ marginTop: '0.5rem' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ background: 'var(--bg-main)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', fontSize: '0.725rem' }}>
@@ -413,23 +499,18 @@ export const MaterialsModule = () => {
           <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.5rem' }}>
             Nenhum Pedido de Compra Importado
           </h3>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.5rem' }}>
-            Arraste o PDF acima ou selecione um dos modelos abaixo (CAREL ou BICHUETTE) para carregar os 12 itens e descontar da verba.
+          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
+            Arraste e solte o arquivo PDF do pedido de compra na área acima ou clique em "Colar / Inserir Pedido" para cadastrar os materiais da obra.
           </p>
-          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-            <button onClick={handleImportDemoCarel} className="btn btn-primary">
-              <FileCheck size={16} /> Importar Modelo CAREL (12 itens - R$ 27.988)
-            </button>
-            <button onClick={handleImportDemoBichuette} className="btn btn-secondary">
-              <FileCheck size={16} /> Importar Modelo BICHUETTE (R$ 89)
-            </button>
-          </div>
+          <button onClick={() => setIsPasteModalOpen(true)} className="btn btn-primary">
+            <ClipboardList size={16} /> Colar / Inserir Pedido Manualmente
+          </button>
         </div>
       )}
 
       {/* Modal: Paste / Manual Purchase Order Entry */}
       {isPasteModalOpen && (
-        <div style={{
+        <div className="mobile-modal-overlay" style={{
           position: 'fixed',
           top: 0,
           left: 0,
@@ -443,7 +524,7 @@ export const MaterialsModule = () => {
           zIndex: 1100,
           padding: '1rem'
         }}>
-          <div className="glass-panel" style={{ width: '100%', maxWidth: '550px', borderRadius: 'var(--radius-lg)', padding: '1.5rem' }}>
+          <div className="glass-panel mobile-modal-content" style={{ width: '100%', maxWidth: '550px', borderRadius: 'var(--radius-lg)', padding: '1.5rem', overflowY: 'auto', maxHeight: '90vh' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
               <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Colar Texto do PDF / Cadastrar Pedido</h3>
               <button onClick={() => setIsPasteModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
@@ -464,7 +545,20 @@ export const MaterialsModule = () => {
                 />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <div className="form-group">
+                <label style={{ fontWeight: 700 }}>Destinação da Verba do Material *</label>
+                <select
+                  className="form-control"
+                  value={materialCategory}
+                  onChange={(e) => setMaterialCategory(e.target.value)}
+                  style={{ fontWeight: 600 }}
+                >
+                  <option value="quadros">⚡ Quadros & Painéis (Debitar da Verba de Materiais)</option>
+                  <option value="infraestrutura">🛠️ Infraestrutura em Campo (Debitar da Verba de Infraestrutura)</option>
+                </select>
+              </div>
+
+              <div className="mobile-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div className="form-group">
                   <label>Nº Requisição / Pedido:</label>
                   <input
@@ -496,7 +590,7 @@ export const MaterialsModule = () => {
                   className="form-control"
                   rows={5}
                   value={pastedText}
-                  onChange={(e) => setPastedText(e.target.value)}
+                  onChange={(e) => handlePastedTextChange(e.target.value)}
                   placeholder="Cole aqui o texto copiado do PDF do pedido (código, itens, valores)..."
                 />
               </div>

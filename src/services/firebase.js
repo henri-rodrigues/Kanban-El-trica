@@ -76,6 +76,22 @@ export const saveFirestoreDoc = async (collectionName, docId, data) => {
   }
 };
 
+// Delete a document from Firestore collection
+export const deleteFirestoreDoc = async (collectionName, docId) => {
+  const cfg = getStoredFirebaseConfig();
+  const firestoreDb = db || initFirebase(cfg);
+  if (!firestoreDb) return false;
+
+  try {
+    const docRef = doc(firestoreDb, collectionName, docId);
+    await deleteDoc(docRef);
+    return true;
+  } catch (err) {
+    console.error(`Erro ao deletar no Firestore [${collectionName}/${docId}]:`, err);
+    return false;
+  }
+};
+
 // Real-time listener for Firestore collection
 export const subscribeFirestoreCollection = (collectionName, onDataChange) => {
   const cfg = getStoredFirebaseConfig();

@@ -4,7 +4,7 @@ import { POSTIT_GRADIENTS } from '../constants/gradients';
 import { X, Check, Trash2, Edit3, Save, ShieldCheck, UserCheck, Clock, ShieldAlert, DollarSign } from 'lucide-react';
 
 export const UserManagementModal = ({ isOpen, onClose }) => {
-  const { users, approveUser, rejectUser, updateUserProfileByAdmin, isAdmin } = useAuth();
+  const { users, approveUser, rejectUser, updateUserProfileByAdmin, deleteUser, currentUser, isAdmin } = useAuth();
 
   const [editingUserId, setEditingUserId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -30,6 +30,16 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
       dailyRate: parseFloat(editDailyRate) || 0
     });
     setEditingUserId(null);
+  };
+
+  const handleDeleteUserClick = (user) => {
+    if (user.id === currentUser?.id) {
+      alert('Você não pode excluir sua própria conta enquanto estiver conectado.');
+      return;
+    }
+    if (window.confirm(`Tem certeza que deseja excluir o usuário "${user.name}" (${user.email})? Esta ação não pode ser desfeita.`)) {
+      deleteUser(user.id);
+    }
   };
 
   return (
@@ -128,9 +138,21 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
                         </div>
                       </div>
 
-                      <button onClick={() => startEditing(u)} className="btn btn-secondary btn-sm">
-                        <Edit3 size={14} /> Editar Perfil
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.4rem' }}>
+                        <button onClick={() => startEditing(u)} className="btn btn-secondary btn-sm">
+                          <Edit3 size={14} /> Editar Perfil
+                        </button>
+
+                        {u.id !== currentUser?.id && (
+                          <button 
+                            onClick={() => handleDeleteUserClick(u)} 
+                            className="btn btn-danger btn-sm"
+                            title="Excluir Usuário"
+                          >
+                            <Trash2 size={14} /> Excluir
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ) : (
                     /* Edit Form */

@@ -142,7 +142,7 @@ export const ChecklistModule = () => {
             🛠️ Adicionar Novo Teste ao Checklist (Administrador)
           </h3>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+          <div className="mobile-stack" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
             <div className="form-group">
               <label>Nome do Teste / Verificação *</label>
               <input
@@ -286,7 +286,7 @@ export const ChecklistModule = () => {
               </div>
 
               {/* Status Action Buttons */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+              <div className="checklist-actions-mobile" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }}>
                   <Paperclip size={14} /> Anexar Foto
                   <input 

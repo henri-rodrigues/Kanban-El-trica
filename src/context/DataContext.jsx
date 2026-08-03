@@ -2,52 +2,69 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { 
   saveFirestoreDoc, 
+  deleteFirestoreDoc,
   subscribeFirestoreCollection, 
   isFirebaseActive 
 } from '../services/firebase';
 
 const DataContext = createContext();
 
+const safeParseJSON = (key, fallback = []) => {
+  try {
+    const saved = localStorage.getItem(key);
+    if (!saved) return fallback;
+    const parsed = JSON.parse(saved);
+    return Array.isArray(fallback) ? (Array.isArray(parsed) ? parsed : fallback) : (parsed || fallback);
+  } catch (err) {
+    console.error(`Error parsing ${key} from localStorage:`, err);
+    return fallback;
+  }
+};
+
 export const DataProvider = ({ children }) => {
   const { currentUser, isAdmin, users } = useAuth();
 
-  const [rawObras, setRawObras] = useState(() => {
-    const saved = localStorage.getItem('omnifield_obras_v7');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [selectedObraId, setSelectedObraId] = useState(() => {
-    return localStorage.getItem('omnifield_selected_obra_v7') || null;
-  });
-
-  const [quadros, setQuadros] = useState(() => {
-    const saved = localStorage.getItem('omnifield_quadros_v7');
-    return saved ? JSON.parse(saved) : [];
-  });
-
+  const [rawObras, setRawObras] = useState(() => safeParseJSON('omnifield_obras_v7', []));
+  const [selectedObraId, setSelectedObraId] = useState(() => localStorage.getItem('omnifield_selected_obra_v7') || null);
+  const [quadros, setQuadros] = useState(() => safeParseJSON('omnifield_quadros_v7', []));
   const [selectedQuadroId, setSelectedQuadroId] = useState(null);
+  const [cards, setCards] = useState(() => safeParseJSON('omnifield_cards_v7', []));
+  const [checklists, setChecklists] = useState(() => safeParseJSON('omnifield_checklists_v7', []));
+  const [purchaseOrders, setPurchaseOrders] = useState(() => safeParseJSON('omnifield_purchase_orders_v7', []));
+  const [notifications, setNotifications] = useState(() => safeParseJSON('gestao_eletrica_notifications_v1', []));
+  const [chatMessages, setChatMessages] = useState(() => safeParseJSON('gestao_eletrica_chat_v1', []));
+  const [fieldReports, setFieldReports] = useState(() => safeParseJSON('gestao_eletrica_field_reports_v1', []));
 
-  const [cards, setCards] = useState(() => {
-    const saved = localStorage.getItem('omnifield_cards_v7');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const getCardEvolutionPct = (column) => {
+    switch (column) {
+      case 'completed': return 100;
+      case 'on_hold': return 66;
+      case 'in_progress': return 33;
+      default: return 0;
+    }
+  };
 
-  const [checklists, setChecklists] = useState(() => {
-    const saved = localStorage.getItem('omnifield_checklists_v7');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  const [purchaseOrders, setPurchaseOrders] = useState(() => {
-    const saved = localStorage.getItem('omnifield_purchase_orders_v7');
-    return saved ? JSON.parse(saved) : [];
-  });
-
-  // Filter Obras based on User Access Control List (ACL)
+  // Filter Obras based on User Access Control List (ACL) and calculate dynamic completion progress (%) based on 4 stages
   const obras = rawObras.filter(o => {
     if (isAdmin) return true; // Admin sees all Obras
     if (!currentUser) return false;
     if (!o.assignedUserIds || o.assignedUserIds.length === 0) return true;
     return o.assignedUserIds.includes(currentUser.id);
+  }).map(o => {
+    const obraCards = cards.filter(c => c.obraId === o.id);
+    const totalCards = obraCards.length;
+
+    let totalEvolutionSum = 0;
+    obraCards.forEach(c => {
+      totalEvolutionSum += getCardEvolutionPct(c.column);
+    });
+
+    const calcProgress = totalCards > 0 ? Math.round(totalEvolutionSum / totalCards) : (o.progress || 0);
+
+    return {
+      ...o,
+      progress: calcProgress
+    };
   });
 
   // Sync to localStorage
@@ -57,6 +74,9 @@ export const DataProvider = ({ children }) => {
   useEffect(() => { localStorage.setItem('omnifield_cards_v7', JSON.stringify(cards)); }, [cards]);
   useEffect(() => { localStorage.setItem('omnifield_checklists_v7', JSON.stringify(checklists)); }, [checklists]);
   useEffect(() => { localStorage.setItem('omnifield_purchase_orders_v7', JSON.stringify(purchaseOrders)); }, [purchaseOrders]);
+  useEffect(() => { localStorage.setItem('gestao_eletrica_notifications_v1', JSON.stringify(notifications)); }, [notifications]);
+  useEffect(() => { localStorage.setItem('gestao_eletrica_chat_v1', JSON.stringify(chatMessages)); }, [chatMessages]);
+  useEffect(() => { localStorage.setItem('gestao_eletrica_field_reports_v1', JSON.stringify(fieldReports)); }, [fieldReports]);
 
   // Automatic Real-time Synchronization with Firestore
   useEffect(() => {
@@ -66,6 +86,9 @@ export const DataProvider = ({ children }) => {
       const unsubCards = subscribeFirestoreCollection('cards', (data) => setCards(data));
       const unsubChecklists = subscribeFirestoreCollection('checklists', (data) => setChecklists(data));
       const unsubPOs = subscribeFirestoreCollection('purchase_orders', (data) => setPurchaseOrders(data));
+      const unsubNotifs = subscribeFirestoreCollection('notifications', (data) => setNotifications(data));
+      const unsubChat = subscribeFirestoreCollection('chat_messages', (data) => setChatMessages(data));
+      const unsubReports = subscribeFirestoreCollection('field_reports', (data) => setFieldReports(data));
 
       return () => {
         unsubObras();
@@ -73,9 +96,37 @@ export const DataProvider = ({ children }) => {
         unsubCards();
         unsubChecklists();
         unsubPOs();
+        unsubNotifs();
+        unsubChat();
+        unsubReports();
       };
     }
   }, []);
+
+  const addFieldReport = (obraId, reportData) => {
+    if (!obraId) return;
+    const newReport = {
+      id: `fr-${Date.now()}`,
+      obraId,
+      createdAt: new Date().toISOString(),
+      date: new Date().toISOString().split('T')[0],
+      authorId: currentUser?.id,
+      authorName: currentUser?.name || 'Operador',
+      images: [],
+      videos: [],
+      audios: [],
+      assignedUserIds: [],
+      ...reportData
+    };
+
+    setFieldReports(prev => [newReport, ...prev]);
+    if (isFirebaseActive()) saveFirestoreDoc('field_reports', newReport.id, newReport);
+  };
+
+  const deleteFieldReport = (obraId, reportId) => {
+    if (!isAdmin) return;
+    setFieldReports(prev => prev.filter(r => r.id !== reportId));
+  };
 
   const activeObra = obras.find(o => o.id === selectedObraId) || obras[0] || null;
   const activeQuadros = selectedObraId ? quadros.filter(q => q.obraId === selectedObraId) : [];
@@ -115,13 +166,20 @@ export const DataProvider = ({ children }) => {
     setPurchaseOrders(prev => [newPO, ...prev]);
     if (isFirebaseActive()) saveFirestoreDoc('purchase_orders', newPO.id, newPO);
 
-    // Auto-update Obra's materialCosts with PO total value (deducting from Obra Verba)
+    // Auto-update Obra's materialCosts or infraSpentCost with PO total value based on destination
     const poValue = parseFloat(newPO.totalValue) || 0;
+    const dest = newPO.destination || 'quadros';
+
     setRawObras(prev => prev.map(o => {
       if (o.id === obraId) {
-        const currentMatCost = parseFloat(o.materialCosts) || 0;
-        const updatedMatCost = currentMatCost + poValue;
-        const updatedObra = { ...o, materialCosts: updatedMatCost };
+        let updatedObra;
+        if (dest === 'infraestrutura') {
+          const currentInfraCost = parseFloat(o.infraSpentCost) || 0;
+          updatedObra = { ...o, infraSpentCost: currentInfraCost + poValue };
+        } else {
+          const currentMatCost = parseFloat(o.materialCosts) || 0;
+          updatedObra = { ...o, materialCosts: currentMatCost + poValue };
+        }
         if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updatedObra);
         return updatedObra;
       }
@@ -156,15 +214,27 @@ export const DataProvider = ({ children }) => {
   // Add Obra (Admin Only)
   const addObra = (obraData) => {
     if (!isAdmin) return;
+    const materialsB = parseFloat(obraData.materialsBudget) || 0;
+    const indirectsB = parseFloat(obraData.indirectsBudget) || 0;
+    const infraB = parseFloat(obraData.infraBudget) || 0;
+    const laborB = parseFloat(obraData.laborBudget) || 0;
+    const totalCalc = materialsB + indirectsB + infraB + laborB;
+
     const newObra = {
       id: `ob-${Date.now()}`,
       progress: 0,
-      initialBudget: parseFloat(obraData.initialBudget) || 1000000,
+      materialsBudget: materialsB,
+      indirectsBudget: indirectsB,
+      infraBudget: infraB,
+      laborBudget: laborB,
       addedBudget: parseFloat(obraData.addedBudget) || 0,
       materialCosts: parseFloat(obraData.materialCosts) || 0,
       plannedDays: parseInt(obraData.plannedDays) || 90,
+      distanceKm: parseFloat(obraData.distanceKm) || 0,
       assignedUserIds: obraData.assignedUserIds || [],
-      ...obraData
+      scheduledTrips: [],
+      ...obraData,
+      initialBudget: totalCalc > 0 ? totalCalc : (parseFloat(obraData.initialBudget) || 1000000)
     };
     setRawObras(prev => [newObra, ...prev]);
     setSelectedObraId(newObra.id);
@@ -175,7 +245,21 @@ export const DataProvider = ({ children }) => {
     if (!isAdmin) return;
     setRawObras(prev => prev.map(o => {
       if (o.id === obraId) {
-        const updated = { ...o, ...updatedFields };
+        const materialsB = updatedFields.materialsBudget !== undefined ? parseFloat(updatedFields.materialsBudget) || 0 : (o.materialsBudget || 0);
+        const indirectsB = updatedFields.indirectsBudget !== undefined ? parseFloat(updatedFields.indirectsBudget) || 0 : (o.indirectsBudget || 0);
+        const infraB = updatedFields.infraBudget !== undefined ? parseFloat(updatedFields.infraBudget) || 0 : (o.infraBudget || 0);
+        const laborB = updatedFields.laborBudget !== undefined ? parseFloat(updatedFields.laborBudget) || 0 : (o.laborBudget || 0);
+        const totalSum = materialsB + indirectsB + infraB + laborB;
+
+        const updated = { 
+          ...o, 
+          ...updatedFields,
+          materialsBudget: materialsB,
+          indirectsBudget: indirectsB,
+          infraBudget: infraB,
+          laborBudget: laborB,
+          initialBudget: totalSum > 0 ? totalSum : (updatedFields.initialBudget || o.initialBudget)
+        };
         if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updated);
         return updated;
       }
@@ -195,17 +279,137 @@ export const DataProvider = ({ children }) => {
     }));
   };
 
+  const addScheduledTrip = (obraId, tripData) => {
+    if (!isAdmin) return;
+    setRawObras(prev => prev.map(o => {
+      if (o.id === obraId) {
+        const currentTrips = o.scheduledTrips || [];
+        const distKm = parseFloat(tripData.distanceKm || o.distanceKm || 0) || 0;
+        const tripCost = tripData.cost || (distKm * 1.5);
+
+        const newTrip = {
+          id: `trip-${Date.now()}`,
+          cost: tripCost,
+          createdAt: new Date().toISOString().split('T')[0],
+          ...tripData
+        };
+        const updatedTrips = [...currentTrips, newTrip];
+        const updated = {
+          ...o,
+          scheduledTrips: updatedTrips
+        };
+        if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updated);
+
+        // Notify booked user
+        if (tripData.userId && currentUser) {
+          addNotification({
+            recipientUserId: tripData.userId,
+            senderUserId: currentUser.id,
+            senderName: currentUser.name,
+            type: 'travel_schedule',
+            title: `🛫 Viagem Agendada!`,
+            message: `${currentUser.name} agendou sua viagem para a Obra "${o.name}" de ${tripData.startDate} a ${tripData.endDate}.`,
+            obraId: obraId
+          });
+        }
+
+        return updated;
+      }
+      return o;
+    }));
+  };
+
+  const deleteScheduledTrip = (obraId, tripId) => {
+    if (!isAdmin) return;
+    setRawObras(prev => prev.map(o => {
+      if (o.id === obraId) {
+        const updatedTrips = (o.scheduledTrips || []).filter(t => t.id !== tripId);
+        const updated = { ...o, scheduledTrips: updatedTrips };
+        if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updated);
+        return updated;
+      }
+      return o;
+    }));
+  };
+
+  const STANDARD_QUADRO_POSTITS = [
+    'Verificar orçamento e serviço vendido',
+    'Verificar verbas',
+    'kickoff-01',
+    'Levantamento de cargas',
+    'Topologia de comunicação e comando',
+    'Levantamento de materiais',
+    'Requisições dos materiais',
+    'Projeto Elétrico',
+    'Projeto de Automação',
+    'Validação do Projeto Elétrico',
+    'Validação do Projeto de Automação',
+    'kickoff-02',
+    'Conferência dos Pedidos de Compra',
+    'Recebimento do material Elétrico',
+    'Conferência do Material',
+    'Montagem do Quadro',
+    'Conferência da montagem',
+    'Validação da Montagem',
+    'Teste do Quadro',
+    'Desenvolver Software CLP',
+    'Desenvolver Software IHM',
+    'Desenvolver Software Supervisório',
+    'Teste de Automação',
+    'Teste do Quadro',
+    'Identificação Geral do Quadro',
+    'Embalagem e Despacho do Quadro'
+  ];
+
   const addQuadro = (quadroData) => {
     if (!selectedObraId) return;
+    const newQuadroId = `qd-${Date.now()}`;
     const newQuadro = {
-      id: `qd-${Date.now()}`,
+      id: newQuadroId,
       obraId: selectedObraId,
       status: 'Em Teste',
       ...quadroData
     };
     setQuadros(prev => [...prev, newQuadro]);
-    setSelectedQuadroId(newQuadro.id);
-    if (isFirebaseActive()) saveFirestoreDoc('quadros', newQuadro.id, newQuadro);
+    setSelectedQuadroId(newQuadroId);
+    if (isFirebaseActive()) saveFirestoreDoc('quadros', newQuadroId, newQuadro);
+
+    // Auto-create 26 standard post-its for this new Quadro
+    const autoCards = STANDARD_QUADRO_POSTITS.map((titleText, index) => {
+      const cardId = `c-${Date.now()}-${index}`;
+
+      // Etapa 1 (até Kickoff-01): AZUL (cyan)
+      // Etapa 2 (entre Kickoff-01 e Kickoff-02): LARANJA (amber)
+      // Etapa 3 (após Kickoff-02): VERDE (emerald)
+      let autoGradientId = 'cyan'; // AZUL
+      if (index >= 3 && index <= 11) {
+        autoGradientId = 'amber'; // LARANJA
+      } else if (index >= 12) {
+        autoGradientId = 'emerald'; // VERDE
+      }
+
+      return {
+        id: cardId,
+        obraId: selectedObraId,
+        quadroId: newQuadroId,
+        level: 'quadro',
+        column: 'todo',
+        title: titleText,
+        description: `Etapa padronizada ${index + 1}: ${titleText}`,
+        priority: 'Média',
+        gradientId: autoGradientId,
+        stagePhase: index <= 2 ? 'pre-kickoff-01' : (index <= 11 ? 'mid-kickoff' : 'post-kickoff-02'),
+        subtasks: [],
+        images: [],
+        workedDays: [],
+        createdAt: new Date().toISOString().split('T')[0]
+      };
+    });
+
+    setCards(prev => [...autoCards, ...prev]);
+    if (isFirebaseActive()) {
+      autoCards.forEach(c => saveFirestoreDoc('cards', c.id, c));
+    }
   };
 
   const addCard = (cardData) => {
@@ -251,6 +455,87 @@ export const DataProvider = ({ children }) => {
 
   const deleteCard = (cardId) => {
     setCards(prev => prev.filter(c => c.id !== cardId));
+    if (isFirebaseActive()) deleteFirestoreDoc('cards', cardId);
+  };
+
+  const deleteObra = (obraId) => {
+    if (!isAdmin || !obraId) return;
+    
+    setRawObras(prev => prev.filter(o => o.id !== obraId));
+    if (selectedObraId === obraId) {
+      setSelectedObraId(null);
+    }
+    if (isFirebaseActive()) deleteFirestoreDoc('obras', obraId);
+
+    // Cascade delete quadros, cards, checklists & purchase orders for this obra
+    const obraQuadros = quadros.filter(q => q.obraId === obraId);
+    obraQuadros.forEach(q => {
+      if (isFirebaseActive()) deleteFirestoreDoc('quadros', q.id);
+    });
+    setQuadros(prev => prev.filter(q => q.obraId !== obraId));
+
+    const obraCards = cards.filter(c => c.obraId === obraId);
+    obraCards.forEach(c => {
+      if (isFirebaseActive()) deleteFirestoreDoc('cards', c.id);
+    });
+    setCards(prev => prev.filter(c => c.obraId !== obraId));
+
+    const obraChecklists = checklists.filter(chk => chk.obraId === obraId);
+    obraChecklists.forEach(chk => {
+      if (isFirebaseActive()) deleteFirestoreDoc('checklists', chk.id);
+    });
+    setChecklists(prev => prev.filter(chk => chk.obraId !== obraId));
+
+    const obraPOs = purchaseOrders.filter(po => po.obraId === obraId);
+    obraPOs.forEach(po => {
+      if (isFirebaseActive()) deleteFirestoreDoc('purchase_orders', po.id);
+    });
+    setPurchaseOrders(prev => prev.filter(po => po.obraId !== obraId));
+  };
+
+  const deleteQuadro = (quadroId) => {
+    if (!isAdmin || !quadroId) return;
+
+    setQuadros(prev => prev.filter(q => q.id !== quadroId));
+    if (selectedQuadroId === quadroId) {
+      setSelectedQuadroId(null);
+    }
+    if (isFirebaseActive()) deleteFirestoreDoc('quadros', quadroId);
+
+    // Cascade delete cards and checklists for this quadro
+    const quadroCards = cards.filter(c => c.quadroId === quadroId);
+    quadroCards.forEach(c => {
+      if (isFirebaseActive()) deleteFirestoreDoc('cards', c.id);
+    });
+    setCards(prev => prev.filter(c => c.quadroId !== quadroId));
+
+    const quadroChecklists = checklists.filter(chk => chk.quadroId === quadroId);
+    quadroChecklists.forEach(chk => {
+      if (isFirebaseActive()) deleteFirestoreDoc('checklists', chk.id);
+    });
+    setChecklists(prev => prev.filter(chk => chk.quadroId !== quadroId));
+  };
+
+  const deletePurchaseOrder = (orderId) => {
+    if (!isAdmin || !orderId) return;
+
+    const targetPO = purchaseOrders.find(po => po.id === orderId);
+    if (targetPO) {
+      const poValue = parseFloat(targetPO.totalValue) || 0;
+      setRawObras(prev => prev.map(o => {
+        if (o.id === targetPO.obraId) {
+          const currentMatCost = parseFloat(o.materialCosts) || 0;
+          const updatedMatCost = Math.max(0, currentMatCost - poValue);
+          const updatedObra = { ...o, materialCosts: updatedMatCost };
+          if (isFirebaseActive()) saveFirestoreDoc('obras', o.id, updatedObra);
+          return updatedObra;
+        }
+        return o;
+      }));
+    }
+
+    setPurchaseOrders(prev => prev.filter(po => po.id !== orderId));
+    if (isFirebaseActive()) deleteFirestoreDoc('purchase_orders', orderId);
   };
 
   const addWorkLogToCard = (cardId, log) => {
@@ -289,6 +574,77 @@ export const DataProvider = ({ children }) => {
     }));
   };
 
+  // Filter notifications for current logged in user
+  const myNotifications = notifications.filter(n => n.recipientUserId === currentUser?.id);
+  const unreadNotifsCount = myNotifications.filter(n => !n.read).length;
+
+  const addNotification = (notifData) => {
+    if (!notifData || !notifData.recipientUserId) return;
+    const newNotif = {
+      id: `notif-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      read: false,
+      createdAt: new Date().toISOString(),
+      ...notifData
+    };
+    setNotifications(prev => [newNotif, ...prev]);
+    if (isFirebaseActive()) saveFirestoreDoc('notifications', newNotif.id, newNotif);
+  };
+
+  const markNotificationAsRead = (notifId) => {
+    setNotifications(prev => prev.map(n => {
+      if (n.id === notifId) {
+        const updated = { ...n, read: true };
+        if (isFirebaseActive()) saveFirestoreDoc('notifications', notifId, updated);
+        return updated;
+      }
+      return n;
+    }));
+  };
+
+  const clearAllNotifications = () => {
+    if (!currentUser) return;
+    const targetNotifs = notifications.filter(n => n.recipientUserId === currentUser.id);
+    setNotifications(prev => prev.filter(n => n.recipientUserId !== currentUser.id));
+    targetNotifs.forEach(n => {
+      if (isFirebaseActive()) deleteFirestoreDoc('notifications', n.id);
+    });
+  };
+
+  const sendChatMessage = (obraId, text) => {
+    if (!currentUser || !obraId || !text || !text.trim()) return;
+    const newMsg = {
+      id: `msg-${Date.now()}`,
+      obraId,
+      senderId: currentUser.id,
+      senderName: currentUser.name,
+      senderTitle: currentUser.title || 'Técnico',
+      text: text.trim(),
+      createdAt: new Date().toISOString()
+    };
+    setChatMessages(prev => [...prev, newMsg]);
+    if (isFirebaseActive()) saveFirestoreDoc('chat_messages', newMsg.id, newMsg);
+
+    // Notify other authorized members of the Obra about the message
+    const obra = rawObras.find(o => o.id === obraId);
+    const memberIds = obra?.assignedUserIds && obra.assignedUserIds.length > 0
+      ? obra.assignedUserIds
+      : users.map(u => u.id);
+
+    memberIds.forEach(recipientId => {
+      if (recipientId !== currentUser.id) {
+        addNotification({
+          recipientUserId: recipientId,
+          senderUserId: currentUser.id,
+          senderName: currentUser.name,
+          type: 'chat',
+          title: `Nova mensagem no Chat da Obra`,
+          message: `${currentUser.name}: "${text.trim().substring(0, 50)}${text.length > 50 ? '...' : ''}"`,
+          obraId
+        });
+      }
+    });
+  };
+
   const addChecklistItem = (itemData) => {
     if (!selectedObraId) return;
     const newItem = {
@@ -321,20 +677,37 @@ export const DataProvider = ({ children }) => {
         cards,
         checklists,
         purchaseOrders,
+        notifications,
+        myNotifications,
+        unreadNotifsCount,
+        addNotification,
+        markNotificationAsRead,
+        clearAllNotifications,
+        chatMessages,
+        sendChatMessage,
         getObraLaborCostsAndDays,
         addPurchaseOrder,
         updatePOItemStatus,
+        deletePurchaseOrder,
         addObra,
         updateObra,
+        deleteObra,
         updateObraFinancials,
         addQuadro,
+        deleteQuadro,
         addCard,
         updateCardStatus,
         updateCard,
         deleteCard,
         addWorkLogToCard,
         updateChecklistStatus,
-        addChecklistItem
+        addChecklistItem,
+        addScheduledTrip,
+        deleteScheduledTrip,
+        getCardEvolutionPct,
+        fieldReports,
+        addFieldReport,
+        deleteFieldReport
       }}
     >
       {children}

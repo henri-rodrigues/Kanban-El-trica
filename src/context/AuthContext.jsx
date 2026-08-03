@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { 
   saveFirestoreDoc, 
+  deleteFirestoreDoc,
   subscribeFirestoreCollection, 
   isFirebaseActive 
 } from '../services/firebase';
@@ -43,9 +44,14 @@ export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('omnifield_active_user_v5');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+      try { 
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.id) return parsed;
+      } catch (e) { 
+        console.error(e); 
+      }
     }
-    return users[0];
+    return null;
   });
 
   const [theme, setTheme] = useState(() => {
@@ -177,6 +183,16 @@ export const AuthProvider = ({ children }) => {
     }));
   };
 
+  const deleteUser = (userId) => {
+    if (!currentUser || currentUser.role !== 'administrador') return;
+    if (currentUser.id === userId) {
+      alert('Você não pode excluir sua própria conta enquanto está logado.');
+      return;
+    }
+    setUsers(prev => prev.filter(u => u.id !== userId));
+    if (isFirebaseActive()) deleteFirestoreDoc('users', userId);
+  };
+
   const logout = () => {
     setCurrentUser(null);
   };
@@ -195,6 +211,7 @@ export const AuthProvider = ({ children }) => {
         approveUser,
         rejectUser,
         updateUserProfileByAdmin,
+        deleteUser,
         logout,
         theme,
         toggleTheme,

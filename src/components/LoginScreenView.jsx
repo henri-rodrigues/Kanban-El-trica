@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { Logo3DCrystal } from './Logo';
 import { POSTIT_GRADIENTS } from '../constants/gradients';
 import { LogIn, UserPlus, Sparkles, AlertCircle, CheckCircle2, ShieldCheck, Palette } from 'lucide-react';
 
@@ -66,26 +67,14 @@ export const LoginScreenView = () => {
         }}
       >
         {/* Logo & Header */}
-        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-          <div style={{
-            width: '56px',
-            height: '56px',
-            borderRadius: '14px',
-            background: 'var(--accent-blue)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: '1.8rem',
-            marginBottom: '0.65rem',
-            color: '#fff',
-            boxShadow: '0 4px 15px rgba(2, 132, 199, 0.4)'
-          }}>
-            ⚡
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ marginBottom: '0.85rem' }}>
+            <Logo3DCrystal size={75} />
           </div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#ffffff' }}>
-            OmniField Pro
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            Gestão Elétrica <span style={{ color: '#00a3e0', fontSize: '0.75rem', padding: '1px 6px', background: 'rgba(0, 163, 224, 0.15)', borderRadius: '4px', border: '1px solid rgba(0, 163, 224, 0.3)' }}>3D</span>
           </h1>
-          <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)' }}>
+          <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
             Comissionamento & Gestão Corporativa de Obras
           </p>
         </div>

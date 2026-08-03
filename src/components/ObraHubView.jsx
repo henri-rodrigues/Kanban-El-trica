@@ -1,11 +1,11 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { Building2, Plus, ArrowRight, MapPin, Users } from 'lucide-react';
+import { Building2, Plus, ArrowRight, MapPin, Users, Trash2, Edit3 } from 'lucide-react';
 
 export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
   const { isAdmin, currentUser } = useAuth();
-  const { obras, quadros, getObraLaborCostsAndDays } = useData();
+  const { obras, quadros, getObraLaborCostsAndDays, deleteObra } = useData();
 
   const formatBRL = (val) => {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
@@ -65,7 +65,7 @@ export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
       {obras.length > 0 ? (
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
           gap: '1.25rem'
         }}>
           {obras.map((obra) => {
@@ -93,16 +93,16 @@ export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
                 onMouseLeave={(e) => e.currentTarget.style.borderColor = 'var(--border-color)'}
               >
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                    <span className="badge badge-blue">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', gap: '0.5rem' }}>
+                    <span className="badge badge-blue" style={{ maxWidth: '65%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={obra.code || 'OBRA'}>
                       {obra.code || 'OBRA'}
                     </span>
-                    <span className="badge badge-emerald">
+                    <span className="badge badge-emerald" style={{ flexShrink: 0 }}>
                       {obra.status || 'Em Andamento'}
                     </span>
                   </div>
 
-                  <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem' }}>
+                  <h2 style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.4rem', wordBreak: 'break-word', lineHeight: 1.3 }}>
                     {obra.name}
                   </h2>
 
@@ -116,18 +116,18 @@ export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
                     {obra.location && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                         <MapPin size={13} className="text-amber" />
-                        <span>{obra.location}</span>
+                        <span>{obra.location} {obra.distanceKm ? `(${obra.distanceKm} km)` : ''}</span>
                       </div>
                     )}
                     {assignedCount > 0 && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--accent-blue)' }}>
                         <Users size={13} />
-                        <span>{assignedCount} Usuários Autorizados</span>
+                        <span>{assignedCount} Participantes Autorizados</span>
                       </div>
                     )}
                   </div>
 
-                  {/* Financial Info ONLY for Admin */}
+                  {/* Financial 4 Budgets Info ONLY for Admin */}
                   {isAdmin && (
                     <div style={{
                       padding: '0.65rem',
@@ -135,19 +135,26 @@ export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
                       background: 'var(--bg-main)',
                       border: '1px solid var(--border-color)',
                       marginBottom: '0.75rem',
-                      fontSize: '0.75rem',
+                      fontSize: '0.725rem',
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
+                      flexDirection: 'column',
+                      gap: '0.35rem'
                     }}>
-                      <div>
-                        <span style={{ color: 'var(--text-muted)' }}>Verba Total: </span>
-                        <strong style={{ color: 'var(--accent-blue)' }}>{formatBRL(totalBudget)}</strong>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.35rem' }}>
+                        <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Verba Geral:</span>
+                        <strong style={{ color: 'var(--accent-blue)', fontSize: '0.85rem' }}>{formatBRL(totalBudget)}</strong>
                       </div>
-                      <div>
-                        <span style={{ color: 'var(--text-muted)' }}>Mão de Obra: </span>
-                        <strong style={{ color: 'var(--accent-emerald)' }}>{formatBRL(totalLaborCost)}</strong>
+                      <div className="mobile-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem', color: 'var(--text-secondary)' }}>
+                        <div>Materiais: <strong style={{ color: 'var(--text-primary)' }}>{formatBRL(obra.materialsBudget || 0)}</strong></div>
+                        <div>Indiretos: <strong style={{ color: 'var(--text-primary)' }}>{formatBRL(obra.indirectsBudget || 0)}</strong></div>
+                        <div>Infra: <strong style={{ color: 'var(--text-primary)' }}>{formatBRL(obra.infraBudget || 0)}</strong></div>
+                        <div>Mão de Obra: <strong style={{ color: 'var(--text-primary)' }}>{formatBRL(obra.laborBudget || 0)}</strong></div>
                       </div>
+                      {obra.distanceKm > 0 && (
+                        <div style={{ fontSize: '0.675rem', color: 'var(--accent-amber)', marginTop: '0.15rem' }}>
+                          🚘 Custo Est. Viagem ({obra.distanceKm}km x R$1,50): <strong>{formatBRL(obra.distanceKm * 1.5)}</strong>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -163,9 +170,41 @@ export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
                   </div>
                 </div>
 
-                <button className="btn btn-primary btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: '0.25rem' }}>
-                  Abrir Kanban & Quadros <ArrowRight size={14} />
-                </button>
+                <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.25rem' }}>
+                  <button className="btn btn-primary btn-sm" style={{ flex: 1, justifyContent: 'center' }}>
+                    Abrir Kanban & Quadros <ArrowRight size={14} />
+                  </button>
+
+                  {isAdmin && (
+                    <>
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onOpenObraModal('edit_obra', obra);
+                        }} 
+                        className="btn btn-secondary btn-sm"
+                        title="Editar Nome, Orçamento e Participantes Autorizados da Obra"
+                      >
+                        <Edit3 size={14} className="text-blue" />
+                      </button>
+
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (window.confirm(`Tem certeza que deseja EXCLUIR a obra "${obra.name}"?\nEsta ação excluirá todos os quadros, post-its e orçamentos vinculados.`)) {
+                            deleteObra(obra.id);
+                          }
+                        }} 
+                        className="btn btn-danger btn-sm"
+                        title="Excluir Obra"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
             );
           })}

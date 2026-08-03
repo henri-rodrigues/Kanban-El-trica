@@ -10,21 +10,32 @@ import { QuadrosView } from './components/QuadrosView';
 import { ChecklistModule } from './components/ChecklistModule';
 import { MaterialsModule } from './components/MaterialsModule';
 import { ReportsModule } from './components/ReportsModule';
+import { ScheduleModule } from './components/ScheduleModule';
+import { InfraKanbanView } from './components/InfraKanbanView';
+import { FieldReportsModule } from './components/FieldReportsModule';
 import { LoginScreenView } from './components/LoginScreenView';
 import { UserManagementModal } from './components/UserManagementModal';
 import { ObraModal } from './components/ObraModal';
 import { FirebaseModal } from './components/FirebaseModal';
 import { PwaInstallModal } from './components/PwaInstallModal';
-import { Kanban, Layers, CheckSquare, BarChart3, Grid, Smartphone, Package } from 'lucide-react';
+import { ObraChatModal } from './components/ObraChatModal';
+import { 
+  Kanban, Layers, CheckSquare, BarChart3, Grid, Smartphone, Package, 
+  Calendar, Wrench, FileText, MoreHorizontal, X, Menu, MessageSquare
+} from 'lucide-react';
 
 function MainLayout() {
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
   const { obras, selectedObraId, setSelectedObraId, activeObra } = useData();
   const [activeTab, setActiveTab] = useState('hub');
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
   const [isPwaModalOpen, setIsPwaModalOpen] = useState(false);
   const [isUserManagementModalOpen, setIsUserManagementModalOpen] = useState(false);
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [obraModalType, setObraModalType] = useState(null);
+  const [editingObraData, setEditingObraData] = useState(null);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   useEffect(() => {
     if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
@@ -43,8 +54,15 @@ function MainLayout() {
     setActiveTab('kanban');
   };
 
-  const handleOpenObraModal = (type) => {
+  const handleOpenObraModal = (type, obraData = null) => {
     setObraModalType(type);
+    setEditingObraData(obraData);
+  };
+
+  const handleMobileTabSwitch = (tab) => {
+    setActiveTab(tab);
+    setShowMoreMenu(false);
+    setIsMobileDrawerOpen(false);
   };
 
   const getTabLabel = (tab) => {
@@ -54,10 +72,30 @@ function MainLayout() {
       case 'quadros': return 'Subníveis & Quadros';
       case 'checklist': return 'Checklist HVAC';
       case 'materials': return 'Controle de Materiais & PDF';
+      case 'agenda': return 'Agenda & Escala de Viagens';
+      case 'infra': return 'Kanban de Infraestrutura';
+      case 'field_reports': return 'Diário de Campo & Mídias';
       case 'reports': return 'Relatórios Financeiros';
       default: return 'Visão Geral';
     }
   };
+
+  // Which tabs are shown in the "More" menu
+  const moreMenuTabs = [
+    { id: 'checklist', icon: <CheckSquare size={16} />, label: 'Checklist HVAC' },
+    { id: 'agenda', icon: <Calendar size={16} />, label: 'Agenda & Viagens' },
+    { id: 'infra', icon: <Wrench size={16} />, label: 'Kanban Infraestrutura' },
+    { id: 'field_reports', icon: <FileText size={16} />, label: 'Diário de Campo' },
+  ];
+
+  if (isAdmin) {
+    moreMenuTabs.push(
+      { id: 'materials', icon: <Package size={16} />, label: 'Controle Materiais' },
+      { id: 'reports', icon: <BarChart3 size={16} />, label: 'Relatórios' }
+    );
+  }
+
+  const isMoreTabActive = moreMenuTabs.some(t => t.id === activeTab);
 
   return (
     <div className="app-container">
@@ -67,6 +105,8 @@ function MainLayout() {
         onOpenFirebaseModal={() => setIsFirebaseModalOpen(true)}
         onOpenPwaModal={() => setIsPwaModalOpen(true)}
         onGoToHub={() => setActiveTab('hub')}
+        onOpenChatModal={() => setIsChatModalOpen(true)}
+        onToggleMobileDrawer={() => setIsMobileDrawerOpen(!isMobileDrawerOpen)}
       />
 
       <div className="app-main">
@@ -97,11 +137,23 @@ function MainLayout() {
             )}
 
             {activeTab === 'quadros' && (
-              <QuadrosView onOpenObraModal={handleOpenObraModal} />
+              <QuadrosView onOpenObraModal={handleOpenObraModal} setActiveTab={setActiveTab} />
             )}
 
             {activeTab === 'checklist' && (
               <ChecklistModule />
+            )}
+
+            {activeTab === 'agenda' && (
+              <ScheduleModule />
+            )}
+
+            {activeTab === 'infra' && (
+              <InfraKanbanView />
+            )}
+
+            {activeTab === 'field_reports' && (
+              <FieldReportsModule />
             )}
 
             {activeTab === 'materials' && (
@@ -115,25 +167,81 @@ function MainLayout() {
         </div>
       </div>
 
+      {/* Mobile Navigation Drawer (Slide-out menu for 100% desktop parity) */}
+      {isMobileDrawerOpen && (
+        <div className="mobile-drawer-overlay" onClick={() => setIsMobileDrawerOpen(false)}>
+          <div className="mobile-drawer-content" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', paddingBottom: '0.5rem', borderBottom: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 800, fontSize: '0.9rem', color: 'var(--accent-blue)' }}>
+                <Menu size={18} /> Menu Principal
+              </div>
+              <button onClick={() => setIsMobileDrawerOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              <Sidebar 
+                activeTab={activeTab} 
+                setActiveTab={(tab) => {
+                  setActiveTab(tab);
+                  setIsMobileDrawerOpen(false);
+                }} 
+                onOpenObraModal={(type, data) => {
+                  handleOpenObraModal(type, data);
+                  setIsMobileDrawerOpen(false);
+                }} 
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Bottom Navigation Bar */}
       <nav className="mobile-bottom-nav">
-        <button onClick={() => setActiveTab('hub')} className={`mobile-nav-item ${activeTab === 'hub' ? 'active' : ''}`}>
+        <button onClick={() => handleMobileTabSwitch('hub')} className={`mobile-nav-item ${activeTab === 'hub' ? 'active' : ''}`}>
           <Grid size={18} />
           <span>Obras</span>
         </button>
-        <button onClick={() => setActiveTab('kanban')} className={`mobile-nav-item ${activeTab === 'kanban' ? 'active' : ''}`}>
+        <button onClick={() => setIsMobileDrawerOpen(true)} className={`mobile-nav-item ${isMobileDrawerOpen ? 'active' : ''}`}>
+          <Menu size={18} />
+          <span>Menu</span>
+        </button>
+        <button onClick={() => handleMobileTabSwitch('kanban')} className={`mobile-nav-item ${activeTab === 'kanban' ? 'active' : ''}`}>
           <Kanban size={18} />
           <span>Kanban</span>
         </button>
-        <button onClick={() => setActiveTab('quadros')} className={`mobile-nav-item ${activeTab === 'quadros' ? 'active' : ''}`}>
+        <button onClick={() => handleMobileTabSwitch('quadros')} className={`mobile-nav-item ${activeTab === 'quadros' ? 'active' : ''}`}>
           <Layers size={18} />
           <span>Quadros</span>
         </button>
-        <button onClick={() => setIsPwaModalOpen(true)} className="mobile-nav-item">
-          <Smartphone size={18} />
-          <span>Atalho App</span>
+        <button onClick={() => setIsChatModalOpen(true)} className="mobile-nav-item">
+          <MessageSquare size={18} />
+          <span>Chat</span>
         </button>
       </nav>
+
+      {/* More Menu Popover (Mobile Only) */}
+      {showMoreMenu && (
+        <>
+          <div 
+            onClick={() => setShowMoreMenu(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 998 }}
+          />
+          <div className="mobile-more-menu">
+            {moreMenuTabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => handleMobileTabSwitch(tab.id)}
+                className={activeTab === tab.id ? 'active' : ''}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
       {/* Modals */}
       <UserManagementModal
@@ -144,7 +252,11 @@ function MainLayout() {
       <ObraModal 
         isOpen={!!obraModalType} 
         type={obraModalType} 
-        onClose={() => setObraModalType(null)} 
+        editingObra={editingObraData}
+        onClose={() => {
+          setObraModalType(null);
+          setEditingObraData(null);
+        }} 
       />
 
       <FirebaseModal
@@ -155,6 +267,11 @@ function MainLayout() {
       <PwaInstallModal
         isOpen={isPwaModalOpen}
         onClose={() => setIsPwaModalOpen(false)}
+      />
+
+      <ObraChatModal
+        isOpen={isChatModalOpen}
+        onClose={() => setIsChatModalOpen(false)}
       />
     </div>
   );

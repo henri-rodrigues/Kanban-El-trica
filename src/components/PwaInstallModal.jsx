@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Smartphone, Download, X, Share, MoreVertical, PlusSquare, CheckCircle2, Sparkles } from 'lucide-react';
+import { Logo3DCrystal } from './Logo';
+import { X, Smartphone, Download, Share2, PlusSquare, MoreVertical } from 'lucide-react';
 
 export const PwaInstallModal = ({ isOpen, onClose }) => {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isInstalled, setIsInstalled] = useState(false);
+  const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
     const handleBeforeInstall = (e) => {
@@ -15,6 +17,11 @@ export const PwaInstallModal = ({ isOpen, onClose }) => {
 
     if (window.matchMedia('(display-mode: standalone)').matches) {
       setIsInstalled(true);
+    }
+
+    const userAgent = window.navigator.userAgent.toLowerCase();
+    if (/iphone|ipad|ipod/.test(userAgent)) {
+      setIsIOS(true);
     }
 
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
@@ -50,11 +57,11 @@ export const PwaInstallModal = ({ isOpen, onClose }) => {
         className="glass-panel"
         style={{
           width: '100%',
-          maxWidth: '520px',
+          maxWidth: '460px',
           maxHeight: '90vh',
           overflowY: 'auto',
           borderRadius: 'var(--radius-lg)',
-          padding: '1.5rem',
+          padding: '1.75rem',
           position: 'relative'
         }}
       >
@@ -62,27 +69,15 @@ export const PwaInstallModal = ({ isOpen, onClose }) => {
           <X size={20} />
         </button>
 
-        <div style={{ textAlign: 'center', marginBottom: '1.25rem' }}>
-          <div style={{
-            width: '56px',
-            height: '56px',
-            borderRadius: '16px',
-            background: 'var(--accent-blue)',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontSize: '1.8rem',
-            marginBottom: '0.5rem',
-            boxShadow: '0 4px 15px rgba(2, 132, 199, 0.4)'
-          }}>
-            ⚡
+        <div style={{ textAlign: 'center', marginBottom: '1.25rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ marginBottom: '0.5rem' }}>
+            <Logo3DCrystal size={56} showText={false} />
           </div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'var(--text-primary)' }}>
             Criar Atalho na Tela do Celular (PWA)
           </h2>
           <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-            Acesse o OmniField Pro direto da tela inicial do seu dispositivo como um aplicativo nativo.
+            Acesse o app Gestão Elétrica 3D direto da tela inicial do seu dispositivo como um aplicativo nativo.
           </p>
         </div>
 

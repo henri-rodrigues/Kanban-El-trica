@@ -41,7 +41,7 @@ export const PwaInstallBanner = () => {
       <button 
         onClick={handleInstallClick}
         className="btn btn-secondary btn-sm"
-        title="Instalar Aplicativo OmniField Pro"
+        title="Instalar Aplicativo Gestão Elétrica 3D"
         style={{ fontSize: '0.75rem', gap: '0.3rem' }}
       >
         <Smartphone size={14} className="text-amber" />
@@ -78,7 +78,7 @@ export const PwaInstallBanner = () => {
         
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#fff', marginBottom: '0.2rem' }}>
-            Instalar OmniField Pro
+            Instalar Gestão Elétrica 3D
           </div>
           <div style={{ fontSize: '0.775rem', color: 'var(--text-secondary)', marginBottom: '0.7rem' }}>
             Adicione o app diretamente na tela inicial do seu celular para acesso rápido e offline no campo.

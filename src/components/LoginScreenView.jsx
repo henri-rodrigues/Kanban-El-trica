@@ -52,7 +52,7 @@ export const LoginScreenView = () => {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      background: '#000000',
+      background: 'radial-gradient(1200px 600px at 50% -10%, var(--wash-blue), transparent), var(--bg-app)',
       padding: '1.5rem'
     }}>
       <div 
@@ -62,7 +62,7 @@ export const LoginScreenView = () => {
           maxWidth: '460px',
           borderRadius: 'var(--radius-lg)',
           padding: '2rem',
-          boxShadow: '0 8px 30px rgba(0, 0, 0, 0.9)',
+          boxShadow: 'var(--shadow-lg)',
           border: '1px solid var(--border-color)'
         }}
       >
@@ -71,8 +71,8 @@ export const LoginScreenView = () => {
           <div style={{ marginBottom: '0.85rem' }}>
             <Logo3DCrystal size={75} />
           </div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: '#ffffff', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            Gestão Elétrica <span style={{ color: '#00a3e0', fontSize: '0.75rem', padding: '1px 6px', background: 'rgba(0, 163, 224, 0.15)', borderRadius: '4px', border: '1px solid rgba(0, 163, 224, 0.3)' }}>3D</span>
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            Gestão Elétrica <span className="badge badge-blue" style={{ fontSize: '0.75rem' }}>3D</span>
           </h1>
           <p style={{ fontSize: '0.825rem', color: 'var(--text-secondary)', marginTop: '0.15rem' }}>
             Comissionamento & Gestão Corporativa de Obras

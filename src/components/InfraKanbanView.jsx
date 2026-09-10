@@ -18,7 +18,7 @@ import {
 import { POSTIT_GRADIENTS, getGradientById } from '../constants/gradients';
 
 const KANBAN_COLUMNS = [
-  { id: 'todo', title: '📋 A Fazer', color: 'var(--accent-blue)', bg: 'rgba(2, 132, 199, 0.08)' },
+  { id: 'todo', title: '📋 A Fazer', color: 'var(--accent-blue)', bg: 'var(--wash-blue)' },
   { id: 'in_progress', title: '⚡ Em Andamento', color: 'var(--accent-amber)', bg: 'rgba(245, 158, 11, 0.08)' },
   { id: 'on_hold', title: '⏳ Aguardo', color: 'var(--accent-purple)', bg: 'rgba(147, 51, 234, 0.08)' },
   { id: 'completed', title: '✅ Concluído', color: 'var(--accent-emerald)', bg: 'rgba(16, 185, 129, 0.08)' }

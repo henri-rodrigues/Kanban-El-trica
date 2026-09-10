@@ -283,7 +283,7 @@ export const MaterialsModule = () => {
             background: pdfStatus.type === 'success' 
               ? 'rgba(16, 185, 129, 0.12)' 
               : pdfStatus.type === 'warning' 
-              ? 'rgba(245, 158, 11, 0.12)' 
+              ? 'var(--wash-amber)' 
               : 'rgba(244, 63, 94, 0.12)',
             borderLeft: `4px solid ${
               pdfStatus.type === 'success' 
@@ -323,7 +323,7 @@ export const MaterialsModule = () => {
           padding: '1.5rem 1rem',
           borderRadius: 'var(--radius-lg)',
           border: isDragOverPdf ? '2px dashed var(--accent-blue)' : '2px dashed var(--border-color)',
-          background: isDragOverPdf ? 'rgba(2, 132, 199, 0.12)' : 'var(--bg-card)',
+          background: isDragOverPdf ? 'var(--wash-blue)' : 'var(--bg-card)',
           textAlign: 'center',
           cursor: 'pointer',
           transition: 'all 0.15s ease'

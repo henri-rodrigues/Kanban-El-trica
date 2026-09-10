@@ -322,7 +322,7 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
                     fontWeight: 600,
                     cursor: 'pointer',
                     border: isMentioned ? `2px solid ${u.userColorTag || 'var(--accent-blue)'}` : '1px solid var(--border-color)',
-                    background: isMentioned ? 'rgba(2, 132, 199, 0.2)' : 'var(--bg-card)',
+                    background: isMentioned ? 'var(--wash-blue-strong)' : 'var(--bg-card)',
                     color: isMentioned ? 'var(--text-primary)' : 'var(--text-muted)',
                     display: 'inline-flex',
                     alignItems: 'center',

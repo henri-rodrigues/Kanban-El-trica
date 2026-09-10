@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }) => {
   });
 
   const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('omnifield_theme') || 'dark';
+    return localStorage.getItem('omnifield_theme') || 'light';
   });
 
   useEffect(() => {

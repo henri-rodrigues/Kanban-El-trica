@@ -1,10 +1,11 @@
+/* Gradientes dos post-its — tons pastéis, suaves e pouco saturados */
 export const POSTIT_GRADIENTS = [
-  { id: 'cyan', name: 'Electric Cyan', gradient: 'linear-gradient(135deg, #0284c7, #38bdf8)', border: '#38bdf8' },
-  { id: 'sunset', name: 'Sunset Flame', gradient: 'linear-gradient(135deg, #f97316, #e11d48)', border: '#f97316' },
-  { id: 'violet', name: 'Cosmic Violet', gradient: 'linear-gradient(135deg, #6366f1, #a855f7)', border: '#a855f7' },
-  { id: 'emerald', name: 'Emerald Wave', gradient: 'linear-gradient(135deg, #10b981, #059669)', border: '#10b981' },
-  { id: 'amber', name: 'Amber Glow', gradient: 'linear-gradient(135deg, #f59e0b, #d97706)', border: '#f59e0b' },
-  { id: 'midnight', name: 'Midnight Dark', gradient: 'linear-gradient(135deg, #334155, #1e293b)', border: '#475569' }
+  { id: 'cyan', name: 'Azul Sereno', gradient: 'linear-gradient(135deg, #6c96f5, #8fb4f8)', border: '#8fb4f8' },
+  { id: 'sunset', name: 'Coral Suave', gradient: 'linear-gradient(135deg, #f2957e, #f0b38f)', border: '#f2957e' },
+  { id: 'violet', name: 'Lavanda', gradient: 'linear-gradient(135deg, #9184ee, #b3a6f2)', border: '#b3a6f2' },
+  { id: 'emerald', name: 'Verde Menta', gradient: 'linear-gradient(135deg, #3ec49b, #77d3ba)', border: '#3ec49b' },
+  { id: 'amber', name: 'Âmbar Claro', gradient: 'linear-gradient(135deg, #edb45f, #f2cd8f)', border: '#edb45f' },
+  { id: 'midnight', name: 'Cinza Ardósia', gradient: 'linear-gradient(135deg, #64748b, #94a3b8)', border: '#94a3b8' }
 ];
 
 export const getGradientById = (id) => {

@@ -65,7 +65,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
               <span className="badge badge-emerald">{activeObra?.progress || 0}%</span>
             </div>
             <div style={{ width: '100%', height: '4px', background: 'var(--border-color)', borderRadius: '2px', marginTop: '0.35rem', overflow: 'hidden' }}>
-              <div style={{ width: `${activeObra?.progress || 0}%`, height: '100%', background: 'linear-gradient(90deg, #059669, #0284c7)' }} />
+              <div style={{ width: `${activeObra?.progress || 0}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent-emerald), var(--accent-blue))' }} />
             </div>
           </>
         ) : (
@@ -95,7 +95,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
             cursor: 'pointer',
             fontSize: '0.8rem',
             fontWeight: activeTab === 'hub' ? 600 : 400,
-            background: activeTab === 'hub' ? 'rgba(2, 132, 199, 0.15)' : 'transparent',
+            background: activeTab === 'hub' ? 'var(--wash-blue-strong)' : 'transparent',
             color: activeTab === 'hub' ? 'var(--accent-blue)' : 'var(--text-secondary)',
             textAlign: 'left'
           }}
@@ -116,7 +116,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
             cursor: 'pointer',
             fontSize: '0.8rem',
             fontWeight: activeTab === 'personal_agenda' ? 600 : 400,
-            background: activeTab === 'personal_agenda' ? 'rgba(124, 58, 237, 0.15)' : 'transparent',
+            background: activeTab === 'personal_agenda' ? 'var(--wash-purple)' : 'transparent',
             color: activeTab === 'personal_agenda' ? 'var(--accent-purple)' : 'var(--text-secondary)',
             textAlign: 'left'
           }}
@@ -137,7 +137,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
             cursor: 'pointer',
             fontSize: '0.8rem',
             fontWeight: activeTab === 'kanban' ? 600 : 400,
-            background: activeTab === 'kanban' ? 'rgba(2, 132, 199, 0.15)' : 'transparent',
+            background: activeTab === 'kanban' ? 'var(--wash-blue-strong)' : 'transparent',
             color: activeTab === 'kanban' ? 'var(--accent-blue)' : 'var(--text-secondary)',
             textAlign: 'left'
           }}
@@ -158,7 +158,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
             cursor: 'pointer',
             fontSize: '0.8rem',
             fontWeight: activeTab === 'quadros' ? 600 : 400,
-            background: activeTab === 'quadros' ? 'rgba(2, 132, 199, 0.15)' : 'transparent',
+            background: activeTab === 'quadros' ? 'var(--wash-blue-strong)' : 'transparent',
             color: activeTab === 'quadros' ? 'var(--accent-blue)' : 'var(--text-secondary)',
             textAlign: 'left'
           }}
@@ -179,7 +179,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
             cursor: 'pointer',
             fontSize: '0.8rem',
             fontWeight: activeTab === 'checklist' ? 600 : 400,
-            background: activeTab === 'checklist' ? 'rgba(2, 132, 199, 0.15)' : 'transparent',
+            background: activeTab === 'checklist' ? 'var(--wash-blue-strong)' : 'transparent',
             color: activeTab === 'checklist' ? 'var(--accent-blue)' : 'var(--text-secondary)',
             textAlign: 'left'
           }}
@@ -200,7 +200,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
             cursor: 'pointer',
             fontSize: '0.8rem',
             fontWeight: activeTab === 'agenda' ? 600 : 400,
-            background: activeTab === 'agenda' ? 'rgba(2, 132, 199, 0.15)' : 'transparent',
+            background: activeTab === 'agenda' ? 'var(--wash-blue-strong)' : 'transparent',
             color: activeTab === 'agenda' ? 'var(--accent-blue)' : 'var(--text-secondary)',
             textAlign: 'left'
           }}
@@ -221,7 +221,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
             cursor: 'pointer',
             fontSize: '0.8rem',
             fontWeight: activeTab === 'infra' ? 600 : 400,
-            background: activeTab === 'infra' ? 'rgba(2, 132, 199, 0.15)' : 'transparent',
+            background: activeTab === 'infra' ? 'var(--wash-blue-strong)' : 'transparent',
             color: activeTab === 'infra' ? 'var(--accent-blue)' : 'var(--text-secondary)',
             textAlign: 'left'
           }}
@@ -242,7 +242,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
             cursor: 'pointer',
             fontSize: '0.8rem',
             fontWeight: activeTab === 'field_reports' ? 600 : 400,
-            background: activeTab === 'field_reports' ? 'rgba(2, 132, 199, 0.15)' : 'transparent',
+            background: activeTab === 'field_reports' ? 'var(--wash-blue-strong)' : 'transparent',
             color: activeTab === 'field_reports' ? 'var(--accent-blue)' : 'var(--text-secondary)',
             textAlign: 'left'
           }}
@@ -265,7 +265,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
               cursor: 'pointer',
               fontSize: '0.8rem',
               fontWeight: activeTab === 'materials' ? 600 : 400,
-              background: activeTab === 'materials' ? 'rgba(2, 132, 199, 0.15)' : 'transparent',
+              background: activeTab === 'materials' ? 'var(--wash-blue-strong)' : 'transparent',
               color: activeTab === 'materials' ? 'var(--accent-blue)' : 'var(--text-secondary)',
               textAlign: 'left'
             }}
@@ -292,7 +292,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
               cursor: 'pointer',
               fontSize: '0.8rem',
               fontWeight: activeTab === 'reports' ? 600 : 400,
-              background: activeTab === 'reports' ? 'rgba(124, 58, 237, 0.15)' : 'transparent',
+              background: activeTab === 'reports' ? 'var(--wash-purple)' : 'transparent',
               color: activeTab === 'reports' ? 'var(--accent-purple)' : 'var(--text-secondary)',
               textAlign: 'left'
             }}
@@ -336,7 +336,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
             border: 'none',
             cursor: 'pointer',
             fontSize: '0.75rem',
-            background: selectedQuadroId === null && activeTab === 'kanban' ? 'rgba(2, 132, 199, 0.15)' : 'transparent',
+            background: selectedQuadroId === null && activeTab === 'kanban' ? 'var(--wash-blue-strong)' : 'transparent',
             color: selectedQuadroId === null && activeTab === 'kanban' ? 'var(--accent-blue)' : 'var(--text-primary)',
             fontWeight: selectedQuadroId === null ? 600 : 400
           }}
@@ -362,7 +362,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
               cursor: 'pointer',
               fontSize: '0.75rem',
               textAlign: 'left',
-              background: selectedQuadroId === quadro.id ? 'rgba(79, 70, 229, 0.15)' : 'transparent',
+              background: selectedQuadroId === quadro.id ? 'var(--wash-purple)' : 'transparent',
               color: selectedQuadroId === quadro.id ? 'var(--accent-indigo)' : 'var(--text-secondary)',
               fontWeight: selectedQuadroId === quadro.id ? 600 : 400
             }}

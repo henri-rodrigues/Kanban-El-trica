@@ -133,7 +133,7 @@ export const Navbar = ({
                         borderRadius: 'var(--radius-sm)',
                         cursor: 'pointer',
                         fontSize: '0.8rem',
-                        background: obra.id === selectedObraId ? 'rgba(2, 132, 199, 0.12)' : 'transparent',
+                        background: obra.id === selectedObraId ? 'var(--wash-blue)' : 'transparent',
                         color: obra.id === selectedObraId ? 'var(--accent-blue)' : 'var(--text-primary)',
                         fontWeight: obra.id === selectedObraId ? 600 : 400,
                         marginBottom: '2px',
@@ -289,7 +289,7 @@ export const Navbar = ({
                           style={{
                             padding: '0.6rem',
                             borderRadius: 'var(--radius-sm)',
-                            background: n.read ? 'var(--bg-main)' : 'rgba(2, 132, 199, 0.1)',
+                            background: n.read ? 'var(--bg-main)' : 'var(--wash-blue)',
                             borderLeft: n.read ? '3px solid transparent' : '3px solid var(--accent-blue)',
                             cursor: 'pointer',
                             transition: 'background 0.15s ease'

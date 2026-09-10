@@ -253,7 +253,7 @@ export const ReportsModule = () => {
       </div>
 
       {/* Summary Banner Total General Budget */}
-      <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.12), rgba(16, 185, 129, 0.12))', border: '1px solid var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+      <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg, var(--wash-blue), rgba(16, 185, 129, 0.12))', border: '1px solid var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-blue)', textTransform: 'uppercase' }}>
             VERBA GERAL DO PROJETO (Soma das 4 Verbas)
@@ -333,7 +333,7 @@ export const ReportsModule = () => {
 
         {/* Kickoff Stages Time Breakdown */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.25rem' }}>
-          <div style={{ padding: '0.85rem', borderRadius: '6px', background: 'rgba(2, 132, 199, 0.08)', border: '1px solid var(--accent-blue)' }}>
+          <div style={{ padding: '0.85rem', borderRadius: '6px', background: 'var(--wash-blue)', border: '1px solid var(--accent-blue)' }}>
             <div style={{ fontSize: '0.7rem', color: 'var(--accent-blue)', fontWeight: 800, textTransform: 'uppercase' }}>
               🔵 Fase 1: Pré Kickoff-01 (Azul)
             </div>

@@ -437,7 +437,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                             const u = users.find(usr => usr.id === uid);
                             if (!u) return null;
                             return (
-                              <span key={uid} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '10px', background: 'rgba(2, 132, 199, 0.15)', color: 'var(--accent-blue)', fontWeight: 700, border: '1px solid rgba(2, 132, 199, 0.3)' }}>
+                              <span key={uid} style={{ fontSize: '0.65rem', padding: '1px 6px', borderRadius: '10px', background: 'var(--wash-blue-strong)', color: 'var(--accent-blue)', fontWeight: 700, border: '1px solid rgba(2, 132, 199, 0.3)' }}>
                                 @{u.name.split(' ')[0]}
                               </span>
                             );

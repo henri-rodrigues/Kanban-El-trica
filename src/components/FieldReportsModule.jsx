@@ -321,7 +321,7 @@ export const FieldReportsModule = () => {
                           fontSize: '0.725rem',
                           fontWeight: 600,
                           border: isSelected ? '1px solid var(--accent-blue)' : '1px solid var(--border-color)',
-                          background: isSelected ? 'rgba(2, 132, 199, 0.2)' : 'var(--bg-main)',
+                          background: isSelected ? 'var(--wash-blue-strong)' : 'var(--bg-main)',
                           color: isSelected ? 'var(--accent-blue)' : 'var(--text-secondary)',
                           cursor: 'pointer',
                           display: 'inline-flex',

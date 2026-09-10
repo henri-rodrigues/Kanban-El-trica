@@ -218,7 +218,7 @@ export const ObraModal = ({ isOpen, type, editingObra, onClose }) => {
 
             {/* 4 Budgets Manual Entry Section */}
             {isAdmin && (
-              <div style={{ marginBottom: '1.25rem', padding: '0.85rem', borderRadius: 'var(--radius-md)', background: 'rgba(2, 132, 199, 0.06)', border: '1px solid var(--accent-blue)' }}>
+              <div style={{ marginBottom: '1.25rem', padding: '0.85rem', borderRadius: 'var(--radius-md)', background: 'var(--wash-blue)', border: '1px solid var(--accent-blue)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
                   <label style={{ fontSize: '0.825rem', fontWeight: 800, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                     <DollarSign size={16} /> Divisão das 4 Verbas da Obra

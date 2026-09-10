@@ -334,7 +334,7 @@ export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
                         height: '75px',
                         borderRadius: '6px',
                         border: isToday ? '2px solid var(--accent-blue)' : '1px solid var(--border-color)',
-                        background: dayTrips.length > 0 ? 'rgba(2, 132, 199, 0.08)' : 'var(--bg-main)',
+                        background: dayTrips.length > 0 ? 'var(--wash-blue)' : 'var(--bg-main)',
                         padding: '4px',
                         cursor: isAdmin ? 'pointer' : 'default',
                         display: 'flex',
@@ -544,7 +544,7 @@ export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
                         height: '80px',
                         borderRadius: '6px',
                         border: isToday ? '2px solid var(--accent-purple)' : '1px solid var(--border-color)',
-                        background: dayTrips.length > 0 ? 'rgba(124, 58, 237, 0.12)' : 'var(--bg-main)',
+                        background: dayTrips.length > 0 ? 'var(--wash-purple)' : 'var(--bg-main)',
                         padding: '4px',
                         display: 'flex',
                         flexDirection: 'column',
@@ -668,7 +668,7 @@ export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.85rem' }}>
-                  <div style={{ padding: '0.75rem', borderRadius: '6px', background: 'rgba(124, 58, 237, 0.1)', border: '1px solid var(--accent-purple)' }}>
+                  <div style={{ padding: '0.75rem', borderRadius: '6px', background: 'var(--wash-purple)', border: '1px solid var(--accent-purple)' }}>
                     <div style={{ fontSize: '0.7rem', color: 'var(--accent-purple)', fontWeight: 800, textTransform: 'uppercase' }}>Obra de Destino</div>
                     <strong style={{ fontSize: '1.1rem', color: 'var(--text-primary)' }}>{selectedPersonalTripDetail.obraName}</strong>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Cliente: {selectedPersonalTripDetail.obraClient}</div>
@@ -787,7 +787,7 @@ export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
               <div style={{ 
                 padding: '0.85rem', 
                 borderRadius: '8px', 
-                background: modalIsDoubleCar ? 'rgba(245, 158, 11, 0.12)' : 'rgba(2, 132, 199, 0.12)', 
+                background: modalIsDoubleCar ? 'var(--wash-amber)' : 'var(--wash-blue)', 
                 border: `1px solid ${modalIsDoubleCar ? 'var(--accent-amber)' : 'var(--accent-blue)'}`, 
                 fontSize: '0.8rem' 
               }}>

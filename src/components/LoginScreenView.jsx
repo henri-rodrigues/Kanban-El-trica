@@ -5,7 +5,7 @@ import { POSTIT_GRADIENTS } from '../constants/gradients';
 import { LogIn, UserPlus, Sparkles, AlertCircle, CheckCircle2, ShieldCheck, Palette } from 'lucide-react';
 
 export const LoginScreenView = () => {
-  const { loginWithPassword, registerRequestUser, users } = useAuth();
+  const { loginWithPassword, completeLegacyMigration, resetPassword, registerRequestUser, cloudEnabled } = useAuth();
 
   const [activeTab, setActiveTab] = useState('login'); // 'login' | 'register'
   
@@ -13,6 +13,13 @@ export const LoginScreenView = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [loginInfo, setLoginInfo] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  // Migração de conta antiga para a nuvem (senha antiga curta demais)
+  const [needsNewPassword, setNeedsNewPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [newPassword2, setNewPassword2] = useState('');
 
   // Register Form
   const [regName, setRegName] = useState('');
@@ -20,30 +27,73 @@ export const LoginScreenView = () => {
   const [regPassword, setRegPassword] = useState('');
   const [regGradientId, setRegGradientId] = useState('cyan');
   const [regSuccessMsg, setRegSuccessMsg] = useState(false);
+  const [regError, setRegError] = useState('');
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
     setLoginError('');
-    const res = loginWithPassword(identifier, password);
-    if (!res.success) {
-      setLoginError(res.message);
+    setLoginInfo('');
+    setBusy(true);
+    try {
+      const res = await loginWithPassword(identifier, password);
+      if (!res.success) {
+        if (res.needsNewPassword) setNeedsNewPassword(true);
+        setLoginError(res.message);
+      }
+    } finally {
+      setBusy(false);
     }
   };
 
-  const handleRegister = (e) => {
+  const handleNewPassword = async (e) => {
+    e.preventDefault();
+    setLoginError('');
+    if (newPassword.length < 6) return setLoginError('A nova senha precisa ter pelo menos 6 caracteres.');
+    if (newPassword !== newPassword2) return setLoginError('As senhas não conferem.');
+    setBusy(true);
+    try {
+      const res = await completeLegacyMigration(identifier, password, newPassword);
+      if (!res.success) {
+        setLoginError(res.message);
+        if (!res.needsNewPassword) setNeedsNewPassword(false);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleForgot = async () => {
+    setLoginError('');
+    setLoginInfo('');
+    const res = await resetPassword(identifier);
+    if (res.success) setLoginInfo(res.message);
+    else setLoginError(res.message);
+  };
+
+  const handleRegister = async (e) => {
     e.preventDefault();
     if (!regName || !regPassword) return;
-    registerRequestUser({
-      name: regName,
-      email: regEmail || `${regName.toLowerCase().replace(/\s+/g, '')}@omnifield.com`,
-      password: regPassword,
-      gradientId: regGradientId
-    });
-
-    setRegSuccessMsg(true);
-    setRegName('');
-    setRegEmail('');
-    setRegPassword('');
+    setRegError('');
+    setRegSuccessMsg(false);
+    setBusy(true);
+    try {
+      const res = await registerRequestUser({
+        name: regName,
+        email: regEmail || `${regName.toLowerCase().replace(/\s+/g, '')}@omnifield.com`,
+        password: regPassword,
+        gradientId: regGradientId
+      });
+      if (res.success) {
+        setRegSuccessMsg(true);
+        setRegName('');
+        setRegEmail('');
+        setRegPassword('');
+      } else {
+        setRegError(res.message);
+      }
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -126,50 +176,93 @@ export const LoginScreenView = () => {
 
         {/* Login Form */}
         {activeTab === 'login' && (
-          <form onSubmit={handleLogin}>
+          <form onSubmit={needsNewPassword ? handleNewPassword : handleLogin}>
             {loginError && (
-              <div style={{ padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'rgba(220, 38, 38, 0.15)', border: '1px solid rgba(220, 38, 38, 0.3)', color: '#f87171', fontSize: '0.8rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <div style={{ padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'var(--wash-rose)', color: 'var(--accent-rose)', fontSize: '0.8rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <AlertCircle size={16} />
                 <span>{loginError}</span>
               </div>
             )}
+            {loginInfo && (
+              <div style={{ padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'var(--wash-emerald)', color: 'var(--accent-emerald)', fontSize: '0.8rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <CheckCircle2 size={16} />
+                <span>{loginInfo}</span>
+              </div>
+            )}
 
-            <div className="form-group">
-              <label>E-mail ou Usuário *</label>
-              <input 
-                type="text" 
-                required 
-                placeholder="admin@omnifield.com ou operador@omnifield.com" 
-                className="form-control" 
-                value={identifier} 
-                onChange={(e) => setIdentifier(e.target.value)} 
-              />
-            </div>
+            {!needsNewPassword ? (
+              <>
+                <div className="form-group">
+                  <label>E-mail ou Usuário *</label>
+                  <input
+                    type="text"
+                    required
+                    autoComplete="username"
+                    placeholder="seu e-mail"
+                    className="form-control"
+                    value={identifier}
+                    onChange={(e) => setIdentifier(e.target.value)}
+                  />
+                </div>
 
-            <div className="form-group">
-              <label>Senha *</label>
-              <input 
-                type="password" 
-                required 
-                placeholder="••••••••" 
-                className="form-control" 
-                value={password} 
-                onChange={(e) => setPassword(e.target.value)} 
-              />
-            </div>
+                <div className="form-group">
+                  <label>Senha *</label>
+                  <input
+                    type="password"
+                    required
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    className="form-control"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.9rem' }}>
+                  Para sincronizar com a nuvem com segurança, defina uma <strong>nova senha</strong> (mínimo de 6 caracteres) para <strong>{identifier}</strong>.
+                </p>
+                <div className="form-group">
+                  <label>Nova senha *</label>
+                  <input type="password" required minLength={6} autoComplete="new-password" className="form-control" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label>Confirmar nova senha *</label>
+                  <input type="password" required minLength={6} autoComplete="new-password" className="form-control" value={newPassword2} onChange={(e) => setNewPassword2(e.target.value)} />
+                </div>
+              </>
+            )}
 
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem', padding: '0.7rem', fontSize: '0.9rem' }}>
-              <LogIn size={16} /> Acessar Sistema
+            <button type="submit" disabled={busy} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem', padding: '0.7rem', fontSize: '0.9rem' }}>
+              <LogIn size={16} /> {busy ? 'Aguarde…' : needsNewPassword ? 'Definir senha e entrar' : 'Acessar Sistema'}
             </button>
 
+            {cloudEnabled && !needsNewPassword && (
+              <button type="button" onClick={handleForgot} className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}>
+                Esqueci minha senha
+              </button>
+            )}
+            {needsNewPassword && (
+              <button type="button" onClick={() => { setNeedsNewPassword(false); setNewPassword(''); setNewPassword2(''); setLoginError(''); }} className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}>
+                Voltar
+              </button>
+            )}
           </form>
         )}
 
         {/* Register Request Form */}
         {activeTab === 'register' && (
           <form onSubmit={handleRegister}>
+            {regError && (
+              <div style={{ padding: '0.75rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'var(--wash-rose)', color: 'var(--accent-rose)', fontSize: '0.8rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <AlertCircle size={18} />
+                <span>{regError}</span>
+              </div>
+            )}
+
             {regSuccessMsg && (
-              <div style={{ padding: '0.75rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'rgba(5, 150, 105, 0.15)', border: '1px solid rgba(5, 150, 105, 0.3)', color: '#34d399', fontSize: '0.8rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ padding: '0.75rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'var(--wash-emerald)', color: 'var(--accent-emerald)', fontSize: '0.8rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <CheckCircle2 size={18} />
                 <span>Solicitação de cadastro enviada com sucesso! Aguarde a aprovação do Administrador.</span>
               </div>
@@ -187,7 +280,7 @@ export const LoginScreenView = () => {
 
             <div className="form-group">
               <label>Crie uma Senha *</label>
-              <input type="password" required className="form-control" placeholder="••••••••" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} />
+              <input type="password" required minLength={6} autoComplete="new-password" className="form-control" placeholder="mínimo 6 caracteres" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} />
             </div>
 
             {/* Custom Creative Gradient Choice for Post-its */}
@@ -219,8 +312,8 @@ export const LoginScreenView = () => {
               </div>
             </div>
 
-            <button type="submit" className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '0.75rem', padding: '0.7rem', fontSize: '0.9rem' }}>
-              <UserPlus size={16} /> Enviar Solicitação para Aprovação
+            <button type="submit" disabled={busy} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '0.75rem', padding: '0.7rem', fontSize: '0.9rem' }}>
+              <UserPlus size={16} /> {busy ? 'Enviando…' : 'Enviar Solicitação para Aprovação'}
             </button>
           </form>
         )}

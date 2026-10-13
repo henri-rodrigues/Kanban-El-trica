@@ -1,13 +1,23 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { 
-  getFirestore, 
-  collection, 
-  doc, 
-  setDoc, 
-  onSnapshot, 
-  deleteDoc, 
-  query 
+import {
+  getFirestore,
+  collection,
+  doc,
+  getDoc,
+  setDoc,
+  writeBatch,
+  onSnapshot,
+  deleteDoc,
+  query
 } from 'firebase/firestore';
+import {
+  getAuth,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signOut
+} from 'firebase/auth';
 
 export const DEFAULT_FIREBASE_CONFIG = {
   apiKey: "AIzaSyDpKe8QFLlZNhDZkRLajVzeg0IIRrY9wKs",
@@ -21,6 +31,7 @@ export const DEFAULT_FIREBASE_CONFIG = {
 
 let db = null;
 let app = null;
+let auth = null;
 
 export const getStoredFirebaseConfig = () => {
   const saved = localStorage.getItem('omnifield_firebase_config');
@@ -43,6 +54,7 @@ export const initFirebase = (config = getStoredFirebaseConfig()) => {
       app = getApps()[0];
     }
     db = getFirestore(app);
+    auth = getAuth(app);
     return db;
   } catch (err) {
     console.error('Erro ao inicializar Firebase:', err);
@@ -50,25 +62,72 @@ export const initFirebase = (config = getStoredFirebaseConfig()) => {
   }
 };
 
-// Check if Firebase is active
-export const isFirebaseActive = () => {
+// A nuvem está configurada (chaves presentes), independentemente de haver alguém logado.
+export const isCloudConfigured = () => {
   const cfg = getStoredFirebaseConfig();
-  if (cfg && cfg.apiKey) {
-    if (!db) initFirebase(cfg);
-    return !!db;
+  if (!cfg || !cfg.apiKey || !cfg.projectId) return false;
+  if (!db) initFirebase(cfg);
+  return !!db && !!auth;
+};
+
+// Há um usuário autenticado no Firebase: só então as regras do Firestore permitem ler/gravar.
+export const isFirebaseActive = () => isCloudConfigured() && !!auth.currentUser;
+
+export const getCloudUser = () => (isCloudConfigured() ? auth.currentUser : null);
+
+// ---------------------------------------------------------------------------
+// Autenticação (e-mail/senha)
+// ---------------------------------------------------------------------------
+const AUTH_ERRORS = {
+  'auth/invalid-credential': 'E-mail ou senha incorretos.',
+  'auth/invalid-login-credentials': 'E-mail ou senha incorretos.',
+  'auth/wrong-password': 'E-mail ou senha incorretos.',
+  'auth/user-not-found': 'E-mail ou senha incorretos.',
+  'auth/invalid-email': 'E-mail inválido.',
+  'auth/email-already-in-use': 'Este e-mail já possui conta. Entre com a senha dela ou use "Esqueci minha senha".',
+  'auth/weak-password': 'A senha precisa ter pelo menos 6 caracteres.',
+  'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos e tente novamente.',
+  'auth/network-request-failed': 'Sem conexão com o servidor. Verifique a internet.',
+  'auth/operation-not-allowed': 'O login por e-mail/senha ainda não foi ativado no console do Firebase (Authentication → Sign-in method).',
+  'auth/configuration-not-found': 'O Authentication ainda não foi ativado no projeto Firebase (Authentication → Vamos começar).',
+  'permission-denied': 'Sem permissão no banco. Verifique se as regras do Firestore (firestore.rules) foram publicadas.'
+};
+
+export const cloudErrorMessage = (err) => AUTH_ERRORS[err?.code] ?? err?.message ?? 'Erro inesperado.';
+
+export const watchCloudAuth = (callback) => {
+  if (!isCloudConfigured()) {
+    callback(null, false);
+    return () => {};
   }
-  return false;
+  return onAuthStateChanged(auth, (user) => callback(user, true));
+};
+
+export const cloudSignIn = (email, password) => signInWithEmailAndPassword(auth, email.trim(), password);
+export const cloudCreateAccount = (email, password) => createUserWithEmailAndPassword(auth, email.trim(), password);
+export const cloudResetPassword = (email) => sendPasswordResetEmail(auth, email.trim());
+export const cloudSignOut = async () => {
+  if (isCloudConfigured() && auth.currentUser) await signOut(auth);
+};
+
+// ---------------------------------------------------------------------------
+// Firestore
+// ---------------------------------------------------------------------------
+// O Firestore rejeita `undefined`; o round-trip JSON descarta esses campos.
+const limpo = (o) => JSON.parse(JSON.stringify(o));
+
+export const fetchFirestoreDoc = async (collectionName, docId) => {
+  if (!isFirebaseActive()) return null;
+  const snap = await getDoc(doc(db, collectionName, docId));
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 };
 
 // Save a document to Firestore collection
 export const saveFirestoreDoc = async (collectionName, docId, data) => {
-  const cfg = getStoredFirebaseConfig();
-  const firestoreDb = db || initFirebase(cfg);
-  if (!firestoreDb) return false;
+  if (!isFirebaseActive()) return false;
 
   try {
-    const docRef = doc(firestoreDb, collectionName, docId);
-    await setDoc(docRef, data, { merge: true });
+    await setDoc(doc(db, collectionName, docId), limpo(data), { merge: true });
     return true;
   } catch (err) {
     console.error(`Erro ao salvar no Firestore [${collectionName}/${docId}]:`, err);
@@ -78,13 +137,10 @@ export const saveFirestoreDoc = async (collectionName, docId, data) => {
 
 // Delete a document from Firestore collection
 export const deleteFirestoreDoc = async (collectionName, docId) => {
-  const cfg = getStoredFirebaseConfig();
-  const firestoreDb = db || initFirebase(cfg);
-  if (!firestoreDb) return false;
+  if (!isFirebaseActive()) return false;
 
   try {
-    const docRef = doc(firestoreDb, collectionName, docId);
-    await deleteDoc(docRef);
+    await deleteDoc(doc(db, collectionName, docId));
     return true;
   } catch (err) {
     console.error(`Erro ao deletar no Firestore [${collectionName}/${docId}]:`, err);
@@ -92,18 +148,30 @@ export const deleteFirestoreDoc = async (collectionName, docId) => {
   }
 };
 
+/**
+ * Cria o perfil do primeiro administrador. As regras só aceitam esta escrita quando o
+ * documento `config/bootstrap` é criado no mesmo lote com o uid de quem está logado —
+ * e esse documento só pode ser criado uma única vez. Lança erro (permission-denied) se
+ * já existir um administrador.
+ */
+export const claimAdminBootstrap = async (uid, profile) => {
+  if (!isFirebaseActive()) throw new Error('Sem sessão na nuvem.');
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'config', 'bootstrap'), { uid, createdAt: new Date().toISOString() });
+  batch.set(doc(db, 'users', uid), limpo(profile));
+  await batch.commit();
+};
+
 // Real-time listener for Firestore collection
 export const subscribeFirestoreCollection = (collectionName, onDataChange) => {
-  const cfg = getStoredFirebaseConfig();
-  const firestoreDb = db || initFirebase(cfg);
-  if (!firestoreDb) return () => {};
+  if (!isFirebaseActive()) return () => {};
 
   try {
-    const q = query(collection(firestoreDb, collectionName));
+    const q = query(collection(db, collectionName));
     return onSnapshot(q, (snapshot) => {
       const items = [];
-      snapshot.forEach((doc) => {
-        items.push({ id: doc.id, ...doc.data() });
+      snapshot.forEach((d) => {
+        items.push({ id: d.id, ...d.data() });
       });
       onDataChange(items);
     }, (err) => {

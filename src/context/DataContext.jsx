@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { 
   saveFirestoreDoc, 
@@ -22,7 +22,7 @@ const safeParseJSON = (key, fallback = []) => {
 };
 
 export const DataProvider = ({ children }) => {
-  const { currentUser, isAdmin, users } = useAuth();
+  const { currentUser, isAdmin, users, cloudUid } = useAuth();
 
   const [rawObras, setRawObras] = useState(() => safeParseJSON('omnifield_obras_v7', []));
   const [selectedObraId, setSelectedObraId] = useState(() => localStorage.getItem('omnifield_selected_obra_v7') || null);
@@ -34,6 +34,9 @@ export const DataProvider = ({ children }) => {
   const [notifications, setNotifications] = useState(() => safeParseJSON('gestao_eletrica_notifications_v1', []));
   const [chatMessages, setChatMessages] = useState(() => safeParseJSON('gestao_eletrica_chat_v1', []));
   const [fieldReports, setFieldReports] = useState(() => safeParseJSON('gestao_eletrica_field_reports_v1', []));
+  // Dimensionamento de quadros elétricos (por obra) e histórico das calculadoras avulsas
+  const [dimensionamentos, setDimensionamentos] = useState(() => safeParseJSON('omnifield_dimensionamentos_v1', []));
+  const [calculosQuadros, setCalculosQuadros] = useState(() => safeParseJSON('omnifield_calculos_quadros_v1', []));
 
   const getCardEvolutionPct = (column) => {
     switch (column) {
@@ -77,31 +80,75 @@ export const DataProvider = ({ children }) => {
   useEffect(() => { localStorage.setItem('gestao_eletrica_notifications_v1', JSON.stringify(notifications)); }, [notifications]);
   useEffect(() => { localStorage.setItem('gestao_eletrica_chat_v1', JSON.stringify(chatMessages)); }, [chatMessages]);
   useEffect(() => { localStorage.setItem('gestao_eletrica_field_reports_v1', JSON.stringify(fieldReports)); }, [fieldReports]);
+  useEffect(() => { localStorage.setItem('omnifield_dimensionamentos_v1', JSON.stringify(dimensionamentos)); }, [dimensionamentos]);
+  useEffect(() => { localStorage.setItem('omnifield_calculos_quadros_v1', JSON.stringify(calculosQuadros)); }, [calculosQuadros]);
 
-  // Automatic Real-time Synchronization with Firestore
+  // Dados mais recentes, lidos pelos listeners da nuvem (evita closures desatualizadas)
+  const latest = useRef({});
+  latest.current = {
+    obras: rawObras,
+    quadros,
+    cards,
+    checklists,
+    purchase_orders: purchaseOrders,
+    notifications,
+    chat_messages: chatMessages,
+    field_reports: fieldReports,
+    dimensionamentos,
+    calculos_quadros: calculosQuadros
+  };
+
+  // Sincronização em tempo real com o Firestore (só com sessão na nuvem).
+  // Regra de mesclagem: o que está na nuvem vence; o que existe só neste dispositivo
+  // (criado offline ou antes de conectar) é enviado, e não é descartado. Um item que
+  // já esteve sincronizado e sumiu da nuvem foi apagado em outro lugar e sai daqui também.
   useEffect(() => {
-    if (isFirebaseActive()) {
-      const unsubObras = subscribeFirestoreCollection('obras', (data) => setRawObras(data));
-      const unsubQuadros = subscribeFirestoreCollection('quadros', (data) => setQuadros(data));
-      const unsubCards = subscribeFirestoreCollection('cards', (data) => setCards(data));
-      const unsubChecklists = subscribeFirestoreCollection('checklists', (data) => setChecklists(data));
-      const unsubPOs = subscribeFirestoreCollection('purchase_orders', (data) => setPurchaseOrders(data));
-      const unsubNotifs = subscribeFirestoreCollection('notifications', (data) => setNotifications(data));
-      const unsubChat = subscribeFirestoreCollection('chat_messages', (data) => setChatMessages(data));
-      const unsubReports = subscribeFirestoreCollection('field_reports', (data) => setFieldReports(data));
+    if (!cloudUid || !isFirebaseActive()) return undefined;
 
-      return () => {
-        unsubObras();
-        unsubQuadros();
-        unsubCards();
-        unsubChecklists();
-        unsubPOs();
-        unsubNotifs();
-        unsubChat();
-        unsubReports();
-      };
-    }
-  }, []);
+    const colecoes = {
+      obras: setRawObras,
+      quadros: setQuadros,
+      cards: setCards,
+      checklists: setChecklists,
+      purchase_orders: setPurchaseOrders,
+      notifications: setNotifications,
+      chat_messages: setChatMessages,
+      field_reports: setFieldReports,
+      dimensionamentos: setDimensionamentos,
+      calculos_quadros: setCalculosQuadros
+    };
+
+    const chaveSync = (nome) => `omnifield_synced_${nome}`;
+    const lerSync = (nome) => new Set(safeParseJSON(chaveSync(nome), []));
+    const gravarSync = (nome, set) => localStorage.setItem(chaveSync(nome), JSON.stringify([...set]));
+
+    const mesclar = (nome, remoto) => {
+      const sincronizados = lerSync(nome);
+      const idsRemotos = new Set(remoto.map((d) => d.id));
+      const manter = [];
+
+      (latest.current[nome] || []).forEach((d) => {
+        if (idsRemotos.has(d.id)) return;
+        if (sincronizados.has(d.id)) return; // apagado em outro dispositivo
+        manter.push(d);
+        saveFirestoreDoc(nome, d.id, d).then((ok) => {
+          if (!ok) return;
+          const atual = lerSync(nome);
+          atual.add(d.id);
+          gravarSync(nome, atual);
+        });
+      });
+
+      remoto.forEach((d) => sincronizados.add(d.id));
+      gravarSync(nome, sincronizados);
+      colecoes[nome]([...remoto, ...manter]);
+    };
+
+    const unsubs = Object.keys(colecoes).map((nome) =>
+      subscribeFirestoreCollection(nome, (remoto) => mesclar(nome, remoto))
+    );
+    return () => unsubs.forEach((u) => u());
+  }, [cloudUid]);
 
   const addFieldReport = (obraId, reportData) => {
     if (!obraId) return;
@@ -126,6 +173,58 @@ export const DataProvider = ({ children }) => {
   const deleteFieldReport = (obraId, reportId) => {
     if (!isAdmin) return;
     setFieldReports(prev => prev.filter(r => r.id !== reportId));
+  };
+
+  // O Firestore rejeita `undefined`; o round-trip JSON descarta esses campos.
+  const semUndefined = (o) => JSON.parse(JSON.stringify(o));
+
+  // Cria ou atualiza um quadro dimensionado da obra. Devolve o documento salvo.
+  const saveDimensionamento = (obraId, data) => {
+    if (!obraId || !data) return null;
+    const now = new Date().toISOString();
+    const id = data.id || `dim-${Date.now()}`;
+    const existing = dimensionamentos.find(d => d.id === id);
+    const doc = {
+      ...existing,
+      ...data,
+      id,
+      obraId,
+      createdAt: existing?.createdAt || now,
+      createdBy: existing?.createdBy || currentUser?.name || 'Operador',
+      updatedAt: now,
+      updatedBy: currentUser?.name || 'Operador'
+    };
+    setDimensionamentos(prev => (existing ? prev.map(d => (d.id === id ? doc : d)) : [doc, ...prev]));
+    if (isFirebaseActive()) saveFirestoreDoc('dimensionamentos', id, semUndefined(doc));
+    return doc;
+  };
+
+  const deleteDimensionamento = (id) => {
+    const target = dimensionamentos.find(d => d.id === id);
+    if (!target) return;
+    if (!isAdmin && target.createdBy !== currentUser?.name) return;
+    setDimensionamentos(prev => prev.filter(d => d.id !== id));
+    setCalculosQuadros(prev => prev.map(c => (c.dimensionamentoId === id ? { ...c, dimensionamentoId: null } : c)));
+    if (isFirebaseActive()) deleteFirestoreDoc('dimensionamentos', id);
+  };
+
+  const addCalculoQuadro = (obraId, data) => {
+    if (!obraId || !data) return null;
+    const doc = {
+      id: `calcq-${Date.now()}`,
+      obraId,
+      createdAt: new Date().toISOString(),
+      createdBy: currentUser?.name || 'Operador',
+      ...data
+    };
+    setCalculosQuadros(prev => [doc, ...prev]);
+    if (isFirebaseActive()) saveFirestoreDoc('calculos_quadros', doc.id, semUndefined(doc));
+    return doc;
+  };
+
+  const deleteCalculoQuadro = (id) => {
+    setCalculosQuadros(prev => prev.filter(c => c.id !== id));
+    if (isFirebaseActive()) deleteFirestoreDoc('calculos_quadros', id);
   };
 
   const activeObra = obras.find(o => o.id === selectedObraId) || obras[0] || null;
@@ -500,6 +599,16 @@ export const DataProvider = ({ children }) => {
       if (isFirebaseActive()) deleteFirestoreDoc('purchase_orders', po.id);
     });
     setPurchaseOrders(prev => prev.filter(po => po.obraId !== obraId));
+
+    dimensionamentos.filter(d => d.obraId === obraId).forEach(d => {
+      if (isFirebaseActive()) deleteFirestoreDoc('dimensionamentos', d.id);
+    });
+    setDimensionamentos(prev => prev.filter(d => d.obraId !== obraId));
+
+    calculosQuadros.filter(c => c.obraId === obraId).forEach(c => {
+      if (isFirebaseActive()) deleteFirestoreDoc('calculos_quadros', c.id);
+    });
+    setCalculosQuadros(prev => prev.filter(c => c.obraId !== obraId));
   };
 
   const deleteQuadro = (quadroId) => {
@@ -764,7 +873,13 @@ export const DataProvider = ({ children }) => {
         getCardEvolutionPct,
         fieldReports,
         addFieldReport,
-        deleteFieldReport
+        deleteFieldReport,
+        dimensionamentos,
+        saveDimensionamento,
+        deleteDimensionamento,
+        calculosQuadros,
+        addCalculoQuadro,
+        deleteCalculoQuadro
       }}
     >
       {children}

@@ -13,6 +13,7 @@ import { ReportsModule } from './components/ReportsModule';
 import { ScheduleModule } from './components/ScheduleModule';
 import { InfraKanbanView } from './components/InfraKanbanView';
 import { FieldReportsModule } from './components/FieldReportsModule';
+import { DimensionamentoModule } from './components/dimensionamento/DimensionamentoModule';
 import { LoginScreenView } from './components/LoginScreenView';
 import { UserManagementModal } from './components/UserManagementModal';
 import { ObraModal } from './components/ObraModal';
@@ -21,11 +22,11 @@ import { PwaInstallModal } from './components/PwaInstallModal';
 import { ObraChatModal } from './components/ObraChatModal';
 import { 
   Kanban, Layers, CheckSquare, BarChart3, Grid, Smartphone, Package, 
-  Calendar, Wrench, FileText, MoreHorizontal, X, Menu, MessageSquare
+  Calendar, Wrench, FileText, MoreHorizontal, X, Menu, MessageSquare, Zap
 } from 'lucide-react';
 
 function MainLayout() {
-  const { currentUser, isAdmin } = useAuth();
+  const { currentUser, isAdmin, authReady } = useAuth();
   const { obras, selectedObraId, setSelectedObraId, activeObra } = useData();
   const [activeTab, setActiveTab] = useState('hub');
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
@@ -66,6 +67,15 @@ function MainLayout() {
     }
   }, []);
 
+  // Aguarda o Firebase informar se há sessão salva (evita piscar a tela de login)
+  if (!authReady) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-app)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+        Conectando…
+      </div>
+    );
+  }
+
   if (!currentUser) {
     return <LoginScreenView />;
   }
@@ -92,6 +102,7 @@ function MainLayout() {
       case 'kanban': return 'Kanban & Post-its';
       case 'quadros': return 'Subníveis & Quadros';
       case 'checklist': return 'Checklist HVAC';
+      case 'dimensionamento': return 'Dimensionamento de Quadros';
       case 'materials': return 'Controle de Materiais & PDF';
       case 'agenda': return 'Agenda & Escala de Viagens';
       case 'personal_agenda': return 'Minha Agenda Pessoal';
@@ -105,6 +116,7 @@ function MainLayout() {
   // Which tabs are shown in the "More" menu
   const moreMenuTabs = [
     { id: 'checklist', icon: <CheckSquare size={16} />, label: 'Checklist HVAC' },
+    { id: 'dimensionamento', icon: <Zap size={16} />, label: 'Dimensionamento de Quadros' },
     { id: 'agenda', icon: <Calendar size={16} />, label: 'Agenda & Viagens' },
     { id: 'infra', icon: <Wrench size={16} />, label: 'Kanban Infraestrutura' },
     { id: 'field_reports', icon: <FileText size={16} />, label: 'Diário de Campo' },
@@ -167,6 +179,10 @@ function MainLayout() {
 
             {activeTab === 'checklist' && (
               <ChecklistModule />
+            )}
+
+            {activeTab === 'dimensionamento' && (
+              <DimensionamentoModule />
             )}
 
             {activeTab === 'agenda' && (

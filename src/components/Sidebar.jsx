@@ -14,7 +14,8 @@ import {
   Wrench,
   FileText,
   Grid,
-  UserCheck
+  UserCheck,
+  Zap
 } from 'lucide-react';
 
 export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
@@ -186,6 +187,27 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
         >
           <CheckSquare size={16} />
           <span>Checklist HVAC</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('dimensionamento')}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.65rem',
+            padding: '0.55rem 0.75rem',
+            borderRadius: 'var(--radius-md)',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '0.8rem',
+            fontWeight: activeTab === 'dimensionamento' ? 600 : 400,
+            background: activeTab === 'dimensionamento' ? 'var(--wash-blue-strong)' : 'transparent',
+            color: activeTab === 'dimensionamento' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+            textAlign: 'left'
+          }}
+        >
+          <Zap size={16} />
+          <span>Dimensionamento de Quadros</span>
         </button>
 
         <button

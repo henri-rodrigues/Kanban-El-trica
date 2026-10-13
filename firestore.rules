@@ -1,0 +1,104 @@
+rules_version = '2';
+
+// OmniField Pro — regras do Firestore (projeto omnifield-pro)
+//
+// Modelo: o app usa Firebase Authentication (e-mail/senha). Cada pessoa tem um
+// perfil em users/{uid} com `role` (administrador | usuario) e `status`
+// (pending_approval | approved | rejected). Só perfis APROVADOS leem/gravam dados.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasProfile() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isApproved() {
+      return hasProfile() && profile().status == 'approved';
+    }
+
+    function isAdmin() {
+      return isApproved() && profile().role == 'administrador';
+    }
+
+    // Primeiro administrador: o documento config/bootstrap só pode ser criado uma
+    // vez (qualquer escrita posterior é negada) e guarda o uid do dono do sistema.
+    match /config/{docId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+        && docId == 'bootstrap'
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['uid', 'createdAt']);
+      allow update, delete: if false;
+    }
+
+    match /users/{uid} {
+      // Cada pessoa lê o próprio perfil (para saber se foi aprovada); aprovados leem todos.
+      allow read: if signedIn() && (request.auth.uid == uid || isApproved());
+
+      // Cadastro: a própria pessoa cria o perfil como "pendente"... ou, uma única vez,
+      // o primeiro administrador (validado pelo documento config/bootstrap).
+      allow create: if signedIn() && request.auth.uid == uid && (
+        (request.resource.data.role == 'usuario'
+          && request.resource.data.status == 'pending_approval')
+        || (request.resource.data.role == 'administrador'
+          && request.resource.data.status == 'approved'
+          && getAfter(/databases/$(database)/documents/config/bootstrap).data.uid == request.auth.uid)
+      );
+
+      // Administrador altera qualquer perfil; a própria pessoa não pode mexer em
+      // perfil de acesso, status, diária, e-mail ou identificadores.
+      allow update: if isAdmin() || (
+        signedIn() && request.auth.uid == uid
+        && !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(['role', 'status', 'dailyRate', 'email', 'uid', 'id'])
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // Dados financeiros e de cadastro das obras: somente o administrador grava.
+    match /obras/{docId} {
+      allow read: if isApproved();
+      allow write: if isAdmin();
+    }
+    match /purchase_orders/{docId} {
+      allow read: if isApproved();
+      allow write: if isAdmin();
+    }
+
+    // Operação de campo: qualquer usuário aprovado.
+    match /quadros/{docId} {
+      allow read, write: if isApproved();
+    }
+    match /cards/{docId} {
+      allow read, write: if isApproved();
+    }
+    match /checklists/{docId} {
+      allow read, write: if isApproved();
+    }
+    match /field_reports/{docId} {
+      allow read, write: if isApproved();
+    }
+    match /notifications/{docId} {
+      allow read, write: if isApproved();
+    }
+    match /chat_messages/{docId} {
+      allow read, write: if isApproved();
+    }
+    match /dimensionamentos/{docId} {
+      allow read, write: if isApproved();
+    }
+    match /calculos_quadros/{docId} {
+      allow read, write: if isApproved();
+    }
+  }
+}

@@ -1,0 +1,212 @@
+/* Dimensionamento de Quadros Elétricos — usa os tokens do design system do app */
+
+.dq-scope { display: flex; flex-direction: column; gap: 1rem; }
+
+.dq-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 1.15rem 1.25rem;
+}
+.dq-card h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 0.65rem; }
+.dq-card h2 { font-size: 1.1rem; font-weight: 800; }
+
+.dq-bar { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.dq-spacer { flex: 1; }
+.dq-sub { color: var(--text-muted); font-size: 0.78rem; }
+.dq-muted { color: var(--text-secondary); font-size: 0.82rem; }
+
+/* sub-abas */
+.dq-tabs {
+  display: inline-flex;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-pill);
+  align-self: flex-start;
+}
+.dq-tabs button {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 0.4rem 1rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.dq-tabs button:hover { color: var(--text-primary); }
+.dq-tabs button.active {
+  background: var(--bg-card);
+  color: var(--accent-blue);
+  box-shadow: var(--shadow-xs);
+}
+
+/* grade de cartões de quadros */
+.dq-grid-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+.dq-quadro-card {
+  position: relative;
+  text-align: left;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--text-primary);
+  transition: transform var(--dur) var(--ease), box-shadow var(--dur) var(--ease), border-color var(--dur) var(--ease);
+}
+.dq-quadro-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); border-color: var(--accent-blue); }
+.dq-quadro-card .dq-pill { position: absolute; top: 0.9rem; right: 0.9rem; }
+
+.dq-pill {
+  display: inline-block;
+  padding: 0.12rem 0.55rem;
+  border-radius: var(--radius-pill);
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: var(--wash-blue);
+  color: var(--accent-blue);
+  white-space: nowrap;
+}
+.dq-pill.ok { background: var(--wash-emerald); color: var(--accent-emerald); }
+.dq-pill.warn { background: var(--wash-amber); color: var(--accent-amber); }
+.dq-pill.purple { background: var(--wash-purple); color: var(--accent-purple); }
+
+.dq-empty {
+  text-align: center;
+  padding: 2.5rem 1rem;
+  border: 2px dashed var(--border-highlight);
+  border-radius: var(--radius-lg);
+  color: var(--text-secondary);
+}
+
+/* formulário em grade */
+.dq-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.75rem 1rem; }
+.dq-grid .wide { grid-column: span 2; }
+.dq-grid.one { grid-template-columns: 1fr; }
+.dq-field { display: flex; flex-direction: column; gap: 0.3rem; }
+.dq-field > span { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); }
+.dq-field em { font-style: normal; color: var(--text-muted); font-weight: 500; }
+.dq-inline { display: flex; gap: 0.4rem; }
+.dq-inline .form-control:first-child { flex: 1; min-width: 0; }
+.dq-checks { display: flex; flex-wrap: wrap; gap: 0.5rem 1.1rem; margin-top: 0.85rem; align-items: center; }
+.dq-check { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.82rem; color: var(--text-secondary); cursor: pointer; }
+.dq-check input { accent-color: var(--accent-blue); width: 15px; height: 15px; }
+.dq-details { margin-top: 0.9rem; border-top: 1px solid var(--border-color); padding-top: 0.7rem; }
+.dq-details summary { cursor: pointer; font-size: 0.82rem; font-weight: 600; color: var(--accent-blue); margin-bottom: 0.7rem; }
+.dq-fieldset { border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.75rem 0.9rem; margin-top: 0.9rem; }
+.dq-fieldset legend { font-size: 0.75rem; font-weight: 700; color: var(--text-secondary); padding: 0 0.4rem; }
+
+/* tabelas */
+.dq-table-wrap { overflow-x: auto; }
+.dq-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.dq-table th, .dq-table td { padding: 0.5rem 0.65rem; text-align: left; border-bottom: 1px solid var(--border-color); vertical-align: top; }
+.dq-table th { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 700; background: var(--bg-subtle); }
+.dq-table tbody tr:hover td { background: var(--bg-card-hover); }
+.dq-table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dq-table tr.grupo th { background: var(--wash-blue); color: var(--accent-blue); }
+.dq-table .actions { white-space: nowrap; text-align: right; }
+
+.dq-pairs { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+.dq-pairs th { text-align: left; font-weight: 500; color: var(--text-secondary); width: 55%; padding: 0.3rem 0.5rem 0.3rem 0; border-bottom: 1px solid var(--border-color); }
+.dq-pairs td { padding: 0.3rem 0; border-bottom: 1px solid var(--border-color); font-weight: 600; }
+.dq-pairs tr.destaque th, .dq-pairs tr.destaque td { font-size: 1rem; font-weight: 800; color: var(--text-primary); }
+
+/* indicadores */
+.dq-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 0.65rem; margin-top: 0.75rem; }
+.dq-kpi { background: var(--bg-subtle); border-radius: var(--radius-md); padding: 0.65rem 0.8rem; display: flex; flex-direction: column; gap: 0.1rem; }
+.dq-kpi span { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); font-weight: 700; }
+.dq-kpi strong { font-size: 1.02rem; overflow-wrap: anywhere; }
+
+.dq-warns { margin-top: 0.85rem; padding: 0.65rem 0.9rem 0.65rem 1.8rem; background: var(--wash-amber); color: var(--text-primary); border-radius: var(--radius-md); font-size: 0.82rem; }
+.dq-alert { margin-top: 0.7rem; padding: 0.55rem 0.8rem; background: var(--wash-amber); border-radius: var(--radius-md); font-size: 0.82rem; }
+
+.dq-defs { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 0 1.5rem; }
+.dq-defs div { display: grid; grid-template-columns: 160px 1fr; gap: 0.6rem; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color); }
+.dq-defs dt { color: var(--text-secondary); font-size: 0.8rem; }
+.dq-defs dd { font-weight: 600; font-size: 0.82rem; overflow-wrap: anywhere; }
+
+/* layout do quadro (SVG gerado pelo motor) */
+.dq-layout { overflow-x: auto; background: var(--bg-subtle); border-radius: var(--radius-md); padding: 0.75rem; }
+.layout-svg { width: 100%; max-width: 980px; max-height: 760px; height: auto; display: block; margin: 0 auto; }
+.lay-caixa, .lay-porta { fill: #c9c7b6; stroke: #77756a; stroke-width: 3; }
+.lay-placa { fill: #f2a23c; stroke: #a8661a; stroke-width: 1.5; }
+.lay-duto { fill: #dfe3e8; stroke: #7d8794; stroke-width: 1; }
+.lay-rasgo line { stroke: #9aa3ae; stroke-width: 1; }
+.lay-trilho { fill: #b9c0c9; stroke: #7d8794; stroke-width: 0.8; }
+.lay-comp { stroke: #ffffff; stroke-width: 1; }
+.lay-div { stroke: rgba(255, 255, 255, 0.55); stroke-width: 0.6; }
+.lay-tag { fill: #ffffff; font-weight: 700; text-anchor: middle; dominant-baseline: central; font-family: inherit; pointer-events: none; }
+.lay-fecho { fill: #3f4650; }
+.lay-ihm { fill: #17212d; stroke: #5d6876; stroke-width: 6; }
+.lay-grelha { fill: #8d939b; stroke: #4b5158; stroke-width: 2; stroke-dasharray: 4 3; }
+.lay-botao { stroke: #2c333c; stroke-width: 3; }
+.lay-knob { fill: #f1f3f5; }
+.lay-leg { fill: #1f2933; text-anchor: middle; font-weight: 700; font-family: inherit; }
+.lay-titulo, .lay-cota { fill: var(--text-primary); text-anchor: middle; font-weight: 700; font-family: inherit; }
+.lay-cota { fill: var(--text-muted); font-weight: 500; }
+.dq-legend { list-style: none; display: flex; flex-wrap: wrap; gap: 0.3rem 1rem; margin-top: 0.7rem; font-size: 0.75rem; color: var(--text-secondary); }
+.dq-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 0.35rem; }
+
+/* memorial / calculadoras */
+.dq-memo-details { border: 1px solid var(--border-color); border-radius: var(--radius-md); margin-bottom: 0.5rem; overflow: hidden; }
+.dq-memo-details > summary { cursor: pointer; padding: 0.6rem 0.85rem; font-size: 0.82rem; font-weight: 600; background: var(--bg-subtle); }
+.dq-memo-body { padding: 0.75rem 0.85rem; }
+.dq-memo-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+.dq-memo-cols h5 { font-size: 0.7rem; text-transform: uppercase; color: var(--text-muted); margin-bottom: 0.3rem; letter-spacing: 0.04em; }
+
+.dq-calc-layout { display: grid; grid-template-columns: 220px 1fr; gap: 1rem; align-items: start; }
+.dq-calc-menu { display: flex; flex-direction: column; gap: 0.25rem; position: sticky; top: 0; }
+.dq-calc-menu button {
+  text-align: left; border: none; background: transparent; color: var(--text-secondary);
+  padding: 0.55rem 0.8rem; border-radius: var(--radius-md); font-size: 0.82rem; font-weight: 500; cursor: pointer; font-family: inherit;
+}
+.dq-calc-menu button:hover { background: var(--bg-subtle); color: var(--text-primary); }
+.dq-calc-menu button.active { background: var(--wash-blue-strong); color: var(--accent-blue); font-weight: 700; }
+
+.dq-passos { list-style: none; display: grid; gap: 0.7rem; margin-top: 0.7rem; }
+.dq-passo { border: 1px solid var(--border-color); border-left: 4px solid var(--accent-blue); border-radius: var(--radius-md); padding: 0.75rem 0.9rem; background: var(--bg-subtle); }
+.dq-passo-cab { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.dq-passo-cab h4 { flex: 1; min-width: 160px; font-size: 0.9rem; }
+.dq-passo-n { display: grid; place-content: center; width: 24px; height: 24px; border-radius: 50%; background: var(--accent-blue); color: #fff; font-weight: 700; font-size: 0.78rem; flex: none; }
+.dq-passo-texto { margin: 0.5rem 0; font-size: 0.82rem; color: var(--text-secondary); }
+.dq-formula {
+  display: grid; grid-template-columns: 140px 1fr; gap: 0.6rem; align-items: center;
+  background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md);
+  padding: 0.55rem 0.75rem; margin-bottom: 0.5rem; font-family: Cambria, 'Cambria Math', Georgia, serif; font-size: 1rem; line-height: 2; overflow-x: auto;
+}
+.dq-formula.subst { border-style: dashed; }
+.dq-formula-label { font: 700 0.68rem/1.3 var(--font-family); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
+.dq-formula small { font: 0.75rem var(--font-family); color: var(--text-muted); }
+.dq-passo-resultado strong { color: var(--accent-blue); }
+
+/* classes que o motor de cálculo injeta no HTML da memória */
+.dq-scope .frac { display: inline-flex; flex-direction: column; text-align: center; vertical-align: middle; line-height: 1.35; margin: 0 4px; }
+.dq-scope .frac span:first-child { border-bottom: 1.5px solid currentColor; padding: 0 6px 1px; }
+.dq-scope .frac span:last-child { padding: 1px 6px 0; }
+.dq-scope .chip { display: inline-block; padding: 0.1rem 0.6rem; border-radius: var(--radius-pill); font-size: 0.7rem; font-weight: 700; white-space: nowrap; }
+.dq-scope .chip.ok { background: var(--wash-emerald); color: var(--accent-emerald); }
+.dq-scope .chip.nok { background: var(--wash-rose); color: var(--accent-rose); }
+.dq-scope .txt-nok { color: var(--accent-rose); font-weight: 700; }
+.dq-scope table.comparacao { width: 100%; border-collapse: collapse; font-size: 0.78rem; background: var(--bg-card); border-radius: var(--radius-md); }
+.dq-scope table.comparacao th, .dq-scope table.comparacao td { padding: 0.4rem 0.55rem; border-bottom: 1px solid var(--border-color); text-align: left; }
+.dq-scope table.comparacao td.num, .dq-scope table.comparacao th.num { text-align: right; white-space: nowrap; }
+.dq-scope table.comparacao tr.adotada td { background: var(--wash-blue); font-weight: 600; }
+.dq-scope .barra-uso { display: inline-block; width: 90px; height: 8px; border-radius: 4px; background: var(--border-color); overflow: hidden; vertical-align: middle; }
+.dq-scope .barra-uso i { display: block; height: 100%; }
+.dq-scope .barra-uso i.ok { background: var(--accent-emerald); }
+.dq-scope .barra-uso i.nok { background: var(--accent-rose); }
+
+.dq-hist-item { border-bottom: 1px solid var(--border-color); padding: 0.55rem 0; }
+.dq-hist-item:last-child { border-bottom: none; }
+
+@media (max-width: 768px) {
+  .dq-grid .wide { grid-column: span 1; }
+  .dq-calc-layout { grid-template-columns: 1fr; }
+  .dq-calc-menu { flex-direction: row; overflow-x: auto; position: static; }
+  .dq-calc-menu button { white-space: nowrap; }
+  .dq-formula { grid-template-columns: 1fr; gap: 0.15rem; }
+  .dq-defs div { grid-template-columns: 1fr; gap: 0; }
+  .dq-card { padding: 0.9rem; }
+}

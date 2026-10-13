@@ -4,7 +4,7 @@ import { getStoredFirebaseConfig, initFirebase } from '../services/firebase';
 import { X, Download, Upload, Database, Globe, Check, Sparkles, Flame } from 'lucide-react';
 
 export const FirebaseModal = ({ isOpen, onClose }) => {
-  const { obras, quadros, cards, checklists } = useData();
+  const { obras, quadros, cards, checklists, purchaseOrders, fieldReports, dimensionamentos, calculosQuadros } = useData();
 
   const [apiKey, setApiKey] = useState('');
   const [authDomain, setAuthDomain] = useState('');
@@ -35,7 +35,11 @@ export const FirebaseModal = ({ isOpen, onClose }) => {
       obras,
       quadros,
       cards,
-      checklists
+      checklists,
+      purchaseOrders,
+      fieldReports,
+      dimensionamentos,
+      calculosQuadros
     };
 
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullBackup, null, 2));
@@ -54,10 +58,14 @@ export const FirebaseModal = ({ isOpen, onClose }) => {
       reader.onload = (event) => {
         try {
           const parsed = JSON.parse(event.target.result);
-          if (parsed.obras) localStorage.setItem('omnifield_obras_v2', JSON.stringify(parsed.obras));
-          if (parsed.quadros) localStorage.setItem('omnifield_quadros_v2', JSON.stringify(parsed.quadros));
-          if (parsed.cards) localStorage.setItem('omnifield_cards_v2', JSON.stringify(parsed.cards));
-          if (parsed.checklists) localStorage.setItem('omnifield_checklists_v2', JSON.stringify(parsed.checklists));
+          if (parsed.obras) localStorage.setItem('omnifield_obras_v7', JSON.stringify(parsed.obras));
+          if (parsed.quadros) localStorage.setItem('omnifield_quadros_v7', JSON.stringify(parsed.quadros));
+          if (parsed.cards) localStorage.setItem('omnifield_cards_v7', JSON.stringify(parsed.cards));
+          if (parsed.checklists) localStorage.setItem('omnifield_checklists_v7', JSON.stringify(parsed.checklists));
+          if (parsed.purchaseOrders) localStorage.setItem('omnifield_purchase_orders_v7', JSON.stringify(parsed.purchaseOrders));
+          if (parsed.fieldReports) localStorage.setItem('gestao_eletrica_field_reports_v1', JSON.stringify(parsed.fieldReports));
+          if (parsed.dimensionamentos) localStorage.setItem('omnifield_dimensionamentos_v1', JSON.stringify(parsed.dimensionamentos));
+          if (parsed.calculosQuadros) localStorage.setItem('omnifield_calculos_quadros_v1', JSON.stringify(parsed.calculosQuadros));
           alert('Backup importado com sucesso! Recarregando a página...');
           window.location.reload();
         } catch (err) {

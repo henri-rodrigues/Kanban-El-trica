@@ -2,6 +2,10 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
 import './index.css';
+import { resetarDadosLocaisUmaVez } from './services/resetData';
+
+// Começar do zero: apaga uma única vez os dados locais antigos deste navegador.
+resetarDadosLocaisUmaVez();
 
 class ErrorBoundary extends React.Component {
   constructor(props) {

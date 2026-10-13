@@ -20,28 +20,43 @@ npm run dev
 npm run deploy
 ```
 
-## ☁️ Nuvem (Firebase) — configuração única
+## ☁️ Nuvem (Firebase) — configuração
 
 O app sincroniza com o Firestore do projeto `omnifield-pro` e autentica com **Firebase Authentication
-(e-mail/senha)**. Sem os passos abaixo, o app continua funcionando só no navegador (modo local).
+(e-mail/senha) com confirmação de e-mail obrigatória** e aprovação manual pelo administrador.
 
-1. **Authentication → Vamos começar → Sign-in method → E-mail/senha → Ativar.**
-2. **Firestore Database → Regras:** cole o conteúdo de [`firestore.rules`](firestore.rules) e clique em **Publicar**
-   (ou, com o Firebase CLI: `firebase deploy --only firestore:rules`).
-3. **Logo em seguida**, entre no app com a conta de administrador **no mesmo navegador onde estão os dados**:
-   - usuário antigo (ex.: `admin@omnifield.com`) → o app pede uma **nova senha** (mínimo 6 caracteres);
-   - esse primeiro acesso cria o perfil de administrador na nuvem e **envia os dados locais** para o Firestore.
-4. Demais usuários: entram com a senha antiga (o app migra a conta) e ficam **pendentes** até o administrador
-   aprovar em *Gestão de Usuários*. Novos usuários usam *Solicitar Cadastro*.
+### Configuração única no console
+1. **Authentication → Sign-in method → E-mail/senha → Ativar.**
+2. **Firestore Database → Regras:** cole o conteúdo de [`firestore.rules`](firestore.rules) e **Publique**
+   (ou `firebase deploy --only firestore:rules`).
 
-> **Faça o passo 3 antes de divulgar o link.** Enquanto nenhum administrador existir na nuvem, o primeiro
-> administrador a entrar assume o sistema (documento `config/bootstrap`, criado uma única vez).
+### Começar sem usuários (mantendo os dados)
+- **Authentication → Users:** selecione todos e exclua.
+- **Firestore → Data:** exclua **somente** as coleções `users` e `config`. As demais (`obras`, `quadros`, `cards`,
+  `checklists`, `purchase_orders`, `notifications`, `chat_messages`, `field_reports`, `dimensionamentos`,
+  `calculos_quadros`) **permanecem**.
+- Em cada navegador, usuários e sessão locais são removidos automaticamente, uma única vez, na primeira abertura
+  desta versão (`EPOCH` em `src/services/resetData.js`); os dados locais são mantidos.
+- Obras com equipe definida (`assignedUserIds`) referenciam usuários antigos: o administrador pode reatribuir a equipe
+  em *Editar Obra*.
+
+### Fluxo de acesso
+1. A pessoa abre **Solicitar Cadastro** e informa nome, e-mail e senha.
+2. O sistema envia o **link de confirmação por e-mail**; ela confirma e entra no sistema.
+3. A solicitação aparece para o **Administrador** em *Gestão de Usuários* → **Aceitar** ou **Recusar**.
+   Cadastros que ainda não confirmaram o e-mail ficam em "Aguardando confirmação de e-mail".
+4. Aceita, a pessoa passa a entrar normalmente.
+
+O **Administrador** é o e-mail `eletrica@3darcondicionado.com.br`: cadastre-se com ele, confirme o e-mail e entre
+(definido em `firestore.rules` e `src/services/firebase.js`).
 
 ### Como funciona
-- Senhas ficam no Firebase Authentication (nunca mais em texto puro no banco).
-- Perfil e permissões em `users/{uid}`: `role` (`administrador` | `usuario`) e `status` (`pending_approval` | `approved` | `rejected`).
-- Só perfis `approved` leem/gravam; `obras` e `purchase_orders` só o administrador grava.
+- Senhas ficam no Firebase Authentication (nunca em texto puro no banco). Contas com e-mail não confirmado
+  não entram e as regras do Firestore também exigem `email_verified`.
+- Perfil e permissões em `users/{uid}`: `role` (`administrador` | `usuario`) e `status`
+  (`pending_approval` | `approved` | `rejected`). Só perfis `approved` leem/gravam; `obras` e `purchase_orders`
+  só o administrador grava.
 - A sincronização **não apaga** dados locais: o que existe só no dispositivo é enviado à nuvem; o que já esteve na
   nuvem e foi removido por outro usuário também é removido localmente.
 - Excluir um usuário na tela de gestão remove o perfil; a conta de login pode ser removida em
-  *Authentication → Users* no console.
+  *Authentication → Users*.

@@ -5,7 +5,6 @@ import {
   doc,
   getDoc,
   setDoc,
-  writeBatch,
   onSnapshot,
   deleteDoc,
   query
@@ -16,6 +15,8 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  sendEmailVerification,
+  updateProfile,
   signOut
 } from 'firebase/auth';
 
@@ -28,6 +29,9 @@ export const DEFAULT_FIREBASE_CONFIG = {
   appId: "1:756154599826:web:bb26578705c9e79ea9194b",
   measurementId: "G-SL13ZJ4KDN"
 };
+
+// Administrador do sistema: o e-mail precisa estar CONFIRMADO. O mesmo e-mail está em firestore.rules.
+export const ADMIN_EMAIL = 'eletrica@3darcondicionado.com.br';
 
 let db = null;
 let app = null;
@@ -55,6 +59,7 @@ export const initFirebase = (config = getStoredFirebaseConfig()) => {
     }
     db = getFirestore(app);
     auth = getAuth(app);
+    auth.languageCode = 'pt-BR'; // e-mails de confirmação / redefinição em português
     return db;
   } catch (err) {
     console.error('Erro ao inicializar Firebase:', err);
@@ -106,6 +111,8 @@ export const watchCloudAuth = (callback) => {
 export const cloudSignIn = (email, password) => signInWithEmailAndPassword(auth, email.trim(), password);
 export const cloudCreateAccount = (email, password) => createUserWithEmailAndPassword(auth, email.trim(), password);
 export const cloudResetPassword = (email) => sendPasswordResetEmail(auth, email.trim());
+export const cloudSetDisplayName = (user, name) => updateProfile(user, { displayName: name });
+export const cloudSendVerification = (user) => sendEmailVerification(user || auth.currentUser);
 export const cloudSignOut = async () => {
   if (isCloudConfigured() && auth.currentUser) await signOut(auth);
 };
@@ -146,20 +153,6 @@ export const deleteFirestoreDoc = async (collectionName, docId) => {
     console.error(`Erro ao deletar no Firestore [${collectionName}/${docId}]:`, err);
     return false;
   }
-};
-
-/**
- * Cria o perfil do primeiro administrador. As regras só aceitam esta escrita quando o
- * documento `config/bootstrap` é criado no mesmo lote com o uid de quem está logado —
- * e esse documento só pode ser criado uma única vez. Lança erro (permission-denied) se
- * já existir um administrador.
- */
-export const claimAdminBootstrap = async (uid, profile) => {
-  if (!isFirebaseActive()) throw new Error('Sem sessão na nuvem.');
-  const batch = writeBatch(db);
-  batch.set(doc(db, 'config', 'bootstrap'), { uid, createdAt: new Date().toISOString() });
-  batch.set(doc(db, 'users', uid), limpo(profile));
-  await batch.commit();
 };
 
 // Real-time listener for Firestore collection

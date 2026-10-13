@@ -5,7 +5,7 @@ import { POSTIT_GRADIENTS } from '../constants/gradients';
 import { LogIn, UserPlus, Sparkles, AlertCircle, CheckCircle2, ShieldCheck, Palette } from 'lucide-react';
 
 export const LoginScreenView = () => {
-  const { loginWithPassword, completeLegacyMigration, resetPassword, registerRequestUser, cloudEnabled } = useAuth();
+  const { loginWithPassword, resendVerification, resetPassword, registerRequestUser, cloudEnabled } = useAuth();
 
   const [activeTab, setActiveTab] = useState('login'); // 'login' | 'register'
   
@@ -16,10 +16,9 @@ export const LoginScreenView = () => {
   const [loginInfo, setLoginInfo] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // Migração de conta antiga para a nuvem (senha antiga curta demais)
-  const [needsNewPassword, setNeedsNewPassword] = useState(false);
-  const [newPassword, setNewPassword] = useState('');
-  const [newPassword2, setNewPassword2] = useState('');
+  // E-mail ainda não confirmado: permite reenviar o link
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [regMessage, setRegMessage] = useState('');
 
   // Register Form
   const [regName, setRegName] = useState('');
@@ -33,11 +32,12 @@ export const LoginScreenView = () => {
     e.preventDefault();
     setLoginError('');
     setLoginInfo('');
+    setNeedsVerification(false);
     setBusy(true);
     try {
       const res = await loginWithPassword(identifier, password);
       if (!res.success) {
-        if (res.needsNewPassword) setNeedsNewPassword(true);
+        setNeedsVerification(!!res.needsVerification);
         setLoginError(res.message);
       }
     } finally {
@@ -45,17 +45,17 @@ export const LoginScreenView = () => {
     }
   };
 
-  const handleNewPassword = async (e) => {
-    e.preventDefault();
+  const handleResend = async () => {
     setLoginError('');
-    if (newPassword.length < 6) return setLoginError('A nova senha precisa ter pelo menos 6 caracteres.');
-    if (newPassword !== newPassword2) return setLoginError('As senhas não conferem.');
+    setLoginInfo('');
     setBusy(true);
     try {
-      const res = await completeLegacyMigration(identifier, password, newPassword);
-      if (!res.success) {
+      const res = await resendVerification(identifier, password);
+      if (res.success) {
+        setNeedsVerification(false);
+        setLoginInfo(res.message);
+      } else {
         setLoginError(res.message);
-        if (!res.needsNewPassword) setNeedsNewPassword(false);
       }
     } finally {
       setBusy(false);
@@ -79,11 +79,12 @@ export const LoginScreenView = () => {
     try {
       const res = await registerRequestUser({
         name: regName,
-        email: regEmail || `${regName.toLowerCase().replace(/\s+/g, '')}@omnifield.com`,
+        email: regEmail.trim(),
         password: regPassword,
         gradientId: regGradientId
       });
       if (res.success) {
+        setRegMessage(res.message);
         setRegSuccessMsg(true);
         setRegName('');
         setRegEmail('');
@@ -176,7 +177,7 @@ export const LoginScreenView = () => {
 
         {/* Login Form */}
         {activeTab === 'login' && (
-          <form onSubmit={needsNewPassword ? handleNewPassword : handleLogin}>
+          <form onSubmit={handleLogin}>
             {loginError && (
               <div style={{ padding: '0.65rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'var(--wash-rose)', color: 'var(--accent-rose)', fontSize: '0.8rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <AlertCircle size={16} />
@@ -190,62 +191,45 @@ export const LoginScreenView = () => {
               </div>
             )}
 
-            {!needsNewPassword ? (
-              <>
-                <div className="form-group">
-                  <label>E-mail ou Usuário *</label>
-                  <input
-                    type="text"
-                    required
-                    autoComplete="username"
-                    placeholder="seu e-mail"
-                    className="form-control"
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                  />
-                </div>
+            <div className="form-group">
+              <label>E-mail *</label>
+              <input
+                type="text"
+                required
+                autoComplete="username"
+                placeholder="seu e-mail"
+                className="form-control"
+                value={identifier}
+                onChange={(e) => setIdentifier(e.target.value)}
+              />
+            </div>
 
-                <div className="form-group">
-                  <label>Senha *</label>
-                  <input
-                    type="password"
-                    required
-                    autoComplete="current-password"
-                    placeholder="••••••••"
-                    className="form-control"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                  />
-                </div>
-              </>
-            ) : (
-              <>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.9rem' }}>
-                  Para sincronizar com a nuvem com segurança, defina uma <strong>nova senha</strong> (mínimo de 6 caracteres) para <strong>{identifier}</strong>.
-                </p>
-                <div className="form-group">
-                  <label>Nova senha *</label>
-                  <input type="password" required minLength={6} autoComplete="new-password" className="form-control" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label>Confirmar nova senha *</label>
-                  <input type="password" required minLength={6} autoComplete="new-password" className="form-control" value={newPassword2} onChange={(e) => setNewPassword2(e.target.value)} />
-                </div>
-              </>
-            )}
+            <div className="form-group">
+              <label>Senha *</label>
+              <input
+                type="password"
+                required
+                autoComplete="current-password"
+                placeholder="••••••••"
+                className="form-control"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
 
             <button type="submit" disabled={busy} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem', padding: '0.7rem', fontSize: '0.9rem' }}>
-              <LogIn size={16} /> {busy ? 'Aguarde…' : needsNewPassword ? 'Definir senha e entrar' : 'Acessar Sistema'}
+              <LogIn size={16} /> {busy ? 'Aguarde…' : 'Acessar Sistema'}
             </button>
 
-            {cloudEnabled && !needsNewPassword && (
-              <button type="button" onClick={handleForgot} className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}>
-                Esqueci minha senha
+            {needsVerification && (
+              <button type="button" disabled={busy} onClick={handleResend} className="btn btn-secondary btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}>
+                Reenviar e-mail de confirmação
               </button>
             )}
-            {needsNewPassword && (
-              <button type="button" onClick={() => { setNeedsNewPassword(false); setNewPassword(''); setNewPassword2(''); setLoginError(''); }} className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}>
-                Voltar
+
+            {cloudEnabled && (
+              <button type="button" onClick={handleForgot} className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}>
+                Esqueci minha senha
               </button>
             )}
           </form>
@@ -264,7 +248,7 @@ export const LoginScreenView = () => {
             {regSuccessMsg && (
               <div style={{ padding: '0.75rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'var(--wash-emerald)', color: 'var(--accent-emerald)', fontSize: '0.8rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <CheckCircle2 size={18} />
-                <span>Solicitação de cadastro enviada com sucesso! Aguarde a aprovação do Administrador.</span>
+                <span>{regMessage}</span>
               </div>
             )}
 

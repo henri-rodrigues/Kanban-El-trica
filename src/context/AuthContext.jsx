@@ -1,91 +1,55 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import {
+  ADMIN_EMAIL,
   saveFirestoreDoc,
   deleteFirestoreDoc,
   subscribeFirestoreCollection,
   isFirebaseActive,
   isCloudConfigured,
+  getCloudUser,
   watchCloudAuth,
   cloudSignIn,
   cloudCreateAccount,
+  cloudSetDisplayName,
+  cloudSendVerification,
   cloudResetPassword,
   cloudSignOut,
   cloudErrorMessage,
-  fetchFirestoreDoc,
-  claimAdminBootstrap
+  fetchFirestoreDoc
 } from '../services/firebase';
+import { consumirFlagDeReset } from '../services/resetData';
 
 const AuthContext = createContext();
-
-// Usuários de demonstração (apenas locais). Quem ainda tem senha local é migrado
-// para o Firebase Authentication no primeiro login com a nuvem ativa.
-export const DEFAULT_USERS = [
-  {
-    id: 'usr-admin',
-    name: 'Administrador Geral',
-    email: 'admin@omnifield.com',
-    password: 'admin',
-    role: 'administrador',
-    status: 'approved',
-    gradientId: 'cyan',
-    userColorTag: '#0284c7',
-    title: 'Gerente de Comissionamento',
-    dailyRate: 500
-  },
-  {
-    id: 'usr-operador',
-    name: 'Carlos Eduardo',
-    email: 'operador@omnifield.com',
-    password: '123',
-    role: 'usuario',
-    status: 'approved',
-    gradientId: 'emerald',
-    userColorTag: '#059669',
-    title: 'Técnico Especialista HVAC',
-    dailyRate: 250
-  }
-];
 
 const stripSecrets = ({ password, ...rest }) => rest;
 const sameEmail = (a, b) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
 const fail = (message, extra = {}) => ({ success: false, message, ...extra });
 
-const CREDENCIAL_INVALIDA = [
-  'auth/invalid-credential',
-  'auth/invalid-login-credentials',
-  'auth/wrong-password',
-  'auth/user-not-found'
-];
-
-const MSG_PENDENTE = 'Sua conta está pendente de aprovação pelo Administrador.';
+const MSG_PENDENTE = 'E-mail confirmado! Sua solicitação foi enviada ao Administrador e está aguardando aprovação. Você poderá entrar assim que for aceito.';
 const MSG_RECUSADA = 'Sua solicitação de acesso foi recusada.';
+const MSG_CONFIRMAR = 'Confirme seu e-mail para entrar: abra o link que enviamos para a sua caixa de entrada (veja também o spam).';
 
 export const AuthProvider = ({ children }) => {
+  // Sem usuários de demonstração: o sistema começa vazio.
   const [users, setUsers] = useState(() => {
-    const saved = localStorage.getItem('omnifield_users_approval_v5');
     try {
-      return saved ? JSON.parse(saved) : DEFAULT_USERS;
+      const saved = JSON.parse(localStorage.getItem('omnifield_users_approval_v5') || '[]');
+      return Array.isArray(saved) ? saved : [];
     } catch {
-      return DEFAULT_USERS;
+      return [];
     }
   });
 
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('omnifield_active_user_v5');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed && parsed.id) return parsed;
-      } catch (e) {
-        console.error(e);
-      }
+    try {
+      const parsed = JSON.parse(localStorage.getItem('omnifield_active_user_v5') || 'null');
+      return parsed && parsed.id ? parsed : null;
+    } catch {
+      return null;
     }
-    return null;
   });
 
-  const [theme, setTheme] = useState(() => {
-    return localStorage.getItem('omnifield_theme') || 'light';
-  });
+  const [theme, setTheme] = useState(() => localStorage.getItem('omnifield_theme') || 'light');
 
   // uid do usuário autenticado no Firebase (null = sem sessão na nuvem)
   const [cloudUid, setCloudUid] = useState(null);
@@ -97,11 +61,8 @@ export const AuthProvider = ({ children }) => {
   }, [users]);
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('omnifield_active_user_v5', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('omnifield_active_user_v5');
-    }
+    if (currentUser) localStorage.setItem('omnifield_active_user_v5', JSON.stringify(currentUser));
+    else localStorage.removeItem('omnifield_active_user_v5');
   }, [currentUser]);
 
   useEffect(() => {
@@ -109,57 +70,110 @@ export const AuthProvider = ({ children }) => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
 
-  // Sessão do Firebase Authentication
+  // ---------------------------------------------------------------------------
+  // Perfil / sessão na nuvem
+  // ---------------------------------------------------------------------------
+  const activate = (profile) => {
+    const user = stripSecrets(profile);
+    setCurrentUser(user);
+    setUsers((prev) => [...prev.filter((u) => u.id !== user.id && !sameEmail(u.email, user.email)), user]);
+    return { success: true, user };
+  };
+
+  // Garante o perfil em users/{uid}. O administrador é quem tem o e-mail ADMIN_EMAIL confirmado.
+  const resolveSession = async (fbUser) => {
+    const isAdminEmail = sameEmail(fbUser.email, ADMIN_EMAIL);
+    let profile = await fetchFirestoreDoc('users', fbUser.uid);
+
+    if (!profile) {
+      profile = {
+        id: fbUser.uid,
+        uid: fbUser.uid,
+        name: fbUser.displayName || fbUser.email.split('@')[0],
+        email: fbUser.email,
+        gradientId: 'cyan',
+        userColorTag: '#0284c7',
+        dailyRate: isAdminEmail ? 500 : 250,
+        title: isAdminEmail ? 'Administrador' : 'Técnico Operacional',
+        role: isAdminEmail ? 'administrador' : 'usuario',
+        status: isAdminEmail ? 'approved' : 'pending_approval',
+        createdAt: new Date().toISOString()
+      };
+      if (!(await saveFirestoreDoc('users', fbUser.uid, profile))) {
+        await cloudSignOut();
+        return fail('Não foi possível registrar o seu perfil na nuvem. Verifique as regras do Firestore e tente novamente.');
+      }
+    } else if (isAdminEmail && (profile.role !== 'administrador' || profile.status !== 'approved')) {
+      profile = { ...profile, role: 'administrador', status: 'approved' };
+      await saveFirestoreDoc('users', fbUser.uid, profile);
+    }
+
+    if (profile.status === 'pending_approval') {
+      // E-mail confirmado: a solicitação passa a aparecer para o Administrador decidir.
+      if (!profile.emailVerified) {
+        await saveFirestoreDoc('users', fbUser.uid, { ...profile, emailVerified: true, emailVerifiedAt: new Date().toISOString() });
+      }
+      await cloudSignOut();
+      return fail(MSG_PENDENTE);
+    }
+    if (profile.status === 'rejected') {
+      await cloudSignOut();
+      return fail(MSG_RECUSADA);
+    }
+    return activate(profile);
+  };
+
+  // Sessão do Firebase Authentication (inclui sessões salvas entre recarregamentos)
   useEffect(() => {
     if (!isCloudConfigured()) {
       setAuthReady(true);
       return undefined;
     }
 
-    const stop = watchCloudAuth(async (fbUser) => {
+    return watchCloudAuth(async (fbUser) => {
       setCloudUid(fbUser ? fbUser.uid : null);
 
       if (!fbUser) {
-        // Sessão local antiga (anterior à nuvem) não vale mais: exige novo login.
+        setCurrentUser(null);
+        setAuthReady(true);
+        return;
+      }
+
+      // Dados locais foram zerados nesta carga: encerra também a sessão antiga da nuvem.
+      if (consumirFlagDeReset()) {
+        await cloudSignOut();
+        return;
+      }
+
+      // Sessão de conta ainda não confirmada não vale.
+      if (!fbUser.emailVerified) {
         setCurrentUser(null);
         setAuthReady(true);
         return;
       }
 
       try {
-        const profile = await fetchFirestoreDoc('users', fbUser.uid);
-        if (profile && profile.status === 'approved') {
-          setCurrentUser(stripSecrets(profile));
-        } else if (profile && (profile.status === 'pending_approval' || profile.status === 'rejected')) {
-          await cloudSignOut();
-          setCurrentUser(null);
-        }
-        // sem perfil: o fluxo de login (finishCloudLogin) cuida de criá-lo
+        const res = await resolveSession(fbUser);
+        if (!res.success) setCurrentUser(null);
       } catch (err) {
         console.error('Erro ao carregar perfil do usuário:', err);
       } finally {
         setAuthReady(true);
       }
     });
-
-    return stop;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Usuários em tempo real (requer sessão na nuvem). Mantém quem ainda é só local (legado).
+  // Usuários em tempo real (só com sessão aprovada na nuvem)
   useEffect(() => {
     if (!cloudUid || !isFirebaseActive()) return undefined;
 
     return subscribeFirestoreCollection('users', (remote) => {
-      setUsers((prev) => {
-        const legado = prev.filter(
-          (u) => !u.uid && u.password && !remote.some((r) => sameEmail(r.email, u.email))
-        );
-        return [...remote, ...legado];
-      });
+      setUsers(remote);
 
       setCurrentUser((cur) => {
         if (!cur) return cur;
-        const me = remote.find((u) => u.uid === cloudUid || u.id === cur.id);
+        const me = remote.find((u) => u.uid === cloudUid);
         if (!me) return cur;
         if (me.status === 'rejected') return null;
         const mudou =
@@ -171,159 +185,39 @@ export const AuthProvider = ({ children }) => {
   }, [cloudUid]);
 
   // ---------------------------------------------------------------------------
-  // Login
+  // Login, cadastro, confirmação de e-mail
   // ---------------------------------------------------------------------------
-  const activate = (profile) => {
-    const user = stripSecrets(profile);
-    setCurrentUser(user);
-    setUsers((prev) => {
-      const sem = prev.filter((u) => !(u.id === user.id || sameEmail(u.email, user.email)));
-      return [...sem, user];
-    });
-    return { success: true, user };
-  };
-
-  // Login 100% local (nuvem não configurada, ou sem rede para quem ainda tem senha local).
-  const localLogin = (known, password) => {
-    if (!known || !known.password || known.password !== password) {
-      return fail('Usuário ou senha incorretos.');
-    }
-    if (known.status === 'pending_approval') return fail(MSG_PENDENTE);
-    if (known.status === 'rejected') return fail(MSG_RECUSADA);
-    setCurrentUser(stripSecrets(known));
-    return { success: true, user: known };
-  };
-
-  const pendingProfile = (base, fbUser) => ({
-    ...base,
-    id: base.id || fbUser.uid,
-    uid: fbUser.uid,
-    email: fbUser.email,
-    role: 'usuario',
-    status: 'pending_approval'
-  });
-
-  // Primeiro acesso de uma conta que ainda não tem perfil no Firestore.
-  const createProfileAndFinish = async (fbUser, base) => {
-    const profile = { ...stripSecrets(base), id: base.id || fbUser.uid, uid: fbUser.uid, email: fbUser.email, createdAt: base.createdAt || new Date().toISOString() };
-
-    if (profile.role === 'administrador' && profile.status === 'approved') {
-      try {
-        await claimAdminBootstrap(fbUser.uid, profile);
-        return activate(profile);
-      } catch {
-        // Já existe um administrador: segue como usuário pendente.
-      }
-    }
-
-    const pending = pendingProfile(profile, fbUser);
-    const salvo = await saveFirestoreDoc('users', fbUser.uid, pending);
-    await cloudSignOut();
-    if (!salvo) return fail('Conta criada na nuvem, mas não foi possível registrar o perfil. Verifique as regras do Firestore e tente novamente.');
-    return fail('Seu acesso foi migrado para a nuvem e está aguardando a aprovação do Administrador.');
-  };
-
-  const finishCloudLogin = async (fbUser) => {
-    let profile = await fetchFirestoreDoc('users', fbUser.uid);
-
-    if (!profile) {
-      const local = users.find((u) => sameEmail(u.email, fbUser.email));
-      const base = local
-        ? stripSecrets(local)
-        : { name: fbUser.email.split('@')[0], gradientId: 'cyan', userColorTag: '#0284c7', dailyRate: 250, title: 'Técnico Operacional', role: 'usuario', status: 'pending_approval' };
-      // Conta criada direto no console do Firebase: o primeiro a entrar vira administrador.
-      return createProfileAndFinish(fbUser, local ? base : { ...base, role: 'administrador', status: 'approved' });
-    }
-
-    if (profile.status === 'pending_approval') {
-      await cloudSignOut();
-      return fail(MSG_PENDENTE);
-    }
-    if (profile.status === 'rejected') {
-      await cloudSignOut();
-      return fail(MSG_RECUSADA);
-    }
-    return activate(profile);
-  };
-
-  const migrateLegacy = async (legacy, legacyPassword, newPassword) => {
-    if (!newPassword || newPassword.length < 6) {
-      return fail(
-        'Para usar a nuvem, a senha precisa ter pelo menos 6 caracteres. Defina uma nova senha para continuar.',
-        { needsNewPassword: true }
-      );
-    }
-    try {
-      const cred = await cloudCreateAccount(legacy.email, newPassword);
-      return await createProfileAndFinish(cred.user, legacy);
-    } catch (err) {
-      if (err?.code === 'auth/email-already-in-use') {
-        return fail('Este e-mail já tem conta na nuvem, mas a senha informada não confere. Use a senha da nuvem ou "Esqueci minha senha".');
-      }
-      return fail(cloudErrorMessage(err));
-    }
-  };
-
   const loginWithPassword = async (emailOrName, password) => {
     const ident = (emailOrName || '').trim().toLowerCase();
-    const known = users.find(
-      (u) => u.email?.toLowerCase() === ident || u.name?.toLowerCase() === ident
-    );
 
-    if (!isCloudConfigured()) return localLogin(known, password);
-
-    const email = ident.includes('@') ? ident : known?.email;
-    if (!email) return fail('Informe o e-mail cadastrado para entrar.');
-
-    try {
-      const cred = await cloudSignIn(email, password);
-      return await finishCloudLogin(cred.user);
-    } catch (err) {
-      const code = err?.code;
-
-      // Nuvem indisponível (sem rede) ou Authentication ainda não ativado no console:
-      // quem tem senha local segue trabalhando; os dados sincronizam depois.
-      if (['auth/network-request-failed', 'auth/configuration-not-found', 'auth/operation-not-allowed'].includes(code)) {
-        const local = localLogin(known, password);
-        return local.success ? local : fail(cloudErrorMessage(err));
-      }
-
-      if (CREDENCIAL_INVALIDA.includes(code)) {
-        // Usuário antigo (só local): migra para a nuvem usando a senha que ele acabou de provar.
-        const legacy = users.find((u) => !u.uid && sameEmail(u.email, email) && u.password && u.password === password);
-        if (legacy) return migrateLegacy(legacy, password, password);
-        return fail('Usuário ou senha incorretos.');
-      }
-
-      return fail(err?.code ? cloudErrorMessage(err) : err?.message || 'Não foi possível entrar.');
+    if (!isCloudConfigured()) {
+      const known = users.find((u) => u.email?.toLowerCase() === ident || u.name?.toLowerCase() === ident);
+      if (!known || known.password !== password) return fail('Usuário ou senha incorretos.');
+      if (known.status === 'pending_approval') return fail('Sua conta está pendente de aprovação pelo Administrador.');
+      if (known.status === 'rejected') return fail(MSG_RECUSADA);
+      setCurrentUser(stripSecrets(known));
+      return { success: true, user: known };
     }
-  };
 
-  // Segundo passo da migração quando a senha antiga é curta demais para o Firebase.
-  const completeLegacyMigration = async (emailOrName, oldPassword, newPassword) => {
-    const ident = (emailOrName || '').trim().toLowerCase();
-    const legacy = users.find(
-      (u) => !u.uid && u.password && u.password === oldPassword &&
-        (u.email?.toLowerCase() === ident || u.name?.toLowerCase() === ident)
-    );
-    if (!legacy) return fail('Usuário ou senha atual incorretos.');
-    return migrateLegacy(legacy, oldPassword, newPassword);
-  };
+    if (!ident.includes('@')) return fail('Informe o seu e-mail para entrar.');
 
-  const resetPassword = async (email) => {
-    if (!isCloudConfigured()) return fail('A nuvem não está configurada neste dispositivo.');
-    if (!email || !email.includes('@')) return fail('Informe o seu e-mail no campo de usuário para receber o link.');
     try {
-      await cloudResetPassword(email);
-      return { success: true, message: 'Enviamos um link de redefinição de senha para o seu e-mail.' };
+      const cred = await cloudSignIn(ident, password);
+      await cred.user.reload();
+      const fbUser = getCloudUser() || cred.user;
+
+      if (!fbUser.emailVerified) {
+        await cloudSignOut();
+        return fail(MSG_CONFIRMAR, { needsVerification: true });
+      }
+
+      await fbUser.getIdToken(true); // garante a claim email_verified no token usado pelas regras
+      return await resolveSession(fbUser);
     } catch (err) {
       return fail(cloudErrorMessage(err));
     }
   };
 
-  // ---------------------------------------------------------------------------
-  // Cadastro e administração de usuários
-  // ---------------------------------------------------------------------------
   const registerRequestUser = async (userData) => {
     const { password, ...dados } = userData;
     const base = {
@@ -338,64 +232,109 @@ export const AuthProvider = ({ children }) => {
     };
 
     if (!isCloudConfigured()) {
-      const newUser = { id: `usr-${Date.now()}`, ...base, password };
+      // Modo local (sem nuvem): o primeiro cadastro vira administrador.
+      const primeiro = users.length === 0;
+      const newUser = {
+        id: `usr-${Date.now()}`,
+        ...base,
+        password,
+        role: primeiro ? 'administrador' : 'usuario',
+        status: primeiro ? 'approved' : 'pending_approval'
+      };
       setUsers((prev) => [...prev, newUser]);
-      return { success: true, user: newUser };
+      return {
+        success: true,
+        user: newUser,
+        message: primeiro ? 'Conta de administrador criada. Já pode entrar.' : 'Solicitação enviada. Aguarde a aprovação do Administrador.'
+      };
     }
 
     try {
       const cred = await cloudCreateAccount(base.email, password);
-      const profile = { ...base, id: cred.user.uid, uid: cred.user.uid, email: cred.user.email };
-      const salvo = await saveFirestoreDoc('users', cred.user.uid, profile);
+      await cloudSetDisplayName(cred.user, base.name).catch(() => {});
+      await cloudSendVerification(cred.user);
+
+      const profile = { ...base, id: cred.user.uid, uid: cred.user.uid, email: cred.user.email, emailVerified: false };
+      await saveFirestoreDoc('users', cred.user.uid, profile);
       await cloudSignOut();
-      if (!salvo) return fail('Conta criada, mas não foi possível enviar a solicitação. Avise o Administrador.');
-      return { success: true, user: profile };
+
+      return {
+        success: true,
+        user: profile,
+        message: `Cadastro criado. Enviamos um e-mail de confirmação para ${cred.user.email}: clique no link (veja também o spam) e depois entre no sistema para enviar sua solicitação de acesso ao Administrador.`
+      };
     } catch (err) {
       return fail(cloudErrorMessage(err));
     }
   };
 
-  // Escreve o perfil na nuvem (somente quem já tem conta na nuvem, ou seja, tem uid).
+  // Reenvia o e-mail de confirmação (precisa do e-mail e senha para identificar a conta).
+  const resendVerification = async (email, password) => {
+    if (!isCloudConfigured()) return fail('A nuvem não está configurada neste dispositivo.');
+    try {
+      const cred = await cloudSignIn((email || '').trim(), password);
+      await cred.user.reload();
+      const fbUser = getCloudUser() || cred.user;
+      if (fbUser.emailVerified) {
+        await cloudSignOut();
+        return { success: true, message: 'Seu e-mail já está confirmado. Pode entrar.' };
+      }
+      await cloudSendVerification(fbUser);
+      await cloudSignOut();
+      return { success: true, message: `Reenviamos o e-mail de confirmação para ${fbUser.email}.` };
+    } catch (err) {
+      return fail(cloudErrorMessage(err));
+    }
+  };
+
+  const resetPassword = async (email) => {
+    if (!isCloudConfigured()) return fail('A nuvem não está configurada neste dispositivo.');
+    if (!email || !email.includes('@')) return fail('Informe o seu e-mail no campo de usuário para receber o link.');
+    try {
+      await cloudResetPassword(email);
+      return { success: true, message: 'Enviamos um link de redefinição de senha para o seu e-mail.' };
+    } catch (err) {
+      return fail(cloudErrorMessage(err));
+    }
+  };
+
+  // ---------------------------------------------------------------------------
+  // Administração de usuários
+  // ---------------------------------------------------------------------------
   const pushUser = (user) => {
     if (user?.uid && isFirebaseActive()) saveFirestoreDoc('users', user.uid, stripSecrets(user));
   };
 
   const approveUser = (userId) => {
     setUsers((prev) => prev.map((u) => {
-      if (u.id === userId) {
-        const updated = { ...u, status: 'approved' };
-        pushUser(updated);
-        return updated;
-      }
-      return u;
+      if (u.id !== userId) return u;
+      const updated = { ...u, status: 'approved' };
+      pushUser(updated);
+      return updated;
     }));
   };
 
   const rejectUser = (userId) => {
     setUsers((prev) => prev.map((u) => {
-      if (u.id === userId) {
-        const updated = { ...u, status: 'rejected' };
-        pushUser(updated);
-        return updated;
-      }
-      return u;
+      if (u.id !== userId) return u;
+      const updated = { ...u, status: 'rejected' };
+      pushUser(updated);
+      return updated;
     }));
   };
 
   const updateUserProfileByAdmin = (userId, profileFields) => {
+    const souDono = sameEmail(currentUser?.email, ADMIN_EMAIL);
+    // Só o dono do sistema concede ou retira o perfil de administrador.
+    const { role, ...demais } = profileFields;
+    const campos = souDono ? profileFields : demais;
     setUsers((prev) => prev.map((u) => {
-      if (u.id === userId) {
-        const updated = { ...u, ...profileFields };
-        pushUser(updated);
-
-        // Immediate local role update if editing current user
-        if (currentUser?.id === userId) {
-          setCurrentUser(stripSecrets(updated));
-        }
-
-        return updated;
-      }
-      return u;
+      if (u.id !== userId) return u;
+      if (souDono && sameEmail(u.email, ADMIN_EMAIL) && role && role !== 'administrador') return u; // dono permanece admin
+      const updated = { ...u, ...campos };
+      pushUser(updated);
+      if (currentUser?.id === userId) setCurrentUser(stripSecrets(updated));
+      return updated;
     }));
   };
 
@@ -406,6 +345,8 @@ export const AuthProvider = ({ children }) => {
       return;
     }
     const alvo = users.find((u) => u.id === userId);
+    if (alvo && sameEmail(alvo.email, ADMIN_EMAIL)) return; // dono do sistema não pode ser excluído
+    if (alvo?.role === 'administrador' && !sameEmail(currentUser.email, ADMIN_EMAIL)) return; // só o dono remove administradores
     setUsers((prev) => prev.filter((u) => u.id !== userId));
     if (alvo?.uid && isFirebaseActive()) deleteFirestoreDoc('users', alvo.uid);
   };
@@ -415,9 +356,7 @@ export const AuthProvider = ({ children }) => {
     setCurrentUser(null);
   };
 
-  const toggleTheme = () => {
-    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
-  };
+  const toggleTheme = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
 
   return (
     <AuthContext.Provider
@@ -425,7 +364,7 @@ export const AuthProvider = ({ children }) => {
         users,
         currentUser,
         loginWithPassword,
-        completeLegacyMigration,
+        resendVerification,
         resetPassword,
         registerRequestUser,
         approveUser,
@@ -439,6 +378,7 @@ export const AuthProvider = ({ children }) => {
         authReady,
         cloudEnabled: isCloudConfigured(),
         isAdmin: currentUser?.role === 'administrador',
+        isOwner: sameEmail(currentUser?.email, ADMIN_EMAIL) && currentUser?.role === 'administrador',
         isUser: currentUser?.role === 'usuario' || currentUser?.role === 'administrador'
       }}
     >

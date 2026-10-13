@@ -2,14 +2,25 @@ rules_version = '2';
 
 // OmniField Pro — regras do Firestore (projeto omnifield-pro)
 //
-// Modelo: o app usa Firebase Authentication (e-mail/senha). Cada pessoa tem um
-// perfil em users/{uid} com `role` (administrador | usuario) e `status`
-// (pending_approval | approved | rejected). Só perfis APROVADOS leem/gravam dados.
+// Modelo: Firebase Authentication (e-mail/senha) com E-MAIL CONFIRMADO obrigatório.
+// - O administrador é quem tem o e-mail abaixo CONFIRMADO (o mesmo de ADMIN_EMAIL em
+//   src/services/firebase.js). Ninguém consegue "assumir" o sistema sem controlar essa caixa.
+// - Os demais usuários têm perfil em users/{uid} e só acessam dados com status 'approved'.
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function signedIn() {
       return request.auth != null;
+    }
+
+    function verified() {
+      return signedIn() && request.auth.token.email_verified == true;
+    }
+
+    // Dono do sistema: e-mail do administrador, confirmado.
+    function isOwner() {
+      return verified()
+        && request.auth.token.email == 'eletrica@3darcondicionado.com.br';
     }
 
     function hasProfile() {
@@ -21,48 +32,45 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
+    // Perfil aprovado + e-mail confirmado.
     function isApproved() {
-      return hasProfile() && profile().status == 'approved';
+      return isOwner() || (verified() && hasProfile() && profile().status == 'approved');
     }
 
     function isAdmin() {
-      return isApproved() && profile().role == 'administrador';
-    }
-
-    // Primeiro administrador: o documento config/bootstrap só pode ser criado uma
-    // vez (qualquer escrita posterior é negada) e guarda o uid do dono do sistema.
-    match /config/{docId} {
-      allow read: if signedIn();
-      allow create: if signedIn()
-        && docId == 'bootstrap'
-        && request.resource.data.uid == request.auth.uid
-        && request.resource.data.keys().hasOnly(['uid', 'createdAt']);
-      allow update, delete: if false;
+      return isOwner() || (isApproved() && profile().role == 'administrador');
     }
 
     match /users/{uid} {
       // Cada pessoa lê o próprio perfil (para saber se foi aprovada); aprovados leem todos.
       allow read: if signedIn() && (request.auth.uid == uid || isApproved());
 
-      // Cadastro: a própria pessoa cria o perfil como "pendente"... ou, uma única vez,
-      // o primeiro administrador (validado pelo documento config/bootstrap).
+      // Cadastro: a própria pessoa cria o perfil como "pendente". O dono do sistema
+      // (e-mail confirmado) pode criar o próprio perfil já como administrador.
       allow create: if signedIn() && request.auth.uid == uid && (
         (request.resource.data.role == 'usuario'
           && request.resource.data.status == 'pending_approval')
-        || (request.resource.data.role == 'administrador'
-          && request.resource.data.status == 'approved'
-          && getAfter(/databases/$(database)/documents/config/bootstrap).data.uid == request.auth.uid)
+        || (isOwner()
+          && request.resource.data.role == 'administrador'
+          && request.resource.data.status == 'approved')
       );
 
-      // Administrador altera qualquer perfil; a própria pessoa não pode mexer em
-      // perfil de acesso, status, diária, e-mail ou identificadores.
-      allow update: if isAdmin() || (
-        signedIn() && request.auth.uid == uid
-        && !request.resource.data.diff(resource.data).affectedKeys()
-            .hasAny(['role', 'status', 'dailyRate', 'email', 'uid', 'id'])
-      );
+      // Atualização:
+      //  - o dono do sistema altera qualquer perfil (é o único que concede/retira administrador);
+      //  - demais administradores aprovam/recusam e ajustam cargo e diária, mas não mexem em
+      //    perfil de acesso (role), e-mail ou identificadores;
+      //  - a própria pessoa edita só dados pessoais (nunca role, status, diária, e-mail, ids).
+      allow update: if isOwner()
+        || (isAdmin()
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['role', 'email', 'uid', 'id']))
+        || (signedIn() && request.auth.uid == uid
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['role', 'status', 'dailyRate', 'email', 'uid', 'id']));
 
-      allow delete: if isAdmin();
+      // Exclusão: o dono do sistema nunca é excluído; administradores só são removidos pelo dono.
+      allow delete: if resource.data.email != 'eletrica@3darcondicionado.com.br'
+        && (isOwner() || (isAdmin() && resource.data.role != 'administrador'));
     }
 
     // Dados financeiros e de cadastro das obras: somente o administrador grava.

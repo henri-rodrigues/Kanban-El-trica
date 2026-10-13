@@ -6,12 +6,10 @@ import {
   subscribeFirestoreCollection,
   isFirebaseActive,
   isCloudConfigured,
-  getCloudUser,
   watchCloudAuth,
   cloudSignIn,
   cloudCreateAccount,
   cloudSetDisplayName,
-  cloudSendVerification,
   cloudResetPassword,
   cloudSignOut,
   cloudErrorMessage,
@@ -25,9 +23,20 @@ const stripSecrets = ({ password, ...rest }) => rest;
 const sameEmail = (a, b) => !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
 const fail = (message, extra = {}) => ({ success: false, message, ...extra });
 
-const MSG_PENDENTE = 'E-mail confirmado! Sua solicitação foi enviada ao Administrador e está aguardando aprovação. Você poderá entrar assim que for aceito.';
+// Nenhuma etapa de rede pode deixar a tela "Enviando…" para sempre.
+const comTimeout = (promessa, ms, mensagem) =>
+  Promise.race([
+    promessa,
+    new Promise((_, rejeitar) =>
+      setTimeout(() => rejeitar(Object.assign(new Error(mensagem), { code: 'app/timeout' })), ms)
+    )
+  ]);
+
+const MSG_SEM_RESPOSTA =
+  'O servidor não respondeu a tempo. Verifique a internet e desative bloqueadores de anúncios/privacidade para este site, e tente novamente.';
+
+const MSG_PENDENTE = 'Sua solicitação de acesso está aguardando a aprovação do Administrador. Você poderá entrar assim que for aceito.';
 const MSG_RECUSADA = 'Sua solicitação de acesso foi recusada.';
-const MSG_CONFIRMAR = 'Confirme seu e-mail para entrar: abra o link que enviamos para a sua caixa de entrada (veja também o spam).';
 
 export const AuthProvider = ({ children }) => {
   // Sem usuários de demonstração: o sistema começa vazio.
@@ -80,7 +89,7 @@ export const AuthProvider = ({ children }) => {
     return { success: true, user };
   };
 
-  // Garante o perfil em users/{uid}. O administrador é quem tem o e-mail ADMIN_EMAIL confirmado.
+  // Garante o perfil em users/{uid}. O dono do sistema é quem tem o e-mail ADMIN_EMAIL.
   const resolveSession = async (fbUser) => {
     const isAdminEmail = sameEmail(fbUser.email, ADMIN_EMAIL);
     let profile = await fetchFirestoreDoc('users', fbUser.uid);
@@ -109,10 +118,6 @@ export const AuthProvider = ({ children }) => {
     }
 
     if (profile.status === 'pending_approval') {
-      // E-mail confirmado: a solicitação passa a aparecer para o Administrador decidir.
-      if (!profile.emailVerified) {
-        await saveFirestoreDoc('users', fbUser.uid, { ...profile, emailVerified: true, emailVerifiedAt: new Date().toISOString() });
-      }
       await cloudSignOut();
       return fail(MSG_PENDENTE);
     }
@@ -131,6 +136,9 @@ export const AuthProvider = ({ children }) => {
     }
 
     return watchCloudAuth(async (fbUser) => {
+      // A flag vale só para a PRIMEIRA notificação (sessão salva de antes da limpeza).
+      const resetouNestaCarga = consumirFlagDeReset();
+
       setCloudUid(fbUser ? fbUser.uid : null);
 
       if (!fbUser) {
@@ -139,16 +147,8 @@ export const AuthProvider = ({ children }) => {
         return;
       }
 
-      // Dados locais foram zerados nesta carga: encerra também a sessão antiga da nuvem.
-      if (consumirFlagDeReset()) {
+      if (resetouNestaCarga) {
         await cloudSignOut();
-        return;
-      }
-
-      // Sessão de conta ainda não confirmada não vale.
-      if (!fbUser.emailVerified) {
-        setCurrentUser(null);
-        setAuthReady(true);
         return;
       }
 
@@ -185,7 +185,7 @@ export const AuthProvider = ({ children }) => {
   }, [cloudUid]);
 
   // ---------------------------------------------------------------------------
-  // Login, cadastro, confirmação de e-mail
+  // Login e solicitação de cadastro
   // ---------------------------------------------------------------------------
   const loginWithPassword = async (emailOrName, password) => {
     const ident = (emailOrName || '').trim().toLowerCase();
@@ -193,7 +193,7 @@ export const AuthProvider = ({ children }) => {
     if (!isCloudConfigured()) {
       const known = users.find((u) => u.email?.toLowerCase() === ident || u.name?.toLowerCase() === ident);
       if (!known || known.password !== password) return fail('Usuário ou senha incorretos.');
-      if (known.status === 'pending_approval') return fail('Sua conta está pendente de aprovação pelo Administrador.');
+      if (known.status === 'pending_approval') return fail(MSG_PENDENTE);
       if (known.status === 'rejected') return fail(MSG_RECUSADA);
       setCurrentUser(stripSecrets(known));
       return { success: true, user: known };
@@ -202,22 +202,15 @@ export const AuthProvider = ({ children }) => {
     if (!ident.includes('@')) return fail('Informe o seu e-mail para entrar.');
 
     try {
-      const cred = await cloudSignIn(ident, password);
-      await cred.user.reload();
-      const fbUser = getCloudUser() || cred.user;
-
-      if (!fbUser.emailVerified) {
-        await cloudSignOut();
-        return fail(MSG_CONFIRMAR, { needsVerification: true });
-      }
-
-      await fbUser.getIdToken(true); // garante a claim email_verified no token usado pelas regras
-      return await resolveSession(fbUser);
+      const cred = await comTimeout(cloudSignIn(ident, password), 25000, MSG_SEM_RESPOSTA);
+      return await comTimeout(resolveSession(cred.user), 20000, MSG_SEM_RESPOSTA);
     } catch (err) {
-      return fail(cloudErrorMessage(err));
+      if (err?.code === 'app/timeout') await cloudSignOut().catch(() => {});
+      return fail(err?.code === 'app/timeout' ? MSG_SEM_RESPOSTA : cloudErrorMessage(err));
     }
   };
 
+  // Cria o cadastro e já deixa a solicitação pendente para o Administrador decidir.
   const registerRequestUser = async (userData) => {
     const { password, ...dados } = userData;
     const base = {
@@ -228,6 +221,7 @@ export const AuthProvider = ({ children }) => {
       dailyRate: 250,
       title: 'Técnico Operacional',
       createdAt: new Date().toISOString(),
+      requestedAt: new Date().toISOString(),
       ...dados
     };
 
@@ -249,42 +243,31 @@ export const AuthProvider = ({ children }) => {
       };
     }
 
+    let cred;
     try {
-      const cred = await cloudCreateAccount(base.email, password);
-      await cloudSetDisplayName(cred.user, base.name).catch(() => {});
-      await cloudSendVerification(cred.user);
+      cred = await comTimeout(cloudCreateAccount(base.email, password), 25000, MSG_SEM_RESPOSTA);
+    } catch (err) {
+      return fail(err?.code === 'app/timeout' ? MSG_SEM_RESPOSTA : cloudErrorMessage(err));
+    }
 
-      const profile = { ...base, id: cred.user.uid, uid: cred.user.uid, email: cred.user.email, emailVerified: false };
-      await saveFirestoreDoc('users', cred.user.uid, profile);
-      await cloudSignOut();
+    // Perfil pendente: aparece direto para o Administrador. Se a gravação falhar, é refeita no primeiro login.
+    const profile = { ...base, id: cred.user.uid, uid: cred.user.uid, email: cred.user.email };
+    await comTimeout(cloudSetDisplayName(cred.user, base.name), 8000, '').catch(() => {});
+    const salvo = await comTimeout(saveFirestoreDoc('users', cred.user.uid, profile), 12000, '').catch(() => false);
+    await cloudSignOut().catch(() => {});
 
+    if (!salvo) {
       return {
         success: true,
         user: profile,
-        message: `Cadastro criado. Enviamos um e-mail de confirmação para ${cred.user.email}: clique no link (veja também o spam) e depois entre no sistema para enviar sua solicitação de acesso ao Administrador.`
+        message: 'Cadastro criado. Entre com seu e-mail e senha para enviar a solicitação de acesso ao Administrador.'
       };
-    } catch (err) {
-      return fail(cloudErrorMessage(err));
     }
-  };
-
-  // Reenvia o e-mail de confirmação (precisa do e-mail e senha para identificar a conta).
-  const resendVerification = async (email, password) => {
-    if (!isCloudConfigured()) return fail('A nuvem não está configurada neste dispositivo.');
-    try {
-      const cred = await cloudSignIn((email || '').trim(), password);
-      await cred.user.reload();
-      const fbUser = getCloudUser() || cred.user;
-      if (fbUser.emailVerified) {
-        await cloudSignOut();
-        return { success: true, message: 'Seu e-mail já está confirmado. Pode entrar.' };
-      }
-      await cloudSendVerification(fbUser);
-      await cloudSignOut();
-      return { success: true, message: `Reenviamos o e-mail de confirmação para ${fbUser.email}.` };
-    } catch (err) {
-      return fail(cloudErrorMessage(err));
-    }
+    return {
+      success: true,
+      user: profile,
+      message: 'Solicitação enviada ao Administrador! Aguarde a aprovação. Quando for aceito, entre com seu e-mail e senha.'
+    };
   };
 
   const resetPassword = async (email) => {
@@ -364,7 +347,6 @@ export const AuthProvider = ({ children }) => {
         users,
         currentUser,
         loginWithPassword,
-        resendVerification,
         resetPassword,
         registerRequestUser,
         approveUser,

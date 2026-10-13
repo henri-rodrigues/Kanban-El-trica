@@ -16,9 +16,7 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
   if (!isOpen || !isAdmin) return null;
 
   const pendingUsers = users.filter(u => u.status === 'pending_approval');
-  // Só aparece para decisão quem já confirmou o e-mail (cadastros locais, sem nuvem, não têm essa etapa)
-  const toDecideUsers = pendingUsers.filter(u => u.emailVerified || !u.uid);
-  const awaitingEmailUsers = pendingUsers.filter(u => !u.emailVerified && u.uid);
+  const toDecideUsers = pendingUsers;
   const approvedUsers = users.filter(u => u.status !== 'pending_approval');
 
   const startEditing = (user) => {
@@ -103,7 +101,7 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
               <Clock size={16} /> Solicitações de acesso para decidir ({toDecideUsers.length})
             </h4>
             <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>
-              Estas pessoas já confirmaram o e-mail. Aceite para liberar o acesso ou recuse.
+              Aceite para liberar o acesso como usuário ou recuse.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -112,7 +110,6 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
                   <div>
                     <div style={{ fontWeight: 700, fontSize: '0.85rem', color: 'var(--text-primary)' }}>{u.name}</div>
                     <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>{u.email}</div>
-                    {u.uid && <span className="badge badge-emerald" style={{ fontSize: '0.62rem', marginTop: '3px' }}>✓ E-mail confirmado</span>}
                   </div>
 
                   <div style={{ display: 'flex', gap: '0.4rem' }}>
@@ -123,31 +120,6 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
                       <X size={14} /> Recusar
                     </button>
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Cadastros que ainda não confirmaram o e-mail: ainda não são solicitações */}
-        {awaitingEmailUsers.length > 0 && (
-          <div style={{ background: 'var(--bg-subtle)', padding: '1rem', borderRadius: 'var(--radius-md)', marginBottom: '1.25rem' }}>
-            <h4 style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
-              ✉️ Aguardando confirmação de e-mail ({awaitingEmailUsers.length})
-            </h4>
-            <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.6rem' }}>
-              Viram solicitação para você decidir assim que a pessoa confirmar o e-mail e entrar no sistema.
-            </p>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-              {awaitingEmailUsers.map(u => (
-                <div key={u.id} style={{ padding: '0.5rem 0.65rem', borderRadius: 'var(--radius-sm)', background: 'var(--bg-card)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: '0.8rem', color: 'var(--text-primary)' }}>{u.name}</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>{u.email}</div>
-                  </div>
-                  <button onClick={() => rejectUser(u.id)} className="btn btn-danger btn-sm" title="Recusar cadastro">
-                    <X size={14} /> Recusar
-                  </button>
                 </div>
               ))}
             </div>

@@ -44,7 +44,7 @@ export const Navbar = ({
   const [showObraDropdown, setShowObraDropdown] = useState(false);
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
 
-  const pendingApprovalsCount = users.filter(u => u.status === 'pending_approval' && (u.emailVerified || !u.uid)).length;
+  const pendingApprovalsCount = users.filter(u => u.status === 'pending_approval').length;
 
   return (
     <header className="glass-panel navbar-mobile" style={{

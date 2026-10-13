@@ -5,7 +5,7 @@ import { POSTIT_GRADIENTS } from '../constants/gradients';
 import { LogIn, UserPlus, Sparkles, AlertCircle, CheckCircle2, ShieldCheck, Palette } from 'lucide-react';
 
 export const LoginScreenView = () => {
-  const { loginWithPassword, resendVerification, resetPassword, registerRequestUser, cloudEnabled } = useAuth();
+  const { loginWithPassword, resetPassword, registerRequestUser, cloudEnabled } = useAuth();
 
   const [activeTab, setActiveTab] = useState('login'); // 'login' | 'register'
   
@@ -16,8 +16,6 @@ export const LoginScreenView = () => {
   const [loginInfo, setLoginInfo] = useState('');
   const [busy, setBusy] = useState(false);
 
-  // E-mail ainda não confirmado: permite reenviar o link
-  const [needsVerification, setNeedsVerification] = useState(false);
   const [regMessage, setRegMessage] = useState('');
 
   // Register Form
@@ -32,29 +30,10 @@ export const LoginScreenView = () => {
     e.preventDefault();
     setLoginError('');
     setLoginInfo('');
-    setNeedsVerification(false);
     setBusy(true);
     try {
       const res = await loginWithPassword(identifier, password);
       if (!res.success) {
-        setNeedsVerification(!!res.needsVerification);
-        setLoginError(res.message);
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleResend = async () => {
-    setLoginError('');
-    setLoginInfo('');
-    setBusy(true);
-    try {
-      const res = await resendVerification(identifier, password);
-      if (res.success) {
-        setNeedsVerification(false);
-        setLoginInfo(res.message);
-      } else {
         setLoginError(res.message);
       }
     } finally {
@@ -221,12 +200,6 @@ export const LoginScreenView = () => {
               <LogIn size={16} /> {busy ? 'Aguarde…' : 'Acessar Sistema'}
             </button>
 
-            {needsVerification && (
-              <button type="button" disabled={busy} onClick={handleResend} className="btn btn-secondary btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}>
-                Reenviar e-mail de confirmação
-              </button>
-            )}
-
             {cloudEnabled && (
               <button type="button" onClick={handleForgot} className="btn btn-ghost btn-sm" style={{ width: '100%', justifyContent: 'center', marginTop: '0.5rem' }}>
                 Esqueci minha senha
@@ -242,13 +215,6 @@ export const LoginScreenView = () => {
               <div style={{ padding: '0.75rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'var(--wash-rose)', color: 'var(--accent-rose)', fontSize: '0.8rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <AlertCircle size={18} />
                 <span>{regError}</span>
-              </div>
-            )}
-
-            {regSuccessMsg && (
-              <div style={{ padding: '0.75rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'var(--wash-emerald)', color: 'var(--accent-emerald)', fontSize: '0.8rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <CheckCircle2 size={18} />
-                <span>{regMessage}</span>
               </div>
             )}
 
@@ -297,8 +263,17 @@ export const LoginScreenView = () => {
             </div>
 
             <button type="submit" disabled={busy} className="btn btn-primary" style={{ width: '100%', justifyContent: 'center', marginTop: '0.75rem', padding: '0.7rem', fontSize: '0.9rem' }}>
-              <UserPlus size={16} /> {busy ? 'Enviando…' : 'Enviar Solicitação para Aprovação'}
+              <UserPlus size={16} /> {busy ? 'Enviando…' : 'Criar cadastro e solicitar acesso'}
             </button>
+
+            {regSuccessMsg && (
+              <div style={{ padding: '0.75rem 0.85rem', borderRadius: 'var(--radius-sm)', background: 'var(--wash-emerald)', color: 'var(--accent-emerald)', fontSize: '0.8rem', marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <CheckCircle2 size={18} />
+                <span>{regMessage}</span>
+              </div>
+            )}
+
+
           </form>
         )}
       </div>

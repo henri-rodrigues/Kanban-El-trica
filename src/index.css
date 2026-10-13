@@ -758,3 +758,7 @@ aside.glass-panel {
     scroll-behavior: auto !important;
   }
 }
+
+@keyframes dq-spin {
+  to { transform: rotate(360deg); }
+}

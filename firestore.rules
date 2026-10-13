@@ -2,9 +2,10 @@ rules_version = '2';
 
 // OmniField Pro — regras do Firestore (projeto omnifield-pro)
 //
-// Modelo: Firebase Authentication (e-mail/senha) com E-MAIL CONFIRMADO obrigatório.
-// - O administrador é quem tem o e-mail abaixo CONFIRMADO (o mesmo de ADMIN_EMAIL em
-//   src/services/firebase.js). Ninguém consegue "assumir" o sistema sem controlar essa caixa.
+// Modelo: Firebase Authentication (e-mail/senha). Quem se cadastra fica PENDENTE até o
+// administrador aceitar.
+// - O dono do sistema é a conta com o e-mail abaixo (o mesmo de ADMIN_EMAIL em
+//   src/services/firebase.js). Cadastre essa conta antes de divulgar o sistema.
 // - Os demais usuários têm perfil em users/{uid} e só acessam dados com status 'approved'.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -13,13 +14,11 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function verified() {
-      return signedIn() && request.auth.token.email_verified == true;
-    }
-
-    // Dono do sistema: e-mail do administrador, confirmado.
+    // Dono do sistema: conta com o e-mail do administrador.
+    // ATENÇÃO: como não há confirmação de e-mail, o dono precisa criar esta conta ANTES de
+    // divulgar o sistema (quem cadastrar este e-mail primeiro controla a conta).
     function isOwner() {
-      return verified()
+      return signedIn()
         && request.auth.token.email == 'eletrica@3darcondicionado.com.br';
     }
 
@@ -32,9 +31,9 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // Perfil aprovado + e-mail confirmado.
+    // Perfil aprovado pelo administrador.
     function isApproved() {
-      return isOwner() || (verified() && hasProfile() && profile().status == 'approved');
+      return isOwner() || (hasProfile() && profile().status == 'approved');
     }
 
     function isAdmin() {
@@ -46,7 +45,7 @@ service cloud.firestore {
       allow read: if signedIn() && (request.auth.uid == uid || isApproved());
 
       // Cadastro: a própria pessoa cria o perfil como "pendente". O dono do sistema
-      // (e-mail confirmado) pode criar o próprio perfil já como administrador.
+      // pode criar o próprio perfil já como administrador.
       allow create: if signedIn() && request.auth.uid == uid && (
         (request.resource.data.role == 'usuario'
           && request.resource.data.status == 'pending_approval')

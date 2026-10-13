@@ -1,6 +1,7 @@
 import { initializeApp, getApps } from 'firebase/app';
 import {
   getFirestore,
+  initializeFirestore,
   collection,
   doc,
   getDoc,
@@ -15,7 +16,6 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
-  sendEmailVerification,
   updateProfile,
   signOut
 } from 'firebase/auth';
@@ -57,7 +57,12 @@ export const initFirebase = (config = getStoredFirebaseConfig()) => {
     } else {
       app = getApps()[0];
     }
-    db = getFirestore(app);
+    try {
+      // Auto-detecta long-polling: evita gravações "penduradas" em redes/extensões que bloqueiam o canal padrão.
+      db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+    } catch {
+      db = getFirestore(app); // já inicializado
+    }
     auth = getAuth(app);
     auth.languageCode = 'pt-BR'; // e-mails de confirmação / redefinição em português
     return db;
@@ -112,7 +117,6 @@ export const cloudSignIn = (email, password) => signInWithEmailAndPassword(auth,
 export const cloudCreateAccount = (email, password) => createUserWithEmailAndPassword(auth, email.trim(), password);
 export const cloudResetPassword = (email) => sendPasswordResetEmail(auth, email.trim());
 export const cloudSetDisplayName = (user, name) => updateProfile(user, { displayName: name });
-export const cloudSendVerification = (user) => sendEmailVerification(user || auth.currentUser);
 export const cloudSignOut = async () => {
   if (isCloudConfigured() && auth.currentUser) await signOut(auth);
 };

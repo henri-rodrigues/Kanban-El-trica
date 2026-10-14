@@ -212,3 +212,18 @@
   .dq-defs div { grid-template-columns: 1fr; gap: 0; }
   .dq-card { padding: 0.9rem; }
 }
+
+/* lista de quadros */
+.ql-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.65rem; margin-bottom: 0.9rem; }
+.ql-kpi { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.6rem 0.85rem; display: flex; flex-direction: column; }
+.ql-kpi span { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.ql-kpi strong { font-size: 1.25rem; font-weight: 800; }
+.ql-kpi small { font-size: 0.72rem; color: var(--text-secondary); }
+.ql-filtros { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-bottom: 0.9rem; }
+.ql-busca { position: relative; flex: 1; min-width: 200px; }
+.ql-busca svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+.ql-busca .form-control { padding-left: 30px; }
+.ql-chips { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.ql-chip { border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-secondary); border-radius: var(--radius-pill); padding: 0.28rem 0.75rem; font-family: inherit; font-size: 0.75rem; font-weight: 600; cursor: pointer; }
+.ql-chip:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+.ql-chip.ativo { background: var(--accent-blue); border-color: var(--accent-blue); color: #fff; }

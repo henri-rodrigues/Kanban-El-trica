@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
   Plus, Zap, ArrowLeft, Trash2, Printer, Download, FolderOpen, Kanban, ListChecks, FileText, SlidersHorizontal,
-  ClipboardCheck
+  ClipboardCheck, Search
 } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
@@ -39,7 +39,7 @@ const Progresso = ({ feitos, total }) => {
   return (
     <div>
       <div style={{ height: 6, borderRadius: 999, background: 'var(--border-color)', overflow: 'hidden' }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent-emerald), var(--accent-blue))', transition: 'width 0.4s var(--ease)' }} />
+        <div style={{ width: `${pct}%`, height: '100%', background: pct === 100 ? 'var(--accent-emerald)' : 'var(--accent-blue)', transition: 'width 0.4s var(--ease)' }} />
       </div>
       <span className="dq-sub">{feitos}/{total} post-its concluídos · {pct}%</span>
     </div>
@@ -185,6 +185,8 @@ export const QuadrosModule = ({ onOpenObraModal, onNavigate }) => {
   const [aba, setAba] = useState('quadros');
   const [criando, setCriando] = useState(false);
   const [abaInicial, setAbaInicial] = useState(null);
+  const [busca, setBusca] = useState('');
+  const [filtro, setFiltro] = useState('todos'); // todos | dimensionar | andamento | concluidos
 
   if (!activeObra) {
     return (
@@ -219,6 +221,45 @@ export const QuadrosModule = ({ onOpenObraModal, onNavigate }) => {
       saveDimensionamento(activeObra.id, { ...doc, quadroObraId: quadroId });
       setAbaInicial(doc.geradoEm ? 'materiais' : 'dimensionamento');
     }
+  };
+
+  const linhas = activeQuadros.map((q) => {
+    const doc = docDoQuadro(q);
+    const postits = cards.filter((c) => c.quadroId === q.id);
+    const feitos = postits.filter((c) => c.column === 'completed').length;
+    const laudosQ = laudos.filter((l) => l.quadroId === q.id).sort((a, b) => (b.dataHora ?? '').localeCompare(a.dataHora ?? ''));
+    const pct = postits.length ? Math.round((feitos / postits.length) * 100) : 0;
+    const estado = !doc?.geradoEm ? 'dimensionar' : pct === 100 ? 'concluidos' : 'andamento';
+    return { q, doc, postits, feitos, laudosQ, pct, estado };
+  });
+
+  const resumoObra = {
+    total: linhas.length,
+    dimensionados: linhas.filter((l) => l.doc?.geradoEm).length,
+    corrente: linhas.reduce((s, l) => s + (l.doc?.resumo?.correnteTotal || 0), 0),
+    itens: linhas.reduce((s, l) => s + (l.doc?.resumo?.itens || 0), 0),
+    avanco: linhas.length ? Math.round(linhas.reduce((s, l) => s + l.pct, 0) / linhas.length) : 0,
+    laudos: linhas.reduce((s, l) => s + l.laudosQ.length, 0)
+  };
+
+  const termo = busca.trim().toLowerCase();
+  const visiveis = linhas.filter((l) => {
+    if (filtro !== 'todos' && l.estado !== filtro) return false;
+    if (!termo) return true;
+    return l.q.name.toLowerCase().includes(termo) || (TIPOS_QUADRO[l.doc?.tipo]?.rotulo ?? '').toLowerCase().includes(termo);
+  });
+
+  const exportarListaDaObra = () => {
+    const cab = ['Quadro', 'Grupo', 'TAG', 'Modelo', 'Descrição', 'Qtd', 'Un', 'Fabricante'];
+    const out = [];
+    linhas.forEach((l) => {
+      const r = calcular(l.doc);
+      if (!r) return;
+      r.bom.forEach((i) => out.push([l.q.name, i.grupo, i.tag, i.modelo, i.descricao, i.qtd, i.un, i.fabricante]));
+    });
+    if (!out.length) return;
+    const csv = [cab, ...out].map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+    baixar(`${nomeArquivo(activeObra.name)}-lista-de-materiais-quadros.csv`, '\uFEFF' + csv);
   };
 
   // ----- criando um quadro novo (formulário de dimensionamento) -----
@@ -272,6 +313,11 @@ export const QuadrosModule = ({ onOpenObraModal, onNavigate }) => {
           <p className="dq-sub">{activeObra.name} · cada quadro tem a sua pasta: kanban, lista de materiais e entregáveis</p>
         </div>
         <span className="dq-spacer" />
+        {aba === 'quadros' && resumoObra.dimensionados > 0 && (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={exportarListaDaObra} title="Lista de materiais de todos os quadros da obra">
+            <Download size={13} /> Lista de materiais da obra
+          </button>
+        )}
         {aba === 'quadros' && (
           <button type="button" className="btn btn-primary" onClick={() => setCriando(true)}>
             <Plus size={15} /> Novo quadro
@@ -298,12 +344,33 @@ export const QuadrosModule = ({ onOpenObraModal, onNavigate }) => {
             </button>
           </div>
         ) : (
-          <div className="dq-grid-cards">
-            {activeQuadros.map((q) => {
-              const doc = docDoQuadro(q);
-              const postits = cards.filter((c) => c.quadroId === q.id);
-              const feitos = postits.filter((c) => c.column === 'completed').length;
-              const laudosQ = laudos.filter((l) => l.quadroId === q.id).sort((a, b) => (b.dataHora ?? '').localeCompare(a.dataHora ?? ''));
+          <>
+            <div className="ql-kpis">
+              <div className="ql-kpi"><span>Quadros</span><strong>{resumoObra.total}</strong><small>{resumoObra.dimensionados} dimensionado(s)</small></div>
+              <div className="ql-kpi"><span>Avanço médio</span><strong>{resumoObra.avanco}%</strong><small>dos post-its concluídos</small></div>
+              <div className="ql-kpi"><span>Corrente total</span><strong>{resumoObra.corrente ? `${fmt(resumoObra.corrente, 1)} A` : '—'}</strong><small>soma dos painéis</small></div>
+              <div className="ql-kpi"><span>Itens na lista</span><strong>{resumoObra.itens}</strong><small>{resumoObra.laudos} laudo(s) de checklist</small></div>
+            </div>
+
+            {activeQuadros.length > 1 && (
+              <div className="ql-filtros">
+                <label className="ql-busca">
+                  <Search size={14} />
+                  <input className="form-control" placeholder="Buscar quadro ou tipo…" value={busca} onChange={(e) => setBusca(e.target.value)} />
+                </label>
+                <div className="ql-chips" role="group" aria-label="Situação">
+                  {[['todos', 'Todos'], ['dimensionar', 'Falta dimensionar'], ['andamento', 'Em andamento'], ['concluidos', 'Concluídos']].map(([id, rot]) => (
+                    <button key={id} type="button" className={`ql-chip ${filtro === id ? 'ativo' : ''}`} onClick={() => setFiltro(id)}>{rot}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="dq-grid-cards">
+            {visiveis.length === 0 && activeQuadros.length > 0 && (
+              <p className="dq-sub" style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '1rem' }}>Nenhum quadro com esses filtros.</p>
+            )}
+            {visiveis.map(({ q, doc, postits, feitos, laudosQ }) => {
               const ultimo = laudosQ[0];
               return (
                 <button key={q.id} type="button" className="dq-card dq-quadro-card" onClick={() => abrirPasta(q, doc)}>
@@ -338,7 +405,8 @@ export const QuadrosModule = ({ onOpenObraModal, onNavigate }) => {
                 <span className="dq-sub">Dimensionamento antigo — clique para criar a pasta com os post-its padrão</span>
               </button>
             ))}
-          </div>
+            </div>
+          </>
         )
       )}
 

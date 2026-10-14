@@ -98,3 +98,7 @@
 .dr-lb-ant { left: 16px; } .dr-lb-prox { right: 16px; }
 .dr-lb-nav:hover, .dr-lb-fechar:hover { background: rgba(255, 255, 255, 0.28); }
 .dr-lb-contador { position: absolute; bottom: 18px; color: #fff; font-size: 0.8rem; background: rgba(0, 0, 0, 0.45); padding: 0.15rem 0.7rem; border-radius: var(--radius-pill); }
+
+.dr-tarefa { margin-left: auto; display: inline-flex; align-items: center; gap: 0.3rem; font-family: inherit; font-size: 0.7rem; font-weight: 700; padding: 0.1rem 0.6rem; border-radius: var(--radius-pill); border: 1px solid var(--accent-blue); background: var(--bg-card); color: var(--accent-blue); cursor: pointer; }
+.dr-tarefa:hover { background: var(--accent-blue); color: #fff; }
+.dr-tarefa.ok { border: none; background: var(--wash-emerald); color: var(--accent-emerald); cursor: default; }

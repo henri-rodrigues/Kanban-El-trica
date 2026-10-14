@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react';
 import {
   BookOpen, Plus, Search, Printer, Pencil, Trash2, AlertCircle, ChevronLeft, ChevronRight, X, Link as LinkIcon,
-  Camera, Mic, Video as VideoIcon
+  Camera, Mic, Video as VideoIcon, Download, ListPlus, CheckCircle2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { RegistroForm } from './diario/RegistroForm';
+import { baixar, nomeArquivo } from './dimensionamento/helpers';
 import {
   TIPOS_REGISTRO, tipoDe, diaDe, horaDe, rotuloDia, hojeIso, imprimirDiario
 } from './diario/utils';
@@ -47,12 +48,14 @@ const Lightbox = ({ fotos, indice, onFechar, onMudar }) => (
 
 export const FieldReportsModule = () => {
   const { isAdmin, currentUser } = useAuth();
-  const { activeObra, activeQuadros, fieldReports, deleteFieldReport } = useData();
+  const { activeObra, activeQuadros, fieldReports, deleteFieldReport, addCard, updateFieldReport } = useData();
 
   const [form, setForm] = useState(null); // null | { registro? }
   const [busca, setBusca] = useState('');
   const [tipo, setTipo] = useState('todos');
   const [periodo, setPeriodo] = useState('tudo');
+  const [filtroQuadro, setFiltroQuadro] = useState('todos');
+  const [filtroAutor, setFiltroAutor] = useState('todos');
   const [lightbox, setLightbox] = useState(null); // { fotos, indice }
   const [expandidos, setExpandidos] = useState({});
 
@@ -76,6 +79,8 @@ export const FieldReportsModule = () => {
     .filter((r) => {
       if (tipo !== 'todos' && tipoDe(r).id !== tipo) return false;
       if (!dentroDoPeriodo(diaDe(r), periodo)) return false;
+      if (filtroQuadro !== 'todos' && (r.quadroId ?? 'geral') !== filtroQuadro) return false;
+      if (filtroAutor !== 'todos' && r.authorId !== filtroAutor) return false;
       if (!termo) return true;
       return (
         r.title?.toLowerCase().includes(termo) ||
@@ -101,6 +106,45 @@ export const FieldReportsModule = () => {
   const fotos = doObra.reduce((n, r) => n + (r.images?.length ?? 0), 0);
   const ultimaData = total ? diaDe([...doObra].sort((a, b) => diaDe(b).localeCompare(diaDe(a)))[0]) : null;
 
+  const autores = [...new Map(doObra.filter((r) => r.authorId).map((r) => [r.authorId, r.authorName || 'Operador'])).entries()];
+  const quadrosUsados = [...new Map(doObra.filter((r) => r.quadroId).map((r) => [r.quadroId, r.quadroNome || 'Quadro'])).entries()];
+
+  const exportarCsv = () => {
+    const l = [['Data', 'Hora', 'Tipo', 'Título', 'Descrição', 'Autor', 'Quadro', 'Equipe', 'Fotos']];
+    [...filtrados].reverse().forEach((r) =>
+      l.push([
+        diaDe(r).split('-').reverse().join('/'), horaDe(r), tipoDe(r).rotulo, r.title, r.description,
+        r.authorName || '', r.quadroNome || '', (r.nomesEnvolvidos || []).join(', '), (r.images || []).length
+      ])
+    );
+    const csv = l.map((row) => row.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+    baixar(`diario-${nomeArquivo(activeObra.name)}.csv`, '\uFEFF' + csv);
+  };
+
+  // Ocorrências e pendências viram tarefa no Kanban (do quadro, quando houver).
+  const criarTarefa = (r) => {
+    const alta = tipoDe(r).id === 'ocorrencia';
+    addCard({
+      title: r.title,
+      description: r.description,
+      fieldNotes: `Origem: diário de campo de ${diaDe(r).split('-').reverse().join('/')}.`,
+      obraId: activeObra.id,
+      quadroId: r.quadroId ?? null,
+      level: r.quadroId ? 'quadro' : 'obra',
+      column: 'todo',
+      priority: alta ? 'Alta' : 'Média',
+      categoryTag: 'HVAC',
+      gradientId: 'amber',
+      assignedUserId: currentUser?.id,
+      assignedUserName: currentUser?.name,
+      subtasks: [],
+      images: [],
+      workedDays: [],
+      origem: { tipo: 'diario', registroId: r.id }
+    });
+    updateFieldReport(r.id, { tarefaCriada: true });
+  };
+
   const podeEditar = (r) => isAdmin || r.authorId === currentUser?.id;
   const rotuloPeriodo = PERIODOS.find(([id]) => id === periodo)?.[1] ?? '';
 
@@ -115,6 +159,9 @@ export const FieldReportsModule = () => {
           <span className="dr-dica">{activeObra.name} · registros do dia a dia da obra com fotos, áudio e anexos</span>
         </div>
         <span className="dr-espaco" />
+        <button type="button" className="btn btn-secondary btn-sm" onClick={exportarCsv} disabled={filtrados.length === 0}>
+          <Download size={14} /> CSV
+        </button>
         <button type="button" className="btn btn-secondary btn-sm" onClick={exportar} disabled={filtrados.length === 0}>
           <Printer size={14} /> Exportar PDF
         </button>
@@ -140,6 +187,19 @@ export const FieldReportsModule = () => {
           <select className="form-control" style={{ width: 'auto' }} value={periodo} onChange={(e) => setPeriodo(e.target.value)} aria-label="Período">
             {PERIODOS.map(([id, rotulo]) => <option key={id} value={id}>{rotulo}</option>)}
           </select>
+          {quadrosUsados.length > 0 && (
+            <select className="form-control" style={{ width: 'auto' }} value={filtroQuadro} onChange={(e) => setFiltroQuadro(e.target.value)} aria-label="Quadro">
+              <option value="todos">Todos os quadros</option>
+              <option value="geral">Geral da obra</option>
+              {quadrosUsados.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+            </select>
+          )}
+          {autores.length > 1 && (
+            <select className="form-control" style={{ width: 'auto' }} value={filtroAutor} onChange={(e) => setFiltroAutor(e.target.value)} aria-label="Autor">
+              <option value="todos">Todos os autores</option>
+              {autores.map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+            </select>
+          )}
           <div className="dr-chips" role="group" aria-label="Tipo de registro">
             <button type="button" className={`dr-chip ${tipo === 'todos' ? 'ativo' : ''}`} onClick={() => setTipo('todos')}>Todos</button>
             {TIPOS_REGISTRO.map((t) => (
@@ -230,9 +290,18 @@ export const FieldReportsModule = () => {
                     </div>
                   )}
 
-                  {(r.nomesEnvolvidos || []).length > 0 && (
+                  {((r.nomesEnvolvidos || []).length > 0 || ['ocorrencia', 'pendencia'].includes(t.id)) && (
                     <footer>
-                      {r.nomesEnvolvidos.map((n) => <span key={n} className="dr-equipe">{n.split(' ')[0]}</span>)}
+                      {(r.nomesEnvolvidos || []).map((n) => <span key={n} className="dr-equipe">{n.split(' ')[0]}</span>)}
+                      {['ocorrencia', 'pendencia'].includes(t.id) && (
+                        r.tarefaCriada ? (
+                          <span className="dr-tarefa ok"><CheckCircle2 size={11} /> tarefa criada no Kanban</span>
+                        ) : (
+                          <button type="button" className="dr-tarefa" onClick={() => criarTarefa(r)}>
+                            <ListPlus size={11} /> Criar tarefa no Kanban
+                          </button>
+                        )
+                      )}
                     </footer>
                   )}
                 </article>

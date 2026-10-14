@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { ehCardInfra } from '../constants/infraestrutura';
 import { baixar, h, imprimirHtml, nomeArquivo } from './dimensionamento/helpers';
+import { montarResumoSemanal, resumoHtml } from '../services/resumoSemanal';
 import './relatorios/relatorios.css';
 
 const brl = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0);
@@ -29,7 +30,7 @@ const ABAS = [
 
 export const ReportsModule = () => {
   const { isAdmin, users } = useAuth();
-  const { activeObra, cards, purchaseOrders, quadros, getCardEvolutionPct, getObraLaborCostsAndDays } = useData();
+  const { activeObra, cards, purchaseOrders, quadros, laudos, getCardEvolutionPct, getObraLaborCostsAndDays } = useData();
   const [aba, setAba] = useState('financeiro');
   const [filtroColuna, setFiltroColuna] = useState('todas');
 
@@ -234,6 +235,17 @@ export const ReportsModule = () => {
           <span className="rl-dica">{activeObra.name} · financeiro, equipe e execução</span>
         </div>
         <span className="rl-espaco" />
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          title="O que avançou, o que está parado e o que está pendente nos últimos 7 dias"
+          onClick={() => {
+            const resumos = montarResumoSemanal({ obras: [activeObra], cards, pedidos: purchaseOrders, laudos });
+            if (!imprimirHtml(resumoHtml(resumos, { titulo: `Resumo semanal — ${activeObra.name}`, paraImpressao: true }))) window.alert('Permita pop-ups para gerar o PDF.');
+          }}
+        >
+          <FileText size={14} /> Resumo da semana
+        </button>
         <button type="button" className="btn btn-secondary btn-sm" onClick={exportarPdf}><FileText size={14} /> PDF</button>
         <button type="button" className="btn btn-secondary btn-sm" onClick={exportarCsv}><FileSpreadsheet size={14} /> Excel (CSV)</button>
         <button type="button" className="btn btn-secondary btn-sm" onClick={exportarPowerBI}><Zap size={14} /> Power BI</button>

@@ -110,5 +110,19 @@ service cloud.firestore {
     match /laudos_checklist/{docId} {
       allow read, write: if isApproved();
     }
+    // Aparelhos (tokens de push) e preferências de aviso: só a própria pessoa.
+    match /push_tokens/{uid} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
+    }
+    // Fila de e-mails da extensão Trigger Email: só as Cloud Functions escrevem.
+    match /mail/{docId} {
+      allow read, write: if false;
+    }
+    // Auditoria: qualquer usuário aprovado registra; só admin lê; ninguém altera nem apaga.
+    match /audit_log/{docId} {
+      allow create: if isApproved();
+      allow read: if isAdmin();
+      allow update, delete: if false;
+    }
   }
 }

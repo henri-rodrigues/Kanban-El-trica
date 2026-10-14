@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, Send, MessageSquare, Users } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { MentionTextarea, extrairMencoes, TextoComMencoes } from './MentionTextarea';
 import './obras/chat.css';
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
@@ -103,7 +104,7 @@ export const ObraChatModal = ({ isOpen, onClose }) => {
   const enviar = (e) => {
     e?.preventDefault();
     if (!texto.trim()) return;
-    sendChatMessage(activeObra.id, texto);
+    sendChatMessage(activeObra.id, texto, extrairMencoes(texto, membros));
     setTexto('');
   };
 
@@ -147,7 +148,9 @@ export const ObraChatModal = ({ isOpen, onClose }) => {
                         {!minha && <span className="ch-autor">{s.senderName}{s.senderTitle ? ` · ${s.senderTitle}` : ''}</span>}
                         {s.itens.map((m) => (
                           <div key={m.id} className="ch-bolha">
-                            <p><Texto texto={m.text || ''} /></p>
+                            <p className={m.mentions?.includes(currentUser?.id) ? 'ch-me-mencionou' : ''}>
+                              <TextoComMencoes texto={m.text || ''} users={users} meuId={currentUser?.id} renderParte={(p) => <Texto texto={p} />} />
+                            </p>
                             <time>{hora(m.createdAt)}</time>
                           </div>
                         ))}
@@ -162,14 +165,15 @@ export const ObraChatModal = ({ isOpen, onClose }) => {
         </div>
 
         <form className="ch-form" onSubmit={enviar}>
-          <textarea
+          <MentionTextarea
             ref={campoRef}
+            users={membros.filter((u) => u.id !== currentUser?.id)}
             className="form-control"
             rows={1}
             value={texto}
             onChange={(e) => setTexto(e.target.value)}
             onKeyDown={aoTeclar}
-            placeholder="Escreva uma mensagem… (Enter envia, Shift+Enter quebra linha)"
+            placeholder="Escreva uma mensagem… use @ para marcar alguém (Enter envia)"
           />
           <button type="submit" className="btn btn-primary" disabled={!texto.trim()} aria-label="Enviar mensagem">
             <Send size={16} />

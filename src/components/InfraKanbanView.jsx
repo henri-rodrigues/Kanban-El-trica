@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Plus, Search, AlertCircle, Calculator, GripVertical } from 'lucide-react';
 import { useKanbanDrag } from '../hooks/useKanbanDrag';
+import { CardTimer } from './CardTimer';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { CardDetailModal } from './CardDetailModal';
@@ -168,7 +169,10 @@ export const InfraKanbanView = ({ categoria = 'todas', onCategoria = () => {} })
                           <span>{feitas}/{subs.length}</span>
                         </div>
                       )}
-                      <span className="if-resp">👤 {card.assignedUserName || 'Equipe de infra'}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem' }}>
+                        <span className="if-resp">👤 {card.assignedUserName || 'Equipe de infra'}</span>
+                        <CardTimer card={card} compacto />
+                      </div>
                     </div>
                   );
                 })}

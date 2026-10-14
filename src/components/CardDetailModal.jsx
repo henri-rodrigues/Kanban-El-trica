@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { POSTIT_GRADIENTS, getGradientById } from '../constants/gradients';
+import { CardTimer } from './CardTimer';
+import { MentionTextarea, extrairMencoes } from './MentionTextarea';
 import { X, Image, Calendar, Clock, Plus, Trash2, Edit3, Save, Paperclip, CheckSquare, Square, Palette, AtSign, Check } from 'lucide-react';
 
 export const CardDetailModal = ({ card, isOpen, onClose }) => {
@@ -51,7 +53,11 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
     if (e && e.preventDefault) e.preventDefault();
 
     const previousMentions = activeCard.mentionedUserIds || [];
-    const newMentions = mentionedUserIds.filter(id => !previousMentions.includes(id));
+    // @menções escritas na descrição ou nas anotações também marcam a pessoa
+    const doTexto = extrairMencoes(`${description}\n${fieldNotes}`, users);
+    const todasMencoes = [...new Set([...mentionedUserIds, ...doTexto])];
+    if (todasMencoes.length !== mentionedUserIds.length) setMentionedUserIds(todasMencoes);
+    const newMentions = todasMencoes.filter(id => !previousMentions.includes(id));
 
     updateCard(activeCard.id, {
       title,
@@ -59,7 +65,7 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
       fieldNotes,
       gradientId,
       priority,
-      mentionedUserIds
+      mentionedUserIds: todasMencoes
     });
 
     // Notify newly mentioned users immediately!
@@ -129,11 +135,25 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
   };
 
   const handleAssignUser = (user) => {
+    const mudou = activeCard.assignedUserId !== user.id;
     updateCard(activeCard.id, {
       assignedUserId: user.id,
       assignedUserName: user.name,
       userColor: user.userColorTag
     });
+    // Avisa a pessoa que recebeu a tarefa (push/e-mail quando ativados).
+    if (mudou && user.id !== currentUser?.id) {
+      addNotification({
+        recipientUserId: user.id,
+        senderUserId: currentUser?.id,
+        senderName: currentUser?.name,
+        type: 'task_assigned',
+        title: 'Nova tarefa para você',
+        message: `${currentUser?.name} atribuiu a você o post-it "${activeCard.title}".`,
+        cardId: activeCard.id,
+        obraId: activeCard.obraId
+      });
+    }
   };
 
   const totalHoursWorked = (activeCard.workedDays || []).reduce((acc, curr) => acc + (curr.hours || 0), 0);
@@ -343,12 +363,13 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
               <Edit3 size={14} /> Descrição
             </label>
-            <textarea
+            <MentionTextarea
+              users={users}
               className="form-control"
               rows={2}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Descreva os detalhes desta atividade..."
+              placeholder="Descreva os detalhes desta atividade... (use @ para marcar alguém)"
             />
           </div>
 
@@ -356,7 +377,8 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
             <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'var(--accent-amber)' }}>
               📝 Anotações de Campo
             </label>
-            <textarea
+            <MentionTextarea
+              users={users}
               className="form-control"
               rows={2}
               value={fieldNotes}
@@ -510,6 +532,9 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
             <span className="badge badge-amber" style={{ fontSize: '0.75rem' }}>
               Total: {totalHoursWorked}h ({Math.round(totalHoursWorked / 8 * 10) / 10} dias)
             </span>
+          </div>
+          <div style={{ marginBottom: '0.75rem' }}>
+            <CardTimer card={activeCard} />
           </div>
 
           <form onSubmit={handleAddWorkLog} style={{ background: 'var(--bg-main)', padding: '0.75rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)', marginBottom: '1rem' }}>

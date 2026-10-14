@@ -845,3 +845,38 @@ aside.glass-panel {
 .nav-texto { display: flex; flex-direction: column; line-height: 1.2; }
 .nav-texto strong { font-size: 0.82rem; }
 .nav-texto small { font-size: 0.66rem; font-weight: 500; opacity: 0.75; }
+
+/* Cronômetro de horas do post-it */
+.ct-timer { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; }
+.ct-timer.compacto { font-size: 0.68rem; gap: 0.25rem; }
+.ct-timer.ativo { background: var(--wash-emerald); color: var(--accent-emerald); border-radius: var(--radius-pill); padding: 0.15rem 0.25rem 0.15rem 0.55rem; font-variant-numeric: tabular-nums; }
+.ct-timer.ativo svg:first-child { animation: ct-pulso 1.6s ease-in-out infinite; }
+.ct-timer small { color: var(--text-secondary); font-weight: 600; }
+.ct-btn { display: inline-flex; align-items: center; gap: 0.25rem; border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-secondary); border-radius: var(--radius-pill); padding: 0.2rem 0.55rem; font-family: inherit; font-size: inherit; font-weight: 700; cursor: pointer; }
+.ct-timer.compacto .ct-btn { padding: 0.15rem 0.35rem; }
+.ct-btn.iniciar:hover { border-color: var(--accent-emerald); color: var(--accent-emerald); }
+.ct-btn.parar { border-color: var(--accent-rose); color: var(--accent-rose); background: var(--bg-card); }
+.ct-btn.parar:hover { background: var(--accent-rose); color: #fff; }
+.ct-aviso { font-size: 0.7rem; color: var(--accent-emerald); font-weight: 700; }
+@keyframes ct-pulso { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* Menções (@) */
+.mn-wrap { position: relative; width: 100%; flex: 1; display: flex; }
+.mn-wrap > textarea { width: 100%; }
+.mn-lista { position: absolute; left: 0; bottom: calc(100% + 4px); z-index: 30; list-style: none; margin: 0; padding: 4px; min-width: 220px; max-width: 100%; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); }
+.mn-lista button { display: flex; gap: 0.4rem; align-items: baseline; width: 100%; text-align: left; border: none; background: none; padding: 0.35rem 0.5rem; border-radius: var(--radius-sm); font-family: inherit; font-size: 0.8rem; color: var(--text-primary); cursor: pointer; }
+.mn-lista button span { color: var(--text-muted); font-size: 0.72rem; }
+.mn-lista button.ativo, .mn-lista button:hover { background: var(--wash-blue-strong); }
+.mn-mencao { background: var(--wash-blue-strong); color: var(--accent-blue); font-weight: 700; border-radius: 4px; padding: 0 2px; }
+.mn-mencao.eu { background: var(--accent-amber); color: #fff; }
+.ch-seq.minha .mn-mencao { background: rgba(255, 255, 255, 0.25); color: #fff; }
+.ch-me-mencionou { box-shadow: inset 3px 0 0 var(--accent-amber); padding-left: 6px; }
+
+/* Faixa de conexão (modo offline) */
+.cx-banner { position: sticky; top: 0; z-index: 900; display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; font-size: 0.8rem; font-weight: 600; animation: fadeIn 0.2s var(--ease); }
+.cx-banner.offline { background: var(--wash-amber); color: var(--text-primary); border-bottom: 1px solid var(--accent-amber); }
+.cx-banner.offline svg { color: var(--accent-amber); flex-shrink: 0; }
+.cx-banner.sincronizando { background: var(--wash-blue); color: var(--accent-blue); }
+.cx-banner.ok { background: var(--wash-emerald); color: var(--accent-emerald); }
+.cx-gira { animation: cx-gira 1s linear infinite; }
+@keyframes cx-gira { to { transform: rotate(360deg); } }

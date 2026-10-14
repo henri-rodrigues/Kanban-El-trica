@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import {
   Plus, Zap, ArrowLeft, Trash2, Printer, Download, FolderOpen, Kanban, ListChecks, FileText, SlidersHorizontal,
-  ClipboardCheck, Search
+  ClipboardCheck, Search, QrCode
 } from 'lucide-react';
+import { imprimirEtiquetas } from '../../services/etiquetasQr';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { TIPOS_QUADRO, PADRAO_QUADRO, dimensionar, bomParaCSV } from '../../services/quadros/dimensionamento';
@@ -113,6 +114,9 @@ const QuadroPasta = ({ quadro, doc, obra, obraQuadros, abaInicial, onVoltar, onN
             <button type="button" className="btn btn-secondary btn-sm" onClick={imprimir}><Printer size={13} /> Imprimir / PDF</button>
           </>
         )}
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => imprimirEtiquetas(obra, [quadro])} title="Etiqueta para colar no painel: abre esta pasta pelo celular">
+          <QrCode size={13} /> Etiqueta QR
+        </button>
         {isAdmin && (
           <button type="button" className="btn btn-danger btn-sm" onClick={excluir}><Trash2 size={13} /> Excluir quadro</button>
         )}
@@ -313,6 +317,11 @@ export const QuadrosModule = ({ onOpenObraModal, onNavigate }) => {
           <p className="dq-sub">{activeObra.name} · cada quadro tem a sua pasta: kanban, lista de materiais e entregáveis</p>
         </div>
         <span className="dq-spacer" />
+        {aba === 'quadros' && activeQuadros.length > 0 && (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => imprimirEtiquetas(activeObra, activeQuadros)} title="Folha com as etiquetas QR de todos os quadros">
+            <QrCode size={13} /> Etiquetas QR
+          </button>
+        )}
         {aba === 'quadros' && resumoObra.dimensionados > 0 && (
           <button type="button" className="btn btn-secondary btn-sm" onClick={exportarListaDaObra} title="Lista de materiais de todos os quadros da obra">
             <Download size={13} /> Lista de materiais da obra

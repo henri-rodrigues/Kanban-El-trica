@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import {
   Package, Upload, CheckCircle2, AlertCircle, X, Check, Clock, ClipboardList, Trash2,
-  Search, ChevronRight, Download, FileUp, ListChecks
+  Search, ChevronRight, Download, FileUp, ListChecks, FileCode2
 } from 'lucide-react';
+import { lerNFe } from '../services/nfeParser';
+import { NFeImportModal } from './materiais/NFeImportModal';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { extractTextFromPDFFile, parsePurchaseOrderPDFText } from '../services/pdfParser';
@@ -60,6 +62,7 @@ export const MaterialsModule = () => {
   const [destino, setDestino] = useState('todos'); // todos | quadros | infraestrutura
   const [situacao, setSituacao] = useState('todos'); // todos | pendentes | completos
   const [abertos, setAbertos] = useState({}); // id -> bool (sobrescreve o padrão)
+  const [nfe, setNfe] = useState(null);
 
   // modal de cadastro manual
   const [modal, setModal] = useState(false);
@@ -193,6 +196,15 @@ export const MaterialsModule = () => {
     fecharModal();
   };
 
+  const lerXml = async (arquivo) => {
+    if (!arquivo) return;
+    try {
+      setNfe(lerNFe(await arquivo.text()));
+    } catch (err) {
+      setAviso({ tipo: 'error', texto: `Não foi possível ler a nota: ${err.message}` });
+    }
+  };
+
   // ---------------------------------------------------------------- ações
   const estaAberto = (po, r) => (po.id in abertos ? abertos[po.id] : !r.completo);
   const alternar = (po, r) => setAbertos((p) => ({ ...p, [po.id]: !estaAberto(po, r) }));
@@ -241,6 +253,10 @@ export const MaterialsModule = () => {
             </button>
           </>
         )}
+        <label className="btn btn-secondary btn-sm" style={{ cursor: 'pointer' }} title="Dar baixa no recebimento pela nota fiscal eletrônica (arquivo XML)">
+          <FileCode2 size={14} /> Importar NF (XML)
+          <input type="file" accept=".xml,text/xml,application/xml" hidden onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; lerXml(f); }} />
+        </label>
         <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setMDestino(destinoImport); setModal(true); }}>
           <ClipboardList size={14} /> Inserir manualmente
         </button>
@@ -403,7 +419,10 @@ export const MaterialsModule = () => {
                         {r.itens.map((i) => (
                           <tr key={i.id} className={chegou(i) ? 'chegou' : ''}>
                             <td style={{ fontWeight: 600 }}>{descricaoLimpa(i.description)}</td>
-                            <td className="num">{i.quantityOrdered}</td>
+                            <td className="num">
+                              {i.quantityOrdered}
+                              {!chegou(i) && Number(i.quantityReceived) > 0 && <div className="mt-dica">{i.quantityReceived} recebido(s)</div>}
+                            </td>
                             <td className="oculta-mobile">{i.unit}</td>
                             <td className="num oculta-mobile">{brl(i.unitPrice)}</td>
                             <td className="num">{brl(i.totalPrice)}</td>
@@ -430,6 +449,16 @@ export const MaterialsModule = () => {
             </article>
           );
         })
+      )}
+
+      {nfe && (
+        <NFeImportModal
+          nfe={nfe}
+          obra={activeObra}
+          pedidos={obraPOs}
+          onFechar={() => setNfe(null)}
+          onConcluido={(texto) => { setNfe(null); setAviso({ tipo: 'success', texto }); }}
+        />
       )}
 
       {modal && (

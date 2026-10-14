@@ -1,5 +1,14 @@
 {
   "firestore": {
     "rules": "firestore.rules"
-  }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "runtime": "nodejs20",
+      "predeploy": ["npm --prefix \"$RESOURCE_DIR\" run copiar-resumo"],
+      "ignore": ["node_modules", ".git", "*.local"]
+    }
+  ]
 }

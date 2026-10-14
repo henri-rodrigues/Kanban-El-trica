@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Building2, Plus, ArrowRight, MapPin, Users, Trash2, Edit3, Search, Plane, Flame, Package, Layers
+  Building2, Plus, ArrowRight, MapPin, Users, Trash2, Edit3, Search, Plane, Flame, Package, Layers, DatabaseBackup
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
@@ -13,7 +13,7 @@ const tomVerba = (pct) => (pct > 100 ? 'rose' : pct > 85 ? 'amber' : '');
 
 export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
   const { isAdmin } = useAuth();
-  const { obras, quadros, cards, purchaseOrders, getObraLaborCostsAndDays, deleteObra } = useData();
+  const { obras, quadros, cards, purchaseOrders, getObraLaborCostsAndDays, deleteObra, exportarObra } = useData();
   const [busca, setBusca] = useState('');
   const [status, setStatus] = useState('todos');
 
@@ -195,6 +195,14 @@ export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
                       onClick={(e) => { e.stopPropagation(); onOpenObraModal('edit_obra', obra); }}
                     >
                       <Edit3 size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      title="Baixar backup completo da obra (JSON)"
+                      onClick={(e) => { e.stopPropagation(); exportarObra(obra.id); }}
+                    >
+                      <DatabaseBackup size={14} />
                     </button>
                     <button
                       type="button"

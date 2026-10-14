@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
+import { registrarAuditoria } from '../services/auditoria';
+import { exportarObra as baixarBackupObra } from '../services/backup';
 import { 
   saveFirestoreDoc, 
   deleteFirestoreDoc,
@@ -190,6 +192,7 @@ export const DataProvider = ({ children }) => {
     const alvo = fieldReports.find(r => r.id === reportId);
     if (!alvo) return;
     if (!isAdmin && alvo.authorId !== currentUser?.id) return;
+    registrarAuditoria({ autor: currentUser, acao: 'excluiu', entidade: 'diario', entidadeId: reportId, nome: alvo.title, obraId });
     setFieldReports(prev => prev.filter(r => r.id !== reportId));
     if (isFirebaseActive()) deleteFirestoreDoc('field_reports', reportId);
   };
@@ -267,8 +270,20 @@ export const DataProvider = ({ children }) => {
     const alvo = laudos.find(l => l.id === id);
     if (!alvo) return;
     if (!isAdmin && alvo.criadoPor !== currentUser?.name) return;
+    registrarAuditoria({ autor: currentUser, acao: 'excluiu', entidade: 'laudo', entidadeId: id, nome: `Nº ${alvo.numero} · ${alvo.quadroNome}`, obraId: alvo.obraId });
     setLaudos(prev => prev.filter(l => l.id !== id));
     if (isFirebaseActive()) deleteFirestoreDoc('laudos_checklist', id);
+  };
+
+  // Backup: arquivo JSON com tudo o que pertence à obra.
+  const exportarObra = (obraId) => {
+    if (!isAdmin) return null;
+    const resumo = baixarBackupObra(obraId, latest.current, currentUser);
+    if (resumo) {
+      const obra = rawObras.find(o => o.id === obraId);
+      registrarAuditoria({ autor: currentUser, acao: 'exportou', entidade: 'obra', entidadeId: obraId, nome: obra?.name, obraId, detalhe: 'Backup completo em JSON' });
+    }
+    return resumo;
   };
 
   const deleteCalculoQuadro = (id) => {
@@ -336,6 +351,27 @@ export const DataProvider = ({ children }) => {
   };
 
   // Toggle item status between 'Já Chegou' and 'Falta Chegar'
+  // Baixa de recebimento pela NF-e: soma as quantidades recebidas (permite entrega parcial)
+  // e guarda os dados da nota no pedido.
+  const receberItensNFe = (orderId, recebimentos, nfe) => {
+    if (!isAdmin) return;
+    const po = purchaseOrders.find(p => p.id === orderId);
+    if (!po) return;
+    const porItem = new Map(recebimentos.map(r => [r.itemId, r.qty]));
+    const items = (po.items || []).map(itm => {
+      if (!porItem.has(itm.id)) return itm;
+      const recebido = (parseFloat(itm.quantityReceived) || 0) + (parseFloat(porItem.get(itm.id)) || 0);
+      const pedido = parseFloat(itm.quantityOrdered) || 0;
+      return { ...itm, quantityReceived: recebido, status: recebido >= pedido ? 'Já Chegou' : 'Falta Chegar' };
+    });
+    const nota = { numero: nfe.numero, serie: nfe.serie, chave: nfe.chave, emissao: nfe.emissao, valor: nfe.valorTotal, importadaEm: new Date().toISOString() };
+    const nfs = [...(po.nfs || []).filter(n => n.chave !== nota.chave), nota];
+    const updated = { ...po, items, nfs, nfNumber: nfs.map(n => n.numero).join(', ') };
+    setPurchaseOrders(prev => prev.map(p => (p.id === orderId ? updated : p)));
+    if (isFirebaseActive()) saveFirestoreDoc('purchase_orders', orderId, updated);
+    registrarAuditoria({ autor: currentUser, acao: 'alterou', entidade: 'pedido', entidadeId: orderId, nome: `${po.orderNumber || ''} · ${po.fornecedor}`, obraId: po.obraId, detalhe: `Recebimento pela NF ${nfe.numero}: ${recebimentos.length} item(ns)` });
+  };
+
   const updatePOItemStatus = (orderId, itemId, newStatus) => {
     if (!isAdmin) return;
     setPurchaseOrders(prev => prev.map(po => {
@@ -384,6 +420,7 @@ export const DataProvider = ({ children }) => {
       ...obraData,
       initialBudget: totalCalc > 0 ? totalCalc : (parseFloat(obraData.initialBudget) || 1000000)
     };
+    registrarAuditoria({ autor: currentUser, acao: 'criou', entidade: 'obra', entidadeId: newObra.id, nome: newObra.name, obraId: newObra.id });
     setRawObras(prev => [newObra, ...prev]);
     setSelectedObraId(newObra.id);
     if (isFirebaseActive()) saveFirestoreDoc('obras', newObra.id, newObra);
@@ -391,6 +428,14 @@ export const DataProvider = ({ children }) => {
 
   const updateObra = (obraId, updatedFields) => {
     if (!isAdmin) return;
+    const atual = rawObras.find(o => o.id === obraId);
+    if (atual) {
+      const depois = { ...atual, ...updatedFields };
+      ['materialsBudget', 'indirectsBudget', 'infraBudget', 'laborBudget'].forEach(k => {
+        if (updatedFields[k] !== undefined) depois[k] = parseFloat(updatedFields[k]) || 0;
+      });
+      registrarAuditoria({ autor: currentUser, acao: 'alterou', entidade: 'obra', entidadeId: obraId, nome: atual.name, obraId, antes: atual, depois });
+    }
     setRawObras(prev => prev.map(o => {
       if (o.id === obraId) {
         const materialsB = updatedFields.materialsBudget !== undefined ? parseFloat(updatedFields.materialsBudget) || 0 : (o.materialsBudget || 0);
@@ -417,6 +462,11 @@ export const DataProvider = ({ children }) => {
 
   const updateObraFinancials = (obraId, financialData) => {
     if (!isAdmin) return;
+    const atualFin = rawObras.find(o => o.id === obraId);
+    if (atualFin) {
+      const antes = Object.fromEntries(Object.keys(financialData).map(k => [k, atualFin[k]]));
+      registrarAuditoria({ autor: currentUser, acao: 'alterou', entidade: 'verbas', entidadeId: obraId, nome: atualFin.name, obraId, antes, depois: financialData });
+    }
     setRawObras(prev => prev.map(o => {
       if (o.id === obraId) {
         const updated = { ...o, ...financialData };
@@ -478,6 +528,8 @@ export const DataProvider = ({ children }) => {
 
   const deleteScheduledTrip = (obraId, tripId) => {
     if (!isAdmin) return;
+    const viagem = rawObras.find(o => o.id === obraId)?.scheduledTrips?.find(t => t.id === tripId);
+    if (viagem) registrarAuditoria({ autor: currentUser, acao: 'excluiu', entidade: 'viagem', entidadeId: tripId, nome: `${viagem.startDate} a ${viagem.endDate} · ${(viagem.userNames || []).join(', ')}`, obraId });
     setRawObras(prev => prev.map(o => {
       if (o.id === obraId) {
         const updatedTrips = (o.scheduledTrips || []).filter(t => t.id !== tripId);
@@ -615,7 +667,10 @@ export const DataProvider = ({ children }) => {
   const updateCardStatus = (cardId, newColumn) => {
     setCards(prev => prev.map(c => {
       if (c.id === cardId) {
-        const updated = { ...c, column: newColumn };
+        if (c.column === newColumn) return c;
+        const agora = new Date().toISOString();
+        // movedAt/completedAt alimentam o resumo semanal (o que avançou e o que está parado)
+        const updated = { ...c, column: newColumn, movedAt: agora, ...(newColumn === 'completed' ? { completedAt: agora } : {}) };
         if (isFirebaseActive()) saveFirestoreDoc('cards', cardId, updated);
         return updated;
       }
@@ -635,12 +690,16 @@ export const DataProvider = ({ children }) => {
   };
 
   const deleteCard = (cardId) => {
+    const alvoCard = cards.find(c => c.id === cardId);
+    if (alvoCard) registrarAuditoria({ autor: currentUser, acao: 'excluiu', entidade: 'post-it', entidadeId: cardId, nome: alvoCard.title, obraId: alvoCard.obraId });
     setCards(prev => prev.filter(c => c.id !== cardId));
     if (isFirebaseActive()) deleteFirestoreDoc('cards', cardId);
   };
 
   const deleteObra = (obraId) => {
     if (!isAdmin || !obraId) return;
+    const alvoObra = rawObras.find(o => o.id === obraId);
+    registrarAuditoria({ autor: currentUser, acao: 'excluiu', entidade: 'obra', entidadeId: obraId, nome: alvoObra?.name, obraId, detalhe: 'Exclusão em cascata: quadros, post-its, checklists e pedidos' });
     
     setRawObras(prev => prev.filter(o => o.id !== obraId));
     if (selectedObraId === obraId) {
@@ -690,6 +749,8 @@ export const DataProvider = ({ children }) => {
   };
 
   const deleteQuadro = (quadroId) => {
+    const alvoQuadro = quadros.find(q => q.id === quadroId);
+    if (alvoQuadro) registrarAuditoria({ autor: currentUser, acao: 'excluiu', entidade: 'quadro', entidadeId: quadroId, nome: alvoQuadro.name, obraId: alvoQuadro.obraId });
     if (!isAdmin || !quadroId) return;
 
     setQuadros(prev => prev.filter(q => q.id !== quadroId));
@@ -714,6 +775,8 @@ export const DataProvider = ({ children }) => {
 
   const deletePurchaseOrder = (orderId) => {
     if (!isAdmin || !orderId) return;
+    const alvoPO = purchaseOrders.find(po => po.id === orderId);
+    if (alvoPO) registrarAuditoria({ autor: currentUser, acao: 'excluiu', entidade: 'pedido', entidadeId: orderId, nome: `${alvoPO.orderNumber || ''} · ${alvoPO.fornecedor} · R$ ${alvoPO.totalValue}`, obraId: alvoPO.obraId });
 
     const targetPO = purchaseOrders.find(po => po.id === orderId);
     if (targetPO) {
@@ -745,6 +808,8 @@ export const DataProvider = ({ children }) => {
 
   const updatePurchaseOrderCategory = (orderId, newDestination) => {
     if (!isAdmin || !orderId) return;
+    const poCat = purchaseOrders.find(po => po.id === orderId);
+    if (poCat) registrarAuditoria({ autor: currentUser, acao: 'alterou', entidade: 'pedido', entidadeId: orderId, nome: `${poCat.orderNumber || ''} · ${poCat.fornecedor}`, obraId: poCat.obraId, antes: { verba: poCat.destination || 'quadros' }, depois: { verba: newDestination } });
 
     setPurchaseOrders(prev => prev.map(po => {
       if (po.id === orderId) {
@@ -797,6 +862,32 @@ export const DataProvider = ({ children }) => {
       }
       return c;
     }));
+  };
+
+  // Cronômetro de horas do post-it: o tempo corre no próprio card (sobrevive a recarregar e a trocar de aparelho).
+  const startCardTimer = (cardId) => {
+    if (!currentUser) return;
+    updateCard(cardId, { timer: { userId: currentUser.id, userName: currentUser.name, startedAt: new Date().toISOString() } });
+  };
+
+  /** Para o cronômetro e lança as horas (arredondadas a 0,25 h). Devolve as horas lançadas, ou 0 se < 1 min. */
+  const stopCardTimer = (cardId) => {
+    const card = cards.find(c => c.id === cardId);
+    if (!card?.timer) return 0;
+    const ms = Date.now() - Date.parse(card.timer.startedAt);
+    updateCard(cardId, { timer: null });
+    if (!(ms >= 60000)) return 0;
+    const horas = Math.max(0.25, Math.round((ms / 3600000) * 4) / 4);
+    const d = new Date(card.timer.startedAt);
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    addWorkLogToCard(cardId, {
+      date: d.toISOString().slice(0, 10),
+      hours: horas,
+      operatorId: card.timer.userId,
+      operatorName: card.timer.userName,
+      notes: 'Cronômetro'
+    });
+    return horas;
   };
 
   const updateChecklistStatus = (checkId, status, notes, evidenceImage, user) => {
@@ -853,7 +944,7 @@ export const DataProvider = ({ children }) => {
     });
   };
 
-  const sendChatMessage = (obraId, text) => {
+  const sendChatMessage = (obraId, text, mentions = []) => {
     if (!currentUser || !obraId || !text || !text.trim()) return;
     const newMsg = {
       id: `msg-${Date.now()}`,
@@ -862,6 +953,7 @@ export const DataProvider = ({ children }) => {
       senderName: currentUser.name,
       senderTitle: currentUser.title || 'Técnico',
       text: text.trim(),
+      mentions,
       createdAt: new Date().toISOString()
     };
     setChatMessages(prev => [...prev, newMsg]);
@@ -873,8 +965,21 @@ export const DataProvider = ({ children }) => {
       ? obra.assignedUserIds
       : users.map(u => u.id);
 
+    // Quem foi mencionado recebe um aviso próprio (e não o genérico de mensagem nova).
+    mentions.filter(id => id !== currentUser.id).forEach(recipientId => {
+      addNotification({
+        recipientUserId: recipientId,
+        senderUserId: currentUser.id,
+        senderName: currentUser.name,
+        type: 'mention',
+        title: `${currentUser.name} mencionou você no chat`,
+        message: `"${text.trim().substring(0, 80)}${text.length > 80 ? '...' : ''}" — ${obra?.name || 'obra'}`,
+        obraId
+      });
+    });
+
     memberIds.forEach(recipientId => {
-      if (recipientId !== currentUser.id) {
+      if (recipientId !== currentUser.id && !mentions.includes(recipientId)) {
         addNotification({
           recipientUserId: recipientId,
           senderUserId: currentUser.id,
@@ -932,6 +1037,7 @@ export const DataProvider = ({ children }) => {
         addPurchaseOrder,
         updatePurchaseOrderCategory,
         updatePOItemStatus,
+        receberItensNFe,
         deletePurchaseOrder,
         addObra,
         updateObra,
@@ -945,6 +1051,9 @@ export const DataProvider = ({ children }) => {
         updateCard,
         deleteCard,
         addWorkLogToCard,
+        startCardTimer,
+        exportarObra,
+        stopCardTimer,
         updateChecklistStatus,
         addChecklistItem,
         addScheduledTrip,

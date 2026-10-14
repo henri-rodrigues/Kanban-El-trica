@@ -10,6 +10,8 @@ import { MaterialsModule } from './components/MaterialsModule';
 import { ReportsModule } from './components/ReportsModule';
 import { ScheduleModule } from './components/ScheduleModule';
 import { MinhaAgenda } from './components/MinhaAgenda';
+import { lerLink, limparLink } from './services/deeplink';
+import { ConnectionBanner } from './components/ConnectionBanner';
 import { InfraestruturaModule } from './components/dimensionamento/InfraestruturaModule';
 import { FieldReportsModule } from './components/FieldReportsModule';
 import { QuadrosModule } from './components/dimensionamento/QuadrosModule';
@@ -26,7 +28,8 @@ import {
 
 function MainLayout() {
   const { currentUser, isAdmin, authReady } = useAuth();
-  const { obras, selectedObraId, setSelectedObraId, activeObra } = useData();
+  const { obras, quadros, selectedObraId, setSelectedObraId, setSelectedQuadroId, activeObra } = useData();
+  const [avisoLink, setAvisoLink] = useState('');
   const [activeTab, setActiveTab] = useState('hub');
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
   const [isPwaModalOpen, setIsPwaModalOpen] = useState(false);
@@ -65,6 +68,29 @@ function MainLayout() {
       });
     }
   }, []);
+
+  // Link direto (etiqueta QR do quadro): abre a pasta do quadro assim que a obra estiver carregada.
+  useEffect(() => {
+    if (!currentUser) return undefined;
+    const link = lerLink();
+    if (!link) return undefined;
+    const obra = obras.find((o) => o.id === link.obraId);
+    const quadro = quadros.find((q) => q.id === link.quadroId && q.obraId === link.obraId);
+    if (obra && quadro) {
+      setSelectedObraId(obra.id);
+      setSelectedQuadroId(quadro.id);
+      setActiveTab('quadros');
+      limparLink();
+      return undefined;
+    }
+    // Ainda carregando do banco: espera um pouco antes de concluir que não há acesso.
+    const t = setTimeout(() => {
+      if (!lerLink()) return;
+      setAvisoLink('Este quadro não foi encontrado ou você não tem acesso à obra dele. Peça ao administrador para incluir você na obra.');
+      limparLink();
+    }, 8000);
+    return () => clearTimeout(t);
+  }, [currentUser, obras, quadros]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Aguarda o Firebase informar se há sessão salva (evita piscar a tela de login)
   if (!authReady) {
@@ -143,6 +169,15 @@ function MainLayout() {
         onOpenChatModal={() => setIsChatModalOpen(true)}
         onToggleMobileDrawer={() => setIsMobileDrawerOpen(!isMobileDrawerOpen)}
       />
+
+      <ConnectionBanner />
+
+      {avisoLink && (
+        <div className="dq-alert" role="alert" style={{ margin: '0.75rem 1rem 0', background: 'var(--wash-amber)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <span style={{ flex: 1 }}>{avisoLink}</span>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => setAvisoLink('')}>Fechar</button>
+        </div>
+      )}
 
       <div className="app-main">
         {showSidebar && (

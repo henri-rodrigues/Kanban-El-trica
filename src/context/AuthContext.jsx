@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { registrarAuditoria } from '../services/auditoria';
 import {
   ADMIN_EMAIL,
   saveFirestoreDoc,
@@ -289,6 +290,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const approveUser = (userId) => {
+    const alvoA = users.find((u) => u.id === userId);
+    registrarAuditoria({ autor: currentUser, acao: 'aprovou', entidade: 'usuario', entidadeId: userId, nome: alvoA ? `${alvoA.name} (${alvoA.email})` : userId });
     setUsers((prev) => prev.map((u) => {
       if (u.id !== userId) return u;
       const updated = { ...u, status: 'approved' };
@@ -298,6 +301,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const rejectUser = (userId) => {
+    const alvoR = users.find((u) => u.id === userId);
+    registrarAuditoria({ autor: currentUser, acao: 'recusou', entidade: 'usuario', entidadeId: userId, nome: alvoR ? `${alvoR.name} (${alvoR.email})` : userId });
     setUsers((prev) => prev.map((u) => {
       if (u.id !== userId) return u;
       const updated = { ...u, status: 'rejected' };
@@ -311,6 +316,11 @@ export const AuthProvider = ({ children }) => {
     // Só o dono do sistema concede ou retira o perfil de administrador.
     const { role, ...demais } = profileFields;
     const campos = souDono ? profileFields : demais;
+    const alvoP = users.find((u) => u.id === userId);
+    if (alvoP) {
+      const antesP = Object.fromEntries(Object.keys(campos).map((k) => [k, alvoP[k]]));
+      registrarAuditoria({ autor: currentUser, acao: 'alterou', entidade: 'usuario', entidadeId: userId, nome: alvoP.name, antes: antesP, depois: campos });
+    }
     setUsers((prev) => prev.map((u) => {
       if (u.id !== userId) return u;
       if (souDono && sameEmail(u.email, ADMIN_EMAIL) && role && role !== 'administrador') return u; // dono permanece admin
@@ -330,6 +340,7 @@ export const AuthProvider = ({ children }) => {
     const alvo = users.find((u) => u.id === userId);
     if (alvo && sameEmail(alvo.email, ADMIN_EMAIL)) return; // dono do sistema não pode ser excluído
     if (alvo?.role === 'administrador' && !sameEmail(currentUser.email, ADMIN_EMAIL)) return; // só o dono remove administradores
+    registrarAuditoria({ autor: currentUser, acao: 'excluiu', entidade: 'usuario', entidadeId: userId, nome: alvo ? `${alvo.name} (${alvo.email})` : userId });
     setUsers((prev) => prev.filter((u) => u.id !== userId));
     if (alvo?.uid && isFirebaseActive()) deleteFirestoreDoc('users', alvo.uid);
   };

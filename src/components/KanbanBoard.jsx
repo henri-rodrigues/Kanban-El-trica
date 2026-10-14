@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useKanbanDrag } from '../hooks/useKanbanDrag';
+import { CardTimer } from './CardTimer';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { CardDetailModal } from './CardDetailModal';
@@ -477,6 +478,8 @@ export const KanbanBoard = ({ onOpenObraModal, onNavigate, modoPasta = false }) 
                             </span>
                           )}
                         </div>
+
+                        <CardTimer card={card} compacto />
 
                         {/* User Circle Avatar */}
                         <div 

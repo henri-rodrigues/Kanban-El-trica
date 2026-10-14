@@ -66,3 +66,5 @@
 .es-detalhe dt { font-size: 0.68rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); }
 .es-detalhe dd { margin: 0 0 0.3rem; }
 .es-acoes { display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; }
+
+.es-avisos-cfg { display: flex; gap: 0.35rem; flex-wrap: wrap; align-items: center; }

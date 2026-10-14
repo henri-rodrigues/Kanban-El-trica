@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { ADMIN_EMAIL } from '../services/firebase';
 import { ModalShell } from './dimensionamento/ModalShell';
+import { AuditoriaPainel } from './AuditoriaPainel';
 
 const FILTROS = [
   ['todos', 'Todos'],
@@ -24,6 +25,7 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
   const [editDailyRate, setEditDailyRate] = useState(250);
   const [busca, setBusca] = useState('');
   const [filtro, setFiltro] = useState('todos');
+  const [aba, setAba] = useState('usuarios');
 
   // obras e horas apontadas por usuário
   const resumo = useMemo(() => {
@@ -89,6 +91,13 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
       onClose={onClose}
       maxWidth={720}
     >
+      <div className="dq-tabs" role="tablist" style={{ marginBottom: '0.9rem' }}>
+        {[['usuarios', `Usuários${pendentes.length ? ` (${pendentes.length} pendente${pendentes.length > 1 ? 's' : ''})` : ''}`], ['auditoria', 'Auditoria']].map(([id, rot]) => (
+          <button key={id} type="button" role="tab" aria-selected={aba === id} className={aba === id ? 'active' : ''} onClick={() => setAba(id)}>{rot}</button>
+        ))}
+      </div>
+
+      {aba === 'auditoria' ? <AuditoriaPainel obras={obras} /> : (<>
       {pendentes.length > 0 && (
         <div style={{ background: 'var(--wash-amber)', padding: '0.9rem', borderRadius: 'var(--radius-md)', marginBottom: '1rem' }}>
           <h4 style={{ fontSize: '0.86rem', fontWeight: 800, color: 'var(--accent-amber)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
@@ -208,6 +217,7 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
           );
         })}
       </div>
+      </>)}
     </ModalShell>
   );
 };

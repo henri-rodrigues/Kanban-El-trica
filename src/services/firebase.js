@@ -2,14 +2,21 @@ import { initializeApp, getApps } from 'firebase/app';
 import {
   getFirestore,
   initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
   collection,
   doc,
   getDoc,
   setDoc,
   onSnapshot,
   deleteDoc,
-  query
+  query,
+  getDocs,
+  orderBy,
+  limit,
+  arrayUnion
 } from 'firebase/firestore';
+import { getMessaging, getToken, isSupported as pushSuportado } from 'firebase/messaging';
 import {
   getAuth,
   onAuthStateChanged,
@@ -29,6 +36,10 @@ export const DEFAULT_FIREBASE_CONFIG = {
   appId: "1:756154599826:web:bb26578705c9e79ea9194b",
   measurementId: "G-SL13ZJ4KDN"
 };
+
+// Chave pública VAPID (Firebase Console → Configurações do projeto → Cloud Messaging →
+// Certificados push da Web → "Gerar par de chaves"). É pública: pode ficar no código.
+export const VAPID_KEY = '';
 
 // Administrador do sistema: o e-mail precisa estar CONFIRMADO. O mesmo e-mail está em firestore.rules.
 export const ADMIN_EMAIL = 'eletrica@3darcondicionado.com.br';
@@ -59,7 +70,11 @@ export const initFirebase = (config = getStoredFirebaseConfig()) => {
     }
     try {
       // Auto-detecta long-polling: evita gravações "penduradas" em redes/extensões que bloqueiam o canal padrão.
-      db = initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
+      // Cache local persistente (IndexedDB): o app lê e grava sem internet e sincroniza quando o sinal volta.
+      db = initializeFirestore(app, {
+        experimentalAutoDetectLongPolling: true,
+        localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+      });
     } catch {
       db = getFirestore(app); // já inicializado
     }
@@ -134,15 +149,48 @@ export const fetchFirestoreDoc = async (collectionName, docId) => {
 };
 
 // Save a document to Firestore collection
+// Gravações aguardando confirmação do servidor (offline elas ficam na fila do Firestore).
+let pendentes = 0;
+const ouvintesPendentes = new Set();
+const avisarPendentes = () => ouvintesPendentes.forEach((fn) => fn(pendentes));
+export const onPendingWrites = (fn) => {
+  ouvintesPendentes.add(fn);
+  fn(pendentes);
+  return () => ouvintesPendentes.delete(fn);
+};
+const acompanhar = async (promessa) => {
+  pendentes += 1;
+  avisarPendentes();
+  try {
+    await promessa;
+    return true;
+  } finally {
+    pendentes -= 1;
+    avisarPendentes();
+  }
+};
+
 export const saveFirestoreDoc = async (collectionName, docId, data) => {
   if (!isFirebaseActive()) return false;
 
   try {
-    await setDoc(doc(db, collectionName, docId), limpo(data), { merge: true });
-    return true;
+    // Sem internet a gravação entra na fila local e só confirma quando o sinal volta.
+    return await acompanhar(setDoc(doc(db, collectionName, docId), limpo(data), { merge: true }));
   } catch (err) {
     console.error(`Erro ao salvar no Firestore [${collectionName}/${docId}]:`, err);
     return false;
+  }
+};
+
+/** Últimos documentos de uma coleção, do mais novo para o mais antigo (null se falhar). */
+export const listarColecaoRecente = async (collectionName, campoData, limite = 500) => {
+  if (!isFirebaseActive()) return null;
+  try {
+    const snap = await getDocs(query(collection(db, collectionName), orderBy(campoData, 'desc'), limit(limite)));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  } catch (err) {
+    console.error(`Erro ao listar ${collectionName}:`, err);
+    return null;
   }
 };
 
@@ -151,8 +199,7 @@ export const deleteFirestoreDoc = async (collectionName, docId) => {
   if (!isFirebaseActive()) return false;
 
   try {
-    await deleteDoc(doc(db, collectionName, docId));
-    return true;
+    return await acompanhar(deleteDoc(doc(db, collectionName, docId)));
   } catch (err) {
     console.error(`Erro ao deletar no Firestore [${collectionName}/${docId}]:`, err);
     return false;
@@ -179,3 +226,35 @@ export const subscribeFirestoreCollection = (collectionName, onDataChange) => {
     return () => {};
   }
 };
+
+// ---------------------------------------------------------------------------
+// Notificações push (FCM) e preferências de aviso: push_tokens/{uid}
+// ---------------------------------------------------------------------------
+export const pushConfigurado = () => !!VAPID_KEY;
+
+/** Pede permissão, registra este aparelho para receber push e devolve o token. */
+export async function ativarNotificacoesPush() {
+  if (!isFirebaseActive()) throw new Error('Entre com a sua conta para ativar as notificações.');
+  if (!VAPID_KEY) throw new Error('As notificações push ainda não foram configuradas pelo administrador (chave VAPID).');
+  if (!(await pushSuportado().catch(() => false)) || !('serviceWorker' in navigator)) {
+    throw new Error('Este navegador não recebe notificações push. No iPhone, instale o sistema na tela inicial e abra por lá.');
+  }
+  const permissao = await Notification.requestPermission();
+  if (permissao !== 'granted') throw new Error('Permissão de notificação negada. Libere nas configurações do navegador.');
+  const registro = await navigator.serviceWorker.ready;
+  const token = await getToken(getMessaging(app), { vapidKey: VAPID_KEY, serviceWorkerRegistration: registro });
+  await setDoc(doc(db, 'push_tokens', auth.currentUser.uid), { tokens: arrayUnion(token), push: true, updatedAt: new Date().toISOString() }, { merge: true });
+  return token;
+}
+
+export async function lerPreferenciasAviso() {
+  if (!isFirebaseActive()) return null;
+  const snap = await getDoc(doc(db, 'push_tokens', auth.currentUser.uid));
+  return snap.exists() ? snap.data() : { push: false, email: true, tokens: [] };
+}
+
+export async function salvarPreferenciasAviso(prefs) {
+  if (!isFirebaseActive()) return false;
+  await setDoc(doc(db, 'push_tokens', auth.currentUser.uid), { ...prefs, updatedAt: new Date().toISOString() }, { merge: true });
+  return true;
+}

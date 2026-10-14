@@ -63,3 +63,30 @@ Ele entra como administrador automaticamente.
   nuvem e foi removido por outro usuário também é removido localmente.
 - Excluir um usuário na tela de gestão remove o perfil; a conta de login pode ser removida em
   *Authentication → Users*.
+
+## 🔔 Push, e-mail e resumo semanal (Cloud Functions)
+
+Estes recursos rodam no servidor do Firebase e precisam de uma configuração única:
+
+1. **Plano Blaze** — Firebase Console → ⚙️ Uso e faturamento → mudar para Blaze (pago por uso; no volume atual o custo fica em R$ 0, dentro da cota gratuita). Recomenda-se criar um alerta de orçamento.
+2. **Chave VAPID (push)** — Configurações do projeto → Cloud Messaging → *Certificados push da Web* → **Gerar par de chaves**. Copie a chave pública para `VAPID_KEY` em `src/services/firebase.js` e publique o site.
+3. **E-mail (extensão Trigger Email)** — Console → Extensions → instalar **Trigger Email from Firestore** com:
+   - Coleção: `mail`
+   - SMTP: `smtps://eletrica%403darcondicionado.com.br@smtp.gmail.com:465` (ou o SMTP da empresa) e a **senha de app** gerada na conta Google (Segurança → Senhas de app).
+   - Remetente padrão: `Gestão Elétrica <eletrica@3darcondicionado.com.br>`
+4. **Publicar regras e funções** (na pasta do projeto, com a [Firebase CLI](https://firebase.google.com/docs/cli) instalada):
+   ```bash
+   npm install --prefix functions
+   firebase login
+   firebase deploy --only firestore:rules,functions
+   ```
+
+O que cada função faz:
+- `enviarAviso` — a cada aviso do sistema (tarefa atribuída, viagem, menção, chat, diário) envia **push** para os aparelhos da pessoa e, para tarefa/viagem/menção, **e-mail** (cada pessoa liga/desliga em *Minha agenda → Avisos*).
+- `resumoSemanal` — todo **domingo às 18h** envia aos administradores o resumo de cada obra: o que avançou, o que está parado há mais de 7 dias e as pendências. O mesmo resumo pode ser gerado a qualquer momento em *Relatórios → Resumo da semana*.
+
+No iPhone, o push só funciona com o sistema **instalado na tela inicial** (Compartilhar → Adicionar à Tela de Início).
+
+## 📴 Modo offline
+
+Com a sessão aberta, o sistema funciona sem internet: diário, checklist, post-its e apontamentos ficam guardados no aparelho e são enviados quando o sinal volta (a faixa no topo mostra o estado). Entrar com uma conta nova exige internet.

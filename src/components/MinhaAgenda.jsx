@@ -5,6 +5,8 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { CardDetailModal } from './CardDetailModal';
+import { CardTimer } from './CardTimer';
+import { AvisosConfig } from './AvisosConfig';
 import { hojeIso } from './diario/utils';
 import { dataHora } from './dimensionamento/helpers';
 import './escala/escala.css';
@@ -84,6 +86,15 @@ export const MinhaAgenda = ({ onNavigate }) => {
         </button>
       </div>
 
+      {cards.filter((c) => currentUser && c.timer?.userId === currentUser.id).map((c) => (
+        <div key={c.id} className="es-aviso" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', background: 'var(--wash-emerald)', color: 'var(--text-primary)' }}>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            Cronômetro rodando em <strong>{c.title}</strong> · {obras.find((o) => o.id === c.obraId)?.name}
+          </span>
+          <CardTimer card={c} />
+        </div>
+      ))}
+
       <div className="es-kpis">
         <div className="es-kpi"><span>Viagens (14 dias)</span><strong>{proximas.length}</strong><small>{viagens.length} no total à frente</small></div>
         <div className="es-kpi"><span>Tarefas abertas</span><strong>{tarefas.length}</strong><small>em {porObra.length} obra(s)</small></div>
@@ -152,6 +163,7 @@ export const MinhaAgenda = ({ onNavigate }) => {
 
           <div className="es-card">
             <h3><Bell size={15} style={{ verticalAlign: '-2px' }} /> Avisos recentes</h3>
+            <AvisosConfig />
             {avisos.length === 0 ? (
               <span className="es-dica">Nenhum aviso por aqui.</span>
             ) : (

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useKanbanDrag } from '../hooks/useKanbanDrag';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { CardDetailModal } from './CardDetailModal';
@@ -41,7 +42,6 @@ export const KanbanBoard = ({ onOpenObraModal, onNavigate, modoPasta = false }) 
   const [newCardTitle, setNewCardTitle] = useState('');
   const [activeNewCardCol, setActiveNewCardCol] = useState(null);
   const [searchFilter, setSearchFilter] = useState('');
-  const [dragOverColId, setDragOverColId] = useState(null);
   const [permissionErrorMsg, setPermissionErrorMsg] = useState('');
   const [filtro, setFiltro] = useState('todos'); // todos | meus | bloqueados | prioridade | sem_responsavel
 
@@ -109,54 +109,19 @@ export const KanbanBoard = ({ onOpenObraModal, onNavigate, modoPasta = false }) 
     setActiveNewCardCol(null);
   };
 
-  // Drag & Drop Handlers with Strict Ownership Check
-  const handleDragStart = (e, card) => {
-    setPermissionErrorMsg('');
-    const isOwnerOrAdmin = isAdmin || card.assignedUserId === currentUser?.id;
-    
-    if (!isOwnerOrAdmin) {
+  // Arrastar e soltar com animação (ver hooks/useKanbanDrag.js). Só o dono do post-it ou o admin move.
+  const drag = useKanbanDrag({
+    canDrag: (card) => isAdmin || card.assignedUserId === currentUser?.id,
+    onMove: (cardId, colId) => updateCardStatus(cardId, colId),
+    onBlocked: () => {
       setPermissionErrorMsg('🔒 Você só pode mover os post-its atribuídos ao seu usuário!');
       setTimeout(() => setPermissionErrorMsg(''), 4000);
-      e.preventDefault();
-      return false;
     }
-
-    e.dataTransfer.setData('cardId', card.id);
-    e.dataTransfer.effectAllowed = 'move';
-  };
-
-  const handleDragOver = (e, colId) => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    if (dragOverColId !== colId) {
-      setDragOverColId(colId);
-    }
-  };
-
-  const handleDragLeave = (e, colId) => {
-    if (dragOverColId === colId) {
-      setDragOverColId(null);
-    }
-  };
-
-  const handleDrop = (e, targetColId) => {
-    e.preventDefault();
-    setDragOverColId(null);
-    const cardId = e.dataTransfer.getData('cardId');
-    if (cardId) {
-      const card = cards.find(c => c.id === cardId);
-      const isOwnerOrAdmin = isAdmin || card?.assignedUserId === currentUser?.id;
-      
-      if (isOwnerOrAdmin) {
-        updateCardStatus(cardId, targetColId);
-      } else {
-        setPermissionErrorMsg('🔒 Você só pode mover os post-its atribuídos ao seu usuário!');
-        setTimeout(() => setPermissionErrorMsg(''), 4000);
-      }
-    }
-  };
+  });
+  const dragOverColId = drag.overCol;
 
   const handleCardClick = (card) => {
+    if (drag.consumirClique()) return;
     setPermissionErrorMsg('');
     setSelectedCard(card);
   };
@@ -348,10 +313,8 @@ export const KanbanBoard = ({ onOpenObraModal, onNavigate, modoPasta = false }) 
             <div 
               key={col.id}
               id={`kanban-col-${col.id}`}
+              data-col-id={col.id}
               className={`glass-panel ${isDragOver ? 'kanban-col-dragover' : ''}`}
-              onDragOver={(e) => handleDragOver(e, col.id)}
-              onDragLeave={(e) => handleDragLeave(e, col.id)}
-              onDrop={(e) => handleDrop(e, col.id)}
               style={{
                 borderRadius: 'var(--radius-md)',
                 padding: '0.65rem',
@@ -431,8 +394,9 @@ export const KanbanBoard = ({ onOpenObraModal, onNavigate, modoPasta = false }) 
                   return (
                     <div
                       key={card.id}
-                      draggable={canTouch}
-                      onDragStart={(e) => handleDragStart(e, card)}
+                      data-card-id={card.id}
+                      className={`kb-card ${drag.draggingId === card.id ? 'kb-origem' : ''}`}
+                      onPointerDown={(e) => drag.onPointerDown(e, card)}
                       onClick={() => handleCardClick(card)}
                       style={{
                         padding: '0.75rem',
@@ -457,7 +421,7 @@ export const KanbanBoard = ({ onOpenObraModal, onNavigate, modoPasta = false }) 
                           {card.title}
                         </h4>
                         {canTouch ? (
-                          <GripVertical size={13} style={{ color: 'var(--text-muted)', cursor: 'grab', flexShrink: 0 }} />
+                          <span data-drag-handle className="kb-alca" title="Arraste para mover"><GripVertical size={14} /></span>
                         ) : (
                           <Lock size={13} style={{ color: 'var(--accent-rose)', flexShrink: 0 }} title="Post-it pertence a outro operador" />
                         )}

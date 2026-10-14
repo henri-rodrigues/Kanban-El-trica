@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Search, AlertCircle, Calculator } from 'lucide-react';
+import { Plus, Search, AlertCircle, Calculator, GripVertical } from 'lucide-react';
+import { useKanbanDrag } from '../hooks/useKanbanDrag';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { CardDetailModal } from './CardDetailModal';
@@ -26,7 +27,6 @@ export const InfraKanbanView = ({ categoria = 'todas', onCategoria = () => {} })
   const [busca, setBusca] = useState('');
   const [filtroResp, setFiltroResp] = useState('todos'); // todos | userId
   const [filtroPrio, setFiltroPrio] = useState('todas'); // todas | alta | outras
-  const [arrastando, setArrastando] = useState(null);
 
   const doInfra = useMemo(
     () => cards.filter((c) => c.obraId === activeObra?.id && ehCardInfra(c)),
@@ -78,12 +78,10 @@ export const InfraKanbanView = ({ categoria = 'todas', onCategoria = () => {} })
     setNovoAberto(false);
   };
 
-  const soltar = (e, coluna) => {
-    e.preventDefault();
-    const id = e.dataTransfer.getData('text/plain') || arrastando;
-    if (id) updateCardStatus(id, coluna);
-    setArrastando(null);
-  };
+  const drag = useKanbanDrag({
+    canDrag: () => true,
+    onMove: (id, coluna) => updateCardStatus(id, coluna)
+  });
 
   return (
     <div className="if-wrap">
@@ -130,10 +128,9 @@ export const InfraKanbanView = ({ categoria = 'todas', onCategoria = () => {} })
           return (
             <div
               key={col.id}
-              className="if-coluna"
+              data-col-id={col.id}
+              className={`if-coluna ${drag.overCol === col.id ? 'kanban-col-dragover' : ''}`}
               style={{ borderTopColor: col.cor }}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => soltar(e, col.id)}
             >
               <div className="if-coluna-topo">
                 <h3>{col.titulo}</h3>
@@ -150,15 +147,13 @@ export const InfraKanbanView = ({ categoria = 'todas', onCategoria = () => {} })
                   return (
                     <div
                       key={card.id}
-                      className="if-card"
+                      data-card-id={card.id}
+                      className={`if-card kb-card ${drag.draggingId === card.id ? 'kb-origem' : ''}`}
                       style={{ borderLeftColor: grad.border }}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('text/plain', card.id);
-                        setArrastando(card.id);
-                      }}
-                      onClick={() => setSelectedCard(card)}
+                      onPointerDown={(e) => drag.onPointerDown(e, card)}
+                      onClick={() => { if (!drag.consumirClique()) setSelectedCard(card); }}
                     >
+                      <span data-drag-handle className="kb-alca kb-alca-canto" title="Arraste para mover"><GripVertical size={14} /></span>
                       <div className="if-card-tags">
                         <span className="badge badge-amber">{rotuloCategoria(card.categoryTag)}</span>
                         <span className={`badge ${alta ? 'badge-danger' : 'badge-emerald'}`}>{card.priority || 'Média'}</span>

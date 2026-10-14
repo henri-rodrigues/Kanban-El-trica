@@ -175,9 +175,23 @@ export const DataProvider = ({ children }) => {
     if (isFirebaseActive()) saveFirestoreDoc('field_reports', newReport.id, newReport);
   };
 
+  // Edita um registro do diário (administrador ou o próprio autor).
+  const updateFieldReport = (reportId, fields) => {
+    const alvo = fieldReports.find(r => r.id === reportId);
+    if (!alvo) return null;
+    if (!isAdmin && alvo.authorId !== currentUser?.id) return null;
+    const updated = { ...alvo, ...fields, id: alvo.id, obraId: alvo.obraId, editedAt: new Date().toISOString() };
+    setFieldReports(prev => prev.map(r => (r.id === reportId ? updated : r)));
+    if (isFirebaseActive()) saveFirestoreDoc('field_reports', reportId, updated);
+    return updated;
+  };
+
   const deleteFieldReport = (obraId, reportId) => {
-    if (!isAdmin) return;
+    const alvo = fieldReports.find(r => r.id === reportId);
+    if (!alvo) return;
+    if (!isAdmin && alvo.authorId !== currentUser?.id) return;
     setFieldReports(prev => prev.filter(r => r.id !== reportId));
+    if (isFirebaseActive()) deleteFirestoreDoc('field_reports', reportId);
   };
 
   // O Firestore rejeita `undefined`; o round-trip JSON descarta esses campos.
@@ -925,6 +939,7 @@ export const DataProvider = ({ children }) => {
         getCardEvolutionPct,
         fieldReports,
         addFieldReport,
+        updateFieldReport,
         deleteFieldReport,
         dimensionamentos,
         saveDimensionamento,

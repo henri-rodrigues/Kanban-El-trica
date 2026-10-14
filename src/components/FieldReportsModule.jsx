@@ -1,398 +1,258 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import {
+  BookOpen, Plus, Search, Printer, Pencil, Trash2, AlertCircle, ChevronLeft, ChevronRight, X, Link as LinkIcon,
+  Camera, Mic, Video as VideoIcon
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { 
-  FileText, 
-  Plus, 
-  Trash2, 
-  Users, 
-  Image, 
-  Video, 
-  Mic, 
-  Calendar, 
-  Clock, 
-  X, 
-  Send, 
-  Building2, 
-  Check, 
-  AlertCircle,
-  Play
-} from 'lucide-react';
+import { RegistroForm } from './diario/RegistroForm';
+import {
+  TIPOS_REGISTRO, tipoDe, diaDe, horaDe, rotuloDia, hojeIso, imprimirDiario
+} from './diario/utils';
+import './diario/diario.css';
+
+const PERIODOS = [
+  ['tudo', 'Todo o período'],
+  ['hoje', 'Hoje'],
+  ['7', 'Últimos 7 dias'],
+  ['30', 'Últimos 30 dias']
+];
+
+const dentroDoPeriodo = (dia, periodo) => {
+  if (periodo === 'tudo') return true;
+  if (periodo === 'hoje') return dia === hojeIso();
+  const limite = new Date();
+  limite.setDate(limite.getDate() - Number(periodo));
+  limite.setMinutes(limite.getMinutes() - limite.getTimezoneOffset());
+  return dia >= limite.toISOString().slice(0, 10);
+};
+
+const Lightbox = ({ fotos, indice, onFechar, onMudar }) => (
+  <div className="dr-lightbox" onClick={onFechar} role="dialog" aria-modal="true">
+    <button type="button" className="dr-lb-fechar" aria-label="Fechar" onClick={onFechar}><X size={22} /></button>
+    {fotos.length > 1 && (
+      <button type="button" className="dr-lb-nav dr-lb-ant" aria-label="Anterior" onClick={(e) => { e.stopPropagation(); onMudar((indice - 1 + fotos.length) % fotos.length); }}>
+        <ChevronLeft size={26} />
+      </button>
+    )}
+    <img src={fotos[indice]} alt={`Foto ${indice + 1} de ${fotos.length}`} onClick={(e) => e.stopPropagation()} />
+    {fotos.length > 1 && (
+      <button type="button" className="dr-lb-nav dr-lb-prox" aria-label="Próxima" onClick={(e) => { e.stopPropagation(); onMudar((indice + 1) % fotos.length); }}>
+        <ChevronRight size={26} />
+      </button>
+    )}
+    <span className="dr-lb-contador">{indice + 1} / {fotos.length}</span>
+  </div>
+);
 
 export const FieldReportsModule = () => {
-  const { isAdmin, users, currentUser } = useAuth();
-  const { activeObra, fieldReports, addFieldReport, deleteFieldReport } = useData();
+  const { isAdmin, currentUser } = useAuth();
+  const { activeObra, activeQuadros, fieldReports, deleteFieldReport } = useData();
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [reportTitle, setReportTitle] = useState('');
-  const [reportDescription, setReportDescription] = useState('');
-  const [involvedUserIds, setInvolvedUserIds] = useState([]);
-  
-  // Media Files (Base64 or Object URLs)
-  const [images, setImages] = useState([]);
-  const [videos, setVideos] = useState([]);
-  const [audios, setAudios] = useState([]);
+  const [form, setForm] = useState(null); // null | { registro? }
+  const [busca, setBusca] = useState('');
+  const [tipo, setTipo] = useState('todos');
+  const [periodo, setPeriodo] = useState('tudo');
+  const [lightbox, setLightbox] = useState(null); // { fotos, indice }
+  const [expandidos, setExpandidos] = useState({});
+
+  const doObra = useMemo(
+    () => fieldReports.filter((r) => r.obraId === activeObra?.id),
+    [fieldReports, activeObra]
+  );
 
   if (!activeObra) {
     return (
-      <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
-        <AlertCircle size={48} className="text-amber" style={{ marginBottom: '1rem' }} />
-        <h3>Nenhuma Obra Selecionada</h3>
-        <p style={{ color: 'var(--text-muted)' }}>Selecione uma obra na vitrine para visualizar e publicar relatórios e diários de campo.</p>
+      <div className="dr-vazio">
+        <AlertCircle size={36} />
+        <h3>Nenhuma obra selecionada</h3>
+        <p>Selecione uma obra na Vitrine para ver e registrar o diário de campo.</p>
       </div>
     );
   }
 
-  // Filter reports for this Obra
-  const obraReports = fieldReports.filter(r => r.obraId === activeObra.id);
+  const termo = busca.trim().toLowerCase();
+  const filtrados = doObra
+    .filter((r) => {
+      if (tipo !== 'todos' && tipoDe(r).id !== tipo) return false;
+      if (!dentroDoPeriodo(diaDe(r), periodo)) return false;
+      if (!termo) return true;
+      return (
+        r.title?.toLowerCase().includes(termo) ||
+        r.description?.toLowerCase().includes(termo) ||
+        r.authorName?.toLowerCase().includes(termo) ||
+        r.quadroNome?.toLowerCase().includes(termo)
+      );
+    })
+    .sort((a, b) => diaDe(b).localeCompare(diaDe(a)) || horaDe(b).localeCompare(horaDe(a)));
 
-  const toggleUserInvolvement = (userId) => {
-    setInvolvedUserIds(prev => 
-      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
-    );
-  };
+  // agrupa por dia
+  const grupos = [];
+  filtrados.forEach((r) => {
+    const dia = diaDe(r);
+    const ultimo = grupos[grupos.length - 1];
+    if (ultimo && ultimo.dia === dia) ultimo.itens.push(r);
+    else grupos.push({ dia, itens: [r] });
+  });
 
-  // File Upload Handlers (Images, Videos, Audios)
-  const handleImageUpload = (e) => {
-    const files = Array.from(e.target.files);
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImages(prev => [...prev, reader.result]);
-      };
-      reader.readAsDataURL(file);
-    });
-  };
+  const total = doObra.length;
+  const ocorrencias = doObra.filter((r) => tipoDe(r).id === 'ocorrencia').length;
+  const pendencias = doObra.filter((r) => tipoDe(r).id === 'pendencia').length;
+  const fotos = doObra.reduce((n, r) => n + (r.images?.length ?? 0), 0);
+  const ultimaData = total ? diaDe([...doObra].sort((a, b) => diaDe(b).localeCompare(diaDe(a)))[0]) : null;
 
-  const handleVideoUpload = (e) => {
-    const files = Array.from(e.target.files);
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setVideos(prev => [...prev, reader.result]);
-      };
-      reader.readAsDataURL(file);
-    });
-  };
+  const podeEditar = (r) => isAdmin || r.authorId === currentUser?.id;
+  const rotuloPeriodo = PERIODOS.find(([id]) => id === periodo)?.[1] ?? '';
 
-  const handleAudioUpload = (e) => {
-    const files = Array.from(e.target.files);
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAudios(prev => [...prev, reader.result]);
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const handleSubmitReport = (e) => {
-    e.preventDefault();
-    if (!reportTitle.trim() || !reportDescription.trim()) return;
-
-    addFieldReport(activeObra.id, {
-      title: reportTitle,
-      description: reportDescription,
-      involvedUserIds: involvedUserIds.length > 0 ? involvedUserIds : [currentUser.id],
-      images,
-      videos,
-      audios,
-      date: new Date().toLocaleDateString('pt-BR'),
-      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-    });
-
-    setReportTitle('');
-    setReportDescription('');
-    setInvolvedUserIds([]);
-    setImages([]);
-    setVideos([]);
-    setAudios([]);
-    setIsModalOpen(false);
-  };
+  const exportar = () =>
+    imprimirDiario(filtrados, { obra: activeObra, periodo: rotuloPeriodo, autor: currentUser?.name });
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '1100px', margin: '0 auto' }}>
-      {/* Header Banner */}
-      <div className="glass-panel" style={{
-        padding: '1.25rem',
-        borderRadius: 'var(--radius-lg)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '1rem'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-            <FileText size={24} />
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.15rem' }}>
-              <span className="badge badge-blue">Diário de Campo & Registros</span>
-              <span className="badge badge-emerald">Obra: {activeObra.name}</span>
-            </div>
-            <h1 style={{ fontSize: '1.3rem', fontWeight: 800 }}>
-              Relatórios de Campo com Fotos, Vídeos e Áudio
-            </h1>
-          </div>
+    <div className="dr-wrap">
+      <div className="dr-topo">
+        <div>
+          <h2><BookOpen size={20} /> Diário de campo</h2>
+          <span className="dr-dica">{activeObra.name} · registros do dia a dia da obra com fotos, áudio e anexos</span>
         </div>
-
-        <button onClick={() => setIsModalOpen(true)} className="btn btn-primary btn-sm" style={{ fontWeight: 700 }}>
-          <Plus size={16} /> Adicionar Relatório de Campo
+        <span className="dr-espaco" />
+        <button type="button" className="btn btn-secondary btn-sm" onClick={exportar} disabled={filtrados.length === 0}>
+          <Printer size={14} /> Exportar PDF
+        </button>
+        <button type="button" className="btn btn-primary" onClick={() => setForm({})}>
+          <Plus size={15} /> Novo registro
         </button>
       </div>
 
-      {/* Reports Timeline List */}
-      {obraReports.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {obraReports.map((report) => (
-            <div key={report.id} className="glass-panel" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-blue)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
-                <div>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                    {report.title}
-                  </h3>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.2rem' }}>
-                    <span>👤 Publicado por <strong>{report.authorName}</strong></span>
-                    <span>•</span>
-                    <span>📅 {report.date} às {report.timestamp || '12:00'}</span>
-                  </div>
-                </div>
+      <div className="dr-kpis">
+        <div className="dr-kpi"><span>Registros</span><strong>{total}</strong></div>
+        <div className={`dr-kpi ${ocorrencias ? 'dr-kpi-rose' : ''}`}><span>Ocorrências</span><strong>{ocorrencias}</strong></div>
+        <div className={`dr-kpi ${pendencias ? 'dr-kpi-amber' : ''}`}><span>Pendências</span><strong>{pendencias}</strong></div>
+        <div className="dr-kpi"><span>Fotos</span><strong>{fotos}</strong></div>
+        <div className="dr-kpi"><span>Último registro</span><strong>{ultimaData ? ultimaData.split('-').reverse().slice(0, 2).join('/') : '—'}</strong></div>
+      </div>
 
-                {isAdmin && (
-                  <button
-                    onClick={() => {
-                      if (window.confirm(`Excluir relatório "${report.title}"?`)) {
-                        deleteFieldReport(activeObra.id, report.id);
-                      }
-                    }}
-                    className="btn btn-danger btn-sm"
-                    title="Excluir Relatório"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                )}
-              </div>
-
-              {/* Involved Users */}
-              {report.involvedUserIds && report.involvedUserIds.length > 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
-                  <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)', fontWeight: 600 }}>Equipe Envolvida:</span>
-                  {report.involvedUserIds.map(uid => {
-                    const u = users.find(usr => usr.id === uid);
-                    if (!u) return null;
-                    return (
-                      <span key={uid} className="badge badge-purple" style={{ fontSize: '0.675rem' }}>
-                        👤 {u.name}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Text Description */}
-              <div style={{ fontSize: '0.875rem', color: 'var(--text-primary)', lineHeight: 1.5, marginBottom: '1rem', whiteSpace: 'pre-wrap', background: 'var(--bg-main)', padding: '0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-                {report.description}
-              </div>
-
-              {/* Photo Gallery */}
-              {report.images && report.images.length > 0 && (
-                <div style={{ marginBottom: '1rem' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <Image size={14} className="text-blue" /> Fotos Anexadas ({report.images.length})
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))', gap: '0.5rem' }}>
-                    {report.images.map((img, idx) => (
-                      <div key={idx} style={{ height: '90px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                        <img src={img} alt={`Foto ${idx + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover', cursor: 'pointer' }} onClick={() => window.open(img, '_blank')} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Videos Gallery */}
-              {report.videos && report.videos.length > 0 && (
-                <div style={{ marginBottom: '1rem' }}>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <Video size={14} className="text-amber" /> Vídeos Anexados ({report.videos.length})
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.5rem' }}>
-                    {report.videos.map((vid, idx) => (
-                      <div key={idx} style={{ borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)', background: '#000' }}>
-                        <video controls src={vid} style={{ width: '100%', maxHeight: '180px' }} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Audios Player */}
-              {report.audios && report.audios.length > 0 && (
-                <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                    <Mic size={14} className="text-emerald" /> Áudios Anexados ({report.audios.length})
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {report.audios.map((aud, idx) => (
-                      <div key={idx} style={{ padding: '0.5rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <audio controls src={aud} style={{ width: '100%', height: '36px' }} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
-          <FileText size={48} className="text-blue" style={{ marginBottom: '1rem', opacity: 0.5 }} />
-          <h3>Nenhum Relatório de Campo Registrado</h3>
-          <p style={{ color: 'var(--text-muted)' }}>Clique no botão acima para cadastrar um relatório com descrição, foto, vídeo e áudio.</p>
+      {total > 0 && (
+        <div className="dr-filtros">
+          <label className="dr-busca">
+            <Search size={14} />
+            <input className="form-control" placeholder="Buscar por título, texto, autor ou quadro…" value={busca} onChange={(e) => setBusca(e.target.value)} />
+          </label>
+          <select className="form-control" style={{ width: 'auto' }} value={periodo} onChange={(e) => setPeriodo(e.target.value)} aria-label="Período">
+            {PERIODOS.map(([id, rotulo]) => <option key={id} value={id}>{rotulo}</option>)}
+          </select>
+          <div className="dr-chips" role="group" aria-label="Tipo de registro">
+            <button type="button" className={`dr-chip ${tipo === 'todos' ? 'ativo' : ''}`} onClick={() => setTipo('todos')}>Todos</button>
+            {TIPOS_REGISTRO.map((t) => (
+              <button key={t.id} type="button" className={`dr-chip dr-${t.tom} ${tipo === t.id ? 'ativo' : ''}`} onClick={() => setTipo(t.id)}>
+                {t.rotulo}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Modal: Novo Relatório de Campo */}
-      {isModalOpen && (
-        <div className="mobile-modal-overlay" style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.8)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1100,
-          padding: '1rem'
-        }}>
-          <div className="glass-panel mobile-modal-content" style={{ width: '100%', maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto', borderRadius: 'var(--radius-lg)', padding: '1.5rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <FileText size={20} className="text-blue" />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Novo Relatório de Campo</h3>
-              </div>
-              <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitReport} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              <div className="form-group">
-                <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Título do Relatório *</label>
-                <input
-                  type="text"
-                  required
-                  className="form-control"
-                  placeholder="Ex: Conclusão do Lançamento de Barramentos no QTA"
-                  value={reportTitle}
-                  onChange={(e) => setReportTitle(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group">
-                <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Descrição Detalhada do Apontamento *</label>
-                <textarea
-                  required
-                  className="form-control"
-                  rows={4}
-                  placeholder="Descreva as atividades executadas em campo, pendências ou observações técnicas..."
-                  value={reportDescription}
-                  onChange={(e) => setReportDescription(e.target.value)}
-                />
-              </div>
-
-              {/* Involved Users Selector */}
-              <div className="form-group">
-                <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <Users size={14} className="text-blue" /> Usuários / Equipe Envolvida
-                </label>
-                <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', marginTop: '0.35rem' }}>
-                  {users.map(u => {
-                    const isSelected = involvedUserIds.includes(u.id);
-                    return (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => toggleUserInvolvement(u.id)}
-                        style={{
-                          padding: '0.3rem 0.6rem',
-                          borderRadius: '16px',
-                          fontSize: '0.725rem',
-                          fontWeight: 600,
-                          border: isSelected ? '1px solid var(--accent-blue)' : '1px solid var(--border-color)',
-                          background: isSelected ? 'var(--wash-blue-strong)' : 'var(--bg-main)',
-                          color: isSelected ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.3rem'
-                        }}
-                      >
-                        👤 {u.name} {isSelected && <Check size={12} />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Media Attachments Section */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.85rem', borderRadius: 'var(--radius-sm)', background: 'var(--bg-main)', border: '1px solid var(--border-color)' }}>
-                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  📎 Anexar Mídias ao Relatório
-                </div>
-
-                {/* Upload Photos */}
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', color: 'var(--accent-blue)' }}>
-                    <Image size={14} /> Selecionar Fotos (JPG, PNG)
-                    <input type="file" accept="image/*" multiple onChange={handleImageUpload} style={{ display: 'none' }} />
-                  </label>
-                  {images.length > 0 && (
-                    <div style={{ fontSize: '0.7rem', color: 'var(--accent-emerald)', marginTop: '0.2rem' }}>
-                      ✓ {images.length} foto(s) anexada(s)
-                    </div>
-                  )}
-                </div>
-
-                {/* Upload Videos */}
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', color: 'var(--accent-amber)' }}>
-                    <Video size={14} /> Selecionar Vídeos (MP4, MOV)
-                    <input type="file" accept="video/*" multiple onChange={handleVideoUpload} style={{ display: 'none' }} />
-                  </label>
-                  {videos.length > 0 && (
-                    <div style={{ fontSize: '0.7rem', color: 'var(--accent-emerald)', marginTop: '0.2rem' }}>
-                      ✓ {videos.length} vídeo(s) anexado(s)
-                    </div>
-                  )}
-                </div>
-
-                {/* Upload Audios */}
-                <div>
-                  <label style={{ fontSize: '0.75rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer', color: 'var(--accent-emerald)' }}>
-                    <Mic size={14} /> Selecionar Áudios / Gravações de Voz (MP3, WAV, M4A)
-                    <input type="file" accept="audio/*" multiple onChange={handleAudioUpload} style={{ display: 'none' }} />
-                  </label>
-                  {audios.length > 0 && (
-                    <div style={{ fontSize: '0.7rem', color: 'var(--accent-emerald)', marginTop: '0.2rem' }}>
-                      ✓ {audios.length} áudio(s) anexado(s)
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary">
-                  Cancelar
-                </button>
-                <button type="submit" className="btn btn-primary" style={{ fontWeight: 700 }}>
-                  <Send size={15} /> Publicar Relatório de Campo
-                </button>
-              </div>
-            </form>
-          </div>
+      {total === 0 ? (
+        <div className="dr-vazio">
+          <BookOpen size={36} />
+          <h3>Nenhum registro ainda</h3>
+          <p>Registre o que foi feito no dia, ocorrências e pendências, com fotos e áudio. Quem você marcar na equipe é avisado.</p>
+          <button type="button" className="btn btn-primary" onClick={() => setForm({})}><Plus size={15} /> Fazer o primeiro registro</button>
         </div>
+      ) : filtrados.length === 0 ? (
+        <p className="dr-dica" style={{ textAlign: 'center', padding: '1.5rem' }}>Nenhum registro encontrado com esses filtros.</p>
+      ) : (
+        grupos.map((g) => (
+          <section key={g.dia} className="dr-dia">
+            <h3 className="dr-dia-titulo">{rotuloDia(g.dia)} <span>{g.itens.length} registro(s)</span></h3>
+
+            {g.itens.map((r) => {
+              const t = tipoDe(r);
+              const longo = (r.description || '').length > 260;
+              const aberto = !!expandidos[r.id];
+              const imgs = r.images || [];
+              return (
+                <article key={r.id} className={`dr-registro dr-borda-${t.tom}`}>
+                  <header>
+                    <div className="dr-reg-titulo">
+                      <span className={`dr-selo dr-${t.tom}`}>{t.rotulo}</span>
+                      <h4>{r.title}</h4>
+                    </div>
+                    {podeEditar(r) && (
+                      <div className="dr-reg-acoes">
+                        <button type="button" className="btn btn-ghost btn-sm" title="Editar" onClick={() => setForm({ registro: r })}><Pencil size={14} /></button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          title="Excluir"
+                          onClick={() => window.confirm(`Excluir o registro "${r.title}"?`) && deleteFieldReport(activeObra.id, r.id)}
+                        ><Trash2 size={14} /></button>
+                      </div>
+                    )}
+                  </header>
+
+                  <div className="dr-meta">
+                    {horaDe(r)} · {r.authorName || 'Operador'}
+                    {r.quadroNome && <span className="dr-quadro">Quadro {r.quadroNome}</span>}
+                    {r.editedAt && <span className="dr-editado">editado</span>}
+                  </div>
+
+                  <p className={`dr-texto ${longo && !aberto ? 'dr-recorte' : ''}`}>{r.description}</p>
+                  {longo && (
+                    <button type="button" className="dr-link" onClick={() => setExpandidos((p) => ({ ...p, [r.id]: !aberto }))}>
+                      {aberto ? 'Mostrar menos' : 'Ler mais'}
+                    </button>
+                  )}
+
+                  {imgs.length > 0 && (
+                    <div className="dr-galeria">
+                      {imgs.map((img, i) => (
+                        <button key={i} type="button" className="dr-miniatura" onClick={() => setLightbox({ fotos: imgs, indice: i })} aria-label={`Abrir foto ${i + 1}`}>
+                          <img src={img} alt={`Foto ${i + 1}`} loading="lazy" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {(r.audios || []).map((a, i) => (
+                    <div className="dr-player" key={`a${i}`}><Mic size={14} /><audio controls src={a} /></div>
+                  ))}
+                  {(r.videos || []).map((v, i) => (
+                    <div className="dr-player" key={`v${i}`}><VideoIcon size={14} /><video controls src={v} /></div>
+                  ))}
+
+                  {(r.links || []).length > 0 && (
+                    <div className="dr-links">
+                      {r.links.map((l, i) => (
+                        <a key={i} href={/^https?:\/\//i.test(l) ? l : `https://${l}`} target="_blank" rel="noreferrer noopener">
+                          <LinkIcon size={12} /> {l.replace(/^https?:\/\//i, '').slice(0, 48)}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
+                  {(r.nomesEnvolvidos || []).length > 0 && (
+                    <footer>
+                      {r.nomesEnvolvidos.map((n) => <span key={n} className="dr-equipe">{n.split(' ')[0]}</span>)}
+                    </footer>
+                  )}
+                </article>
+              );
+            })}
+          </section>
+        ))
+      )}
+
+      {form && (
+        <RegistroForm obra={activeObra} quadros={activeQuadros} registro={form.registro} onFechar={() => setForm(null)} />
+      )}
+
+      {lightbox && (
+        <Lightbox
+          fotos={lightbox.fotos}
+          indice={lightbox.indice}
+          onFechar={() => setLightbox(null)}
+          onMudar={(i) => setLightbox((l) => ({ ...l, indice: i }))}
+        />
       )}
     </div>
   );

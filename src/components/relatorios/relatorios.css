@@ -1,0 +1,49 @@
+/* Relatórios — usa os tokens do design system */
+.rl-wrap { display: flex; flex-direction: column; gap: 0.9rem; max-width: 1100px; margin: 0 auto; }
+.rl-topo { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.rl-topo h2 { font-size: 1.2rem; font-weight: 800; display: flex; align-items: center; gap: 0.45rem; }
+.rl-topo h2 svg { color: var(--accent-blue); }
+.rl-espaco { flex: 1; }
+.rl-dica { color: var(--text-muted); font-size: 0.76rem; }
+
+.rl-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.65rem; }
+.rl-kpi { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.7rem 0.9rem; display: flex; flex-direction: column; gap: 0.1rem; }
+.rl-kpi > span { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.rl-kpi strong { font-size: 1.3rem; font-weight: 800; }
+.rl-kpi small { font-size: 0.72rem; color: var(--text-secondary); }
+.rl-kpi.rose { background: var(--wash-rose); border-color: transparent; } .rl-kpi.rose strong { color: var(--accent-rose); }
+.rl-kpi.emerald strong { color: var(--accent-emerald); }
+.rl-kpi.blue strong { color: var(--accent-blue); }
+
+.rl-barra { height: 6px; background: var(--bg-subtle); border-radius: var(--radius-pill); overflow: hidden; min-width: 80px; }
+.rl-barra i { display: block; height: 100%; background: var(--accent-emerald); border-radius: inherit; transition: width 0.3s var(--ease); }
+.rl-barra.amber i { background: var(--accent-amber); }
+.rl-barra.rose i { background: var(--accent-rose); }
+.rl-barra.blue i { background: var(--accent-blue); }
+
+.rl-abas { display: flex; gap: 0.35rem; flex-wrap: wrap; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem; }
+.rl-aba { border: none; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.82rem; font-weight: 700; padding: 0.4rem 0.9rem; border-radius: var(--radius-pill); cursor: pointer; }
+.rl-aba:hover { background: var(--bg-subtle); }
+.rl-aba.ativo { background: var(--wash-blue-strong); color: var(--accent-blue); }
+
+.rl-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); padding: 0.9rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.rl-card h3 { font-size: 0.95rem; font-weight: 800; }
+.rl-tabela { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.rl-tabela th { text-align: left; padding: 0.4rem 0.5rem; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); background: var(--bg-subtle); white-space: nowrap; }
+.rl-tabela td { padding: 0.5rem; border-bottom: 1px solid var(--border-color); vertical-align: middle; }
+.rl-tabela .num { text-align: right; white-space: nowrap; }
+.rl-tabela tfoot td { font-weight: 800; border-top: 2px solid var(--border-highlight); border-bottom: none; }
+.rl-neg { color: var(--accent-rose); font-weight: 700; }
+.rl-pos { color: var(--accent-emerald); font-weight: 700; }
+.rl-selo { font-size: 0.66rem; font-weight: 700; padding: 0.1rem 0.55rem; border-radius: var(--radius-pill); background: var(--wash-blue); color: var(--accent-blue); }
+.rl-selo.ok { background: var(--wash-emerald); color: var(--accent-emerald); }
+.rl-selo.and { background: var(--wash-amber); color: var(--accent-amber); }
+.rl-selo.par { background: var(--wash-purple); color: var(--accent-purple); }
+
+.rl-grupo { border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.7rem 0.85rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.rl-grupo-cab { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.rl-grupo-cab h4 { flex: 1; min-width: 160px; font-size: 0.92rem; font-weight: 800; }
+.rl-grupo-cab .rl-barra { width: 120px; }
+
+.rl-vazio { text-align: center; padding: 2rem 1rem; border: 2px dashed var(--border-highlight); border-radius: var(--radius-lg); color: var(--text-secondary); display: flex; flex-direction: column; align-items: center; gap: 0.4rem; }
+.rl-vazio svg { color: var(--text-muted); }

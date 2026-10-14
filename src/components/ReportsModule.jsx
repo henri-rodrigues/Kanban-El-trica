@@ -1,498 +1,392 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import {
+  BarChart3, AlertCircle, FileText, FileSpreadsheet, Zap, Users, Layers, Wrench, ListChecks, Wallet
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { 
-  BarChart3, 
-  DollarSign, 
-  TrendingUp, 
-  Clock, 
-  Users, 
-  CheckCircle2, 
-  AlertCircle, 
-  Layers, 
-  Building2,
-  PieChart,
-  Download,
-  Calendar,
-  CheckSquare,
-  Award,
-  Zap,
-  Activity,
-  Briefcase,
-  FileSpreadsheet,
-  FileText,
-  MapPin,
-  Plane
-} from 'lucide-react';
+import { ehCardInfra } from '../constants/infraestrutura';
+import { baixar, h, imprimirHtml, nomeArquivo } from './dimensionamento/helpers';
+import './relatorios/relatorios.css';
+
+const brl = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0);
+const horasDoCard = (c) => (c.workedDays || []).reduce((s, w) => s + (Number(w.hours) || 0), 0);
+const ROTULO_COLUNA = { todo: 'A fazer', in_progress: 'Em andamento', on_hold: 'Em espera', completed: 'Concluído' };
+const SELO_COLUNA = { todo: 'par', in_progress: 'and', on_hold: '', completed: 'ok' };
+const pctDe = (gasto, verba) => (verba > 0 ? Math.round((gasto / verba) * 100) : 0);
+const tomBarra = (pct) => (pct > 100 ? 'rose' : pct > 85 ? 'amber' : '');
+
+const Barra = ({ pct, tom = '' }) => (
+  <div className={`rl-barra ${tom}`}><i style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} /></div>
+);
+
+const ABAS = [
+  { id: 'financeiro', rotulo: 'Financeiro', icone: Wallet },
+  { id: 'equipe', rotulo: 'Equipe', icone: Users },
+  { id: 'quadros', rotulo: 'Quadros', icone: Layers },
+  { id: 'infra', rotulo: 'Infraestrutura', icone: Wrench },
+  { id: 'atividades', rotulo: 'Atividades', icone: ListChecks }
+];
 
 export const ReportsModule = () => {
   const { isAdmin, users } = useAuth();
-  const { 
-    activeObra, 
-    cards, 
-    checklists, 
-    purchaseOrders,
-    quadros,
-    getCardEvolutionPct,
-    getObraLaborCostsAndDays, 
-    updateObraFinancials 
-  } = useData();
+  const { activeObra, cards, purchaseOrders, quadros, getCardEvolutionPct, getObraLaborCostsAndDays } = useData();
+  const [aba, setAba] = useState('financeiro');
+  const [filtroColuna, setFiltroColuna] = useState('todas');
+
+  const obraCards = useMemo(() => cards.filter((c) => c.obraId === activeObra?.id), [cards, activeObra]);
+  const obraPOs = useMemo(() => purchaseOrders.filter((po) => po.obraId === activeObra?.id), [purchaseOrders, activeObra]);
 
   if (!isAdmin) {
     return (
-      <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
-        <AlertCircle size={48} className="text-rose" style={{ marginBottom: '1rem' }} />
-        <h3>Acesso Restrito ao Administrador</h3>
-        <p style={{ color: 'var(--text-muted)' }}>Você não possui permissão para acessar os relatórios financeiros.</p>
+      <div className="rl-vazio">
+        <AlertCircle size={36} />
+        <h3>Acesso restrito ao administrador</h3>
+        <p>Você não possui permissão para acessar os relatórios financeiros.</p>
+      </div>
+    );
+  }
+  if (!activeObra) {
+    return (
+      <div className="rl-vazio">
+        <AlertCircle size={36} />
+        <h3>Nenhuma obra selecionada</h3>
+        <p>Selecione uma obra na Vitrine para ver os relatórios.</p>
       </div>
     );
   }
 
-  const { totalLaborCost, daysSpent, totalHours } = getObraLaborCostsAndDays(activeObra?.id);
+  const { totalLaborCost, totalHours } = getObraLaborCostsAndDays(activeObra.id);
+  const evol = (c) => getCardEvolutionPct(c.column);
 
-  // 4 Budgets Calculations
-  const matBudget = activeObra?.materialsBudget || 0;
-  const indBudget = activeObra?.indirectsBudget || 0;
-  const infBudget = activeObra?.infraBudget || 0;
-  const labBudget = activeObra?.laborBudget || 0;
-  const totalGeneralBudget = matBudget + indBudget + infBudget + labBudget || activeObra?.initialBudget || 1000000;
+  // ---- verbas
+  const gastoMateriais = obraPOs.filter((p) => p.destination !== 'infraestrutura').reduce((s, p) => s + (parseFloat(p.totalValue) || 0), 0);
+  const gastoInfra = obraPOs.filter((p) => p.destination === 'infraestrutura').reduce((s, p) => s + (parseFloat(p.totalValue) || 0), 0);
+  const gastoViagens = (activeObra.scheduledTrips || []).reduce((s, t) => s + (parseFloat(t.cost) || 0), 0);
 
-  // Actual Expenses By Category
-  const obraPOs = purchaseOrders.filter(po => po.obraId === activeObra?.id);
-  const totalMaterialsSpent = obraPOs.reduce((acc, curr) => acc + (parseFloat(curr.totalValue) || 0), 0);
+  const verbas = [
+    { id: 'mao', nome: 'Mão de obra', verba: Number(activeObra.laborBudget) || 0, gasto: totalLaborCost },
+    { id: 'mat', nome: 'Materiais (quadros)', verba: Number(activeObra.materialsBudget) || 0, gasto: gastoMateriais },
+    { id: 'inf', nome: 'Infraestrutura', verba: Number(activeObra.infraBudget) || 0, gasto: gastoInfra },
+    { id: 'ind', nome: 'Indiretos / viagens', verba: Number(activeObra.indirectsBudget) || 0, gasto: gastoViagens }
+  ];
+  const somaVerbas = verbas.reduce((s, v) => s + v.verba, 0);
+  const verbaGeral = somaVerbas || Number(activeObra.initialBudget) || 0;
+  const gastoGeral = verbas.reduce((s, v) => s + v.gasto, 0);
+  const saldoGeral = verbaGeral - gastoGeral;
+  const consumo = pctDe(gastoGeral, verbaGeral);
 
-  const scheduledTrips = activeObra?.scheduledTrips || [];
-  const distanceKm = parseFloat(activeObra?.distanceKm) || 0;
-  const totalTravelSpent = scheduledTrips.reduce((acc, curr) => acc + (parseFloat(curr.cost) || 0), 0);
+  // ---- execução
+  const progresso = obraCards.length ? Math.round(obraCards.reduce((s, c) => s + evol(c), 0) / obraCards.length) : 0;
+  const concluidos = obraCards.filter((c) => c.column === 'completed').length;
 
-  const totalSpentAll = totalLaborCost + totalMaterialsSpent + totalTravelSpent;
-  const remainingGeneralBalance = totalGeneralBudget - totalSpentAll;
+  const equipe = users
+    .map((u) => {
+      let horas = 0;
+      let registros = 0;
+      obraCards.forEach((c) =>
+        (c.workedDays || []).forEach((w) => {
+          if (w.operatorId === u.id || w.operatorName === u.name) {
+            horas += Number(w.hours) || 0;
+            registros++;
+          }
+        })
+      );
+      const diaria = u.dailyRate || 250;
+      return { user: u, horas, registros, dias: Math.round((horas / 8) * 10) / 10, diaria, custo: (horas / 8) * diaria, share: totalHours ? Math.round((horas / totalHours) * 100) : 0 };
+    })
+    .filter((e) => e.horas > 0)
+    .sort((a, b) => b.horas - a.horas);
 
-  const formatBRL = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-
-  // Kanban Cards breakdown
-  const obraCards = cards.filter(c => c.obraId === activeObra?.id);
-  const totalCardsCount = obraCards.length || 1;
-  const todoCards = obraCards.filter(c => c.column === 'todo').length;
-  const inProgressCards = obraCards.filter(c => c.column === 'in_progress').length;
-  const onHoldCards = obraCards.filter(c => c.column === 'on_hold').length;
-  const completedCards = obraCards.filter(c => c.column === 'completed').length;
-
-  // Operator Detailed Productivity
-  const operatorStats = users.map(user => {
-    let operatorHours = 0;
-    let logsCount = 0;
-    obraCards.forEach(c => {
-      (c.workedDays || []).forEach(w => {
-        if (w.operatorId === user.id || w.operatorName === user.name) {
-          operatorHours += (w.hours || 0);
-          logsCount++;
-        }
-      });
-    });
-    const operatorDays = Math.round((operatorHours / 8) * 10) / 10;
-    const operatorCost = (operatorHours / 8) * (user.dailyRate || 250);
-    const maxHoursInObra = totalHours || 1;
-    const sharePct = Math.round((operatorHours / maxHoursInObra) * 100);
-
-    return {
-      user,
-      hours: operatorHours,
-      days: operatorDays,
-      cost: operatorCost,
-      logsCount,
-      sharePct
-    };
-  });
-
-  // Export 1: Download CSV/Excel Spreadsheet
-  const handleExportExcel = () => {
-    let csvContent = "\uFEFF"; // UTF-8 BOM for Excel
-    csvContent += `RELATÓRIO EXECUTIVO DE OBRA - GESTÃO ELÉTRICA\n`;
-    csvContent += `Obra:;${activeObra?.name || 'Geral'}\n`;
-    csvContent += `Código:;${activeObra?.code || 'N/A'}\n`;
-    csvContent += `Cliente:;${activeObra?.client || 'N/A'}\n`;
-    csvContent += `Data de Geração:;${new Date().toLocaleDateString('pt-BR')}\n\n`;
-
-    csvContent += `1. BALANÇO DAS 4 VERBAS\n`;
-    csvContent += `Categoria;Verba Orçada (R$);Gasto Realizado (R$);Saldo Restante (R$)\n`;
-    csvContent += `Mão de Obra;${labBudget};${totalLaborCost};${labBudget - totalLaborCost}\n`;
-    csvContent += `Materiais;${matBudget};${totalMaterialsSpent};${matBudget - totalMaterialsSpent}\n`;
-    csvContent += `Indiretos / Viagens;${indBudget};${totalTravelSpent};${indBudget - totalTravelSpent}\n`;
-    csvContent += `Infraestrutura;${infBudget};0;${infBudget}\n`;
-    csvContent += `TOTAL GERAL;${totalGeneralBudget};${totalSpentAll};${remainingGeneralBalance}\n\n`;
-
-    csvContent += `2. APONTAMENTO DE OPERADORES\n`;
-    csvContent += `Operador;Horas Trabalhadas;Dias (8h);Diária (R$);Custo Total (R$)\n`;
-    operatorStats.forEach(st => {
-      csvContent += `${st.user.name};${st.hours};${st.days};${st.user.dailyRate || 250};${st.cost}\n`;
-    });
-    csvContent += `\n3. PEDIDOS DE COMPRA / MATERIAIS\n`;
-    csvContent += `Req Nº;Fornecedor;Data;Valor Total (R$)\n`;
-    obraPOs.forEach(po => {
-      csvContent += `${po.orderNumber || 'N/A'};${po.fornecedor};${po.date};${po.totalValue}\n`;
-    });
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `Relatorio_Obra_${activeObra?.code || 'Gestão_Elétrica'}.csv`;
-    link.click();
+  const cardsQuadro = obraCards.filter((c) => !ehCardInfra(c));
+  const cardsInfra = obraCards.filter(ehCardInfra);
+  const agrupar = (lista) => {
+    const doObra = quadros.filter((q) => q.obraId === activeObra.id);
+    const grupos = doObra
+      .map((q) => ({ id: q.id, nome: q.name, cards: lista.filter((c) => c.quadroId === q.id) }))
+      .filter((g) => g.cards.length > 0);
+    const sem = lista.filter((c) => !doObra.some((q) => q.id === c.quadroId));
+    if (sem.length) grupos.push({ id: 'geral', nome: 'Geral da obra', cards: sem });
+    return grupos;
   };
 
-  // Export 2: Download Power BI Data Model
-  const handleExportPowerBI = () => {
-    const powerBIData = {
+  // ---- exportações
+  const nomeBase = nomeArquivo(activeObra.code || activeObra.name);
+
+  const exportarCsv = () => {
+    const l = [];
+    l.push(['RELATÓRIO DE OBRA'], ['Obra', activeObra.name], ['Cliente', activeObra.client || ''], ['Gerado em', new Date().toLocaleDateString('pt-BR')], []);
+    l.push(['VERBAS'], ['Categoria', 'Verba (R$)', 'Gasto (R$)', 'Saldo (R$)', 'Consumo (%)']);
+    verbas.forEach((v) => l.push([v.nome, v.verba, v.gasto.toFixed(2), (v.verba - v.gasto).toFixed(2), pctDe(v.gasto, v.verba)]));
+    l.push(['TOTAL', verbaGeral, gastoGeral.toFixed(2), saldoGeral.toFixed(2), consumo], []);
+    l.push(['EQUIPE'], ['Operador', 'Horas', 'Dias (8h)', 'Diária (R$)', 'Custo (R$)']);
+    equipe.forEach((e) => l.push([e.user.name, e.horas, e.dias, e.diaria, e.custo.toFixed(2)]));
+    l.push([], ['PEDIDOS DE COMPRA'], ['Pedido', 'Fornecedor', 'Verba', 'Data', 'Valor (R$)']);
+    obraPOs.forEach((p) => l.push([p.orderNumber || '', p.fornecedor, p.destination === 'infraestrutura' ? 'Infraestrutura' : 'Quadros', p.date || '', p.totalValue]));
+    l.push([], ['ATIVIDADES'], ['Atividade', 'Tipo', 'Situação', 'Evolução (%)', 'Horas']);
+    obraCards.forEach((c) => l.push([c.title, ehCardInfra(c) ? 'Infraestrutura' : 'Quadro', ROTULO_COLUNA[c.column] || c.column, evol(c), horasDoCard(c)]));
+    const csv = l.map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+    baixar(`Relatorio_${nomeBase}.csv`, '﻿' + csv);
+  };
+
+  const exportarPowerBI = () => {
+    const dados = {
       Fact_Obra: {
-        id: activeObra?.id,
-        name: activeObra?.name,
-        code: activeObra?.code,
-        client: activeObra?.client,
-        distanceKm: distanceKm,
-        totalGeneralBudget: totalGeneralBudget,
-        materialsBudget: matBudget,
-        indirectsBudget: indBudget,
-        infraBudget: infBudget,
-        laborBudget: labBudget,
-        totalSpent: totalSpentAll,
-        remainingBalance: remainingGeneralBalance
+        id: activeObra.id, name: activeObra.name, code: activeObra.code, client: activeObra.client,
+        totalBudget: verbaGeral, totalSpent: gastoGeral, remaining: saldoGeral, progress: progresso
       },
-      Fact_Materiais: obraPOs.map(po => ({
-        id: po.id,
-        reqNumber: po.orderNumber,
-        fornecedor: po.fornecedor,
-        date: po.date,
-        totalValue: po.totalValue,
-        itemsCount: (po.items || []).length
+      Fact_Verbas: verbas.map((v) => ({ categoria: v.nome, verba: v.verba, gasto: v.gasto, saldo: v.verba - v.gasto })),
+      Fact_Materiais: obraPOs.map((p) => ({
+        id: p.id, pedido: p.orderNumber, fornecedor: p.fornecedor, destino: p.destination || 'quadros',
+        data: p.date, valor: p.totalValue, itens: (p.items || []).length,
+        itensRecebidos: (p.items || []).filter((i) => i.status === 'Já Chegou').length
       })),
-      Fact_MaoDeObra: operatorStats.map(op => ({
-        operatorId: op.user.id,
-        operatorName: op.user.name,
-        hours: op.hours,
-        days: op.days,
-        dailyRate: op.user.dailyRate || 250,
-        totalCost: op.cost
-      })),
-      Fact_KanbanPostIts: obraCards.map(c => ({
-        id: c.id,
-        title: c.title,
-        column: c.column,
-        priority: c.priority || 'Média',
-        categoryTag: c.categoryTag || 'Geral'
+      Fact_MaoDeObra: equipe.map((e) => ({ operador: e.user.name, horas: e.horas, dias: e.dias, diaria: e.diaria, custo: e.custo })),
+      Fact_Atividades: obraCards.map((c) => ({
+        id: c.id, titulo: c.title, coluna: c.column, evolucao: evol(c), horas: horasDoCard(c), infraestrutura: ehCardInfra(c)
       }))
     };
-
-    const blob = new Blob([JSON.stringify(powerBIData, null, 2)], { type: 'application/json' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `PowerBI_DataModel_${activeObra?.code || 'Obra'}.json`;
-    link.click();
+    baixar(`PowerBI_${nomeBase}.json`, JSON.stringify(dados, null, 2), 'application/json');
   };
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '1200px', margin: '0 auto' }}>
-      {/* Header with 3 Export Buttons */}
-      <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: 'var(--radius-lg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--accent-purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-            <BarChart3 size={24} />
-          </div>
-          <div>
-            <h1 style={{ fontSize: '1.3rem', fontWeight: 800 }}>Dashboard Executivo & Relatórios Financeiros</h1>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>Obra: <strong>{activeObra?.name || 'Selecione uma obra'}</strong></p>
-          </div>
-        </div>
-
-        {/* 3 Export Buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <button onClick={() => window.print()} className="btn btn-secondary btn-sm" title="Gerar PDF de alta qualidade para impressão">
-            <FileText size={14} className="text-blue" /> Exportar PDF
-          </button>
-          <button onClick={handleExportExcel} className="btn btn-secondary btn-sm" title="Baixar planilha formatada para Excel">
-            <FileSpreadsheet size={14} className="text-emerald" /> Exportar Excel (.csv)
-          </button>
-          <button onClick={handleExportPowerBI} className="btn btn-primary btn-sm" title="Baixar modelo de dados para o Microsoft Power BI">
-            <Zap size={14} /> Exportar Power BI (.json)
-          </button>
-        </div>
+  const exportarPdf = () => {
+    const linhasVerba = verbas.map((v) => `<tr><td>${h(v.nome)}</td><td class="n">${brl(v.verba)}</td><td class="n">${brl(v.gasto)}</td><td class="n ${v.verba - v.gasto < 0 ? 'neg' : ''}">${brl(v.verba - v.gasto)}</td><td class="n">${pctDe(v.gasto, v.verba)}%</td></tr>`).join('');
+    const linhasEquipe = equipe.map((e) => `<tr><td>${h(e.user.name)}</td><td class="n">${e.horas}h</td><td class="n">${e.dias}</td><td class="n">${brl(e.diaria)}</td><td class="n">${brl(e.custo)}</td></tr>`).join('');
+    const linhasPO = obraPOs.map((p) => `<tr><td>${h(p.orderNumber || '')}</td><td>${h(p.fornecedor)}</td><td>${p.destination === 'infraestrutura' ? 'Infraestrutura' : 'Quadros'}</td><td class="n">${brl(p.totalValue)}</td></tr>`).join('');
+    const grupo = (g) => `<h3>${h(g.nome)} — ${Math.round(g.cards.reduce((s, c) => s + evol(c), 0) / g.cards.length)}% · ${g.cards.reduce((s, c) => s + horasDoCard(c), 0)}h</h3>
+      <table><tr><th>Atividade</th><th>Situação</th><th class="n">Evolução</th><th class="n">Horas</th></tr>${g.cards.map((c) => `<tr><td>${h(c.title)}</td><td>${h(ROTULO_COLUNA[c.column] || c.column)}</td><td class="n">${evol(c)}%</td><td class="n">${horasDoCard(c)}h</td></tr>`).join('')}</table>`;
+    const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório — ${h(activeObra.name)}</title><style>
+      *{box-sizing:border-box}body{font-family:'Segoe UI',system-ui,sans-serif;color:#1f2733;margin:22px;font-size:12px;line-height:1.5}
+      h1{font-size:20px;margin:0}.sub{color:#667085}.cab{border-bottom:3px solid #4f7cf0;padding-bottom:10px;margin-bottom:14px}
+      h2{font-size:13px;margin:18px 0 8px;color:#2f4fa8;background:#eef3ff;padding:5px 8px;border-radius:5px}
+      h3{font-size:12px;margin:12px 0 4px}table{width:100%;border-collapse:collapse;margin-bottom:8px}
+      th{text-align:left;background:#f3f5fa;font-size:10px;text-transform:uppercase;padding:4px 6px}td{padding:4px 6px;border-bottom:1px solid #e3e7f0}
+      .n{text-align:right;white-space:nowrap}.neg{color:#c0392b;font-weight:700}
+      .resumo{display:flex;gap:10px;flex-wrap:wrap}.resumo div{flex:1;min-width:130px;border:1px solid #d9dfeb;border-radius:6px;padding:7px 10px}
+      .resumo b{display:block;font-size:15px}.resumo span{font-size:10px;color:#667085;text-transform:uppercase}
+      .rodape{margin-top:20px;font-size:10px;color:#667085;border-top:1px solid #d9dfeb;padding-top:6px}
+      @media print{body{margin:10mm}h2{break-after:avoid}tr{break-inside:avoid}}
+    </style></head><body>
+      <div class="cab"><h1>Relatório de obra</h1>
+        <div class="sub">${h(activeObra.name)}${activeObra.client ? ` · ${h(activeObra.client)}` : ''}</div>
+        <div class="sub">3D Ar Condicionado · ${new Date().toLocaleDateString('pt-BR')}</div></div>
+      <div class="resumo">
+        <div><span>Verba geral</span><b>${brl(verbaGeral)}</b></div>
+        <div><span>Gasto</span><b>${brl(gastoGeral)}</b></div>
+        <div><span>Saldo</span><b class="${saldoGeral < 0 ? 'neg' : ''}">${brl(saldoGeral)}</b></div>
+        <div><span>Avanço</span><b>${progresso}%</b></div>
       </div>
+      <h2>Verbas</h2>
+      <table><tr><th>Categoria</th><th class="n">Verba</th><th class="n">Gasto</th><th class="n">Saldo</th><th class="n">Consumo</th></tr>${linhasVerba}</table>
+      ${equipe.length ? `<h2>Equipe</h2><table><tr><th>Operador</th><th class="n">Horas</th><th class="n">Dias</th><th class="n">Diária</th><th class="n">Custo</th></tr>${linhasEquipe}</table>` : ''}
+      ${obraPOs.length ? `<h2>Pedidos de compra</h2><table><tr><th>Pedido</th><th>Fornecedor</th><th>Verba</th><th class="n">Valor</th></tr>${linhasPO}</table>` : ''}
+      ${agrupar(cardsQuadro).length ? `<h2>Quadros</h2>${agrupar(cardsQuadro).map(grupo).join('')}` : ''}
+      ${agrupar(cardsInfra).length ? `<h2>Infraestrutura</h2>${agrupar(cardsInfra).map(grupo).join('')}` : ''}
+      <p class="rodape">Relatório gerado pelo sistema de gestão de obras.</p>
+      <script>window.addEventListener('load',function(){setTimeout(function(){window.print()},400)})<\/script>
+    </body></html>`;
+    if (!imprimirHtml(html)) window.alert('Permita pop-ups para gerar o PDF.');
+  };
 
-      {/* 4 Budgets KPI Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem' }}>
-        <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-blue)' }}>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>1. Verba Mão de Obra</div>
-          <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--accent-blue)' }}>{formatBRL(labBudget)}</div>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-            Gasto: <strong style={{ color: 'var(--accent-emerald)' }}>{formatBRL(totalLaborCost)}</strong> | Saldo: {formatBRL(labBudget - totalLaborCost)}
+  // ---- blocos
+  const Grupos = ({ lista, vazio }) => {
+    const grupos = agrupar(lista);
+    if (!grupos.length) return <div className="rl-vazio"><p>{vazio}</p></div>;
+    return grupos.map((g) => {
+      const p = Math.round(g.cards.reduce((s, c) => s + evol(c), 0) / g.cards.length);
+      const horas = g.cards.reduce((s, c) => s + horasDoCard(c), 0);
+      return (
+        <div className="rl-grupo" key={g.id}>
+          <div className="rl-grupo-cab">
+            <h4>{g.nome}</h4>
+            <span className="rl-dica">{g.cards.length} atividades · {horas}h ({Math.round((horas / 8) * 10) / 10} dias)</span>
+            <Barra pct={p} tom={p === 100 ? '' : 'amber'} />
+            <strong>{p}%</strong>
           </div>
-        </div>
-
-        <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-emerald)' }}>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>2. Verba de Materiais</div>
-          <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>{formatBRL(matBudget)}</div>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-            Gasto: <strong style={{ color: 'var(--accent-emerald)' }}>{formatBRL(totalMaterialsSpent)}</strong> | Saldo: {formatBRL(matBudget - totalMaterialsSpent)}
-          </div>
-        </div>
-
-        <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-amber)' }}>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>3. Verba Indiretos / Viagens</div>
-          <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--accent-amber)' }}>{formatBRL(indBudget)}</div>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-            Custo Viagens ({distanceKm}km): <strong style={{ color: 'var(--accent-amber)' }}>{formatBRL(totalTravelSpent)}</strong>
-          </div>
-        </div>
-
-        <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-purple)' }}>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>4. Verba Infraestrutura</div>
-          <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--accent-purple)' }}>{formatBRL(infBudget)}</div>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-            Saldo Alocado: <strong>{formatBRL(infBudget)}</strong>
-          </div>
-        </div>
-      </div>
-
-      {/* Summary Banner Total General Budget */}
-      <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', background: 'linear-gradient(135deg, var(--wash-blue), rgba(16, 185, 129, 0.12))', border: '1px solid var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-blue)', textTransform: 'uppercase' }}>
-            VERBA GERAL DO PROJETO (Soma das 4 Verbas)
-          </span>
-          <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-            {formatBRL(totalGeneralBudget)}
-          </h2>
-        </div>
-
-        <div style={{ display: 'flex', gap: '1.5rem', textAlign: 'right' }}>
-          <div>
-            <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Total Gasto Acumulado:</div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-rose)' }}>{formatBRL(totalSpentAll)}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>Saldo Geral Restante:</div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>{formatBRL(remainingGeneralBalance)}</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Operator Productivity Table */}
-      <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)' }}>
-        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <Users size={18} className="text-blue" /> Detalhamento de Apontamento e Diárias por Operador
-        </h3>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.825rem' }}>
-            <thead>
-              <tr style={{ background: 'var(--bg-main)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', textAlign: 'left' }}>
-                <th style={{ padding: '0.6rem' }}>Operador</th>
-                <th style={{ padding: '0.6rem' }}>Horas Trabalhadas</th>
-                <th style={{ padding: '0.6rem' }}>Equivalente em Dias</th>
-                <th style={{ padding: '0.6rem' }}>Diária (R$)</th>
-                <th style={{ padding: '0.6rem' }}>Custo Total (R$)</th>
-                <th style={{ padding: '0.6rem' }}>Participação</th>
-              </tr>
-            </thead>
-            <tbody>
-              {operatorStats.map(st => (
-                <tr key={st.user.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                  <td style={{ padding: '0.65rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {st.user.name}
-                  </td>
-                  <td style={{ padding: '0.65rem' }}>{st.hours}h</td>
-                  <td style={{ padding: '0.65rem' }}>{st.days} dias</td>
-                  <td style={{ padding: '0.65rem', color: 'var(--text-secondary)' }}>R$ {st.user.dailyRate || 250}/dia</td>
-                  <td style={{ padding: '0.65rem', fontWeight: 700, color: 'var(--accent-emerald)' }}>{formatBRL(st.cost)}</td>
-                  <td style={{ padding: '0.65rem' }}>
-                    <div style={{ width: '100px', height: '6px', background: 'var(--border-color)', borderRadius: '3px', overflow: 'hidden' }}>
-                      <div style={{ width: `${st.sharePct}%`, height: '100%', background: 'var(--accent-blue)' }} />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* NEW: Report by Time Spent per Activity and Kickoff Stage */}
-      <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-          <div>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Clock size={18} className="text-amber" /> Relatório de Tempo Gasto por Atividade e Etapa
-            </h3>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-              Contabilização a partir da Data Inicial da Obra ({activeObra?.startDate || 'Data Não Definida'}) até hoje
-            </p>
-          </div>
-          <span className="badge badge-purple">
-            {obraCards.length} Atividades Monitoradas
-          </span>
-        </div>
-
-        {/* Kickoff Stages Time Breakdown */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', marginBottom: '1.25rem' }}>
-          <div style={{ padding: '0.85rem', borderRadius: '6px', background: 'var(--wash-blue)', border: '1px solid var(--accent-blue)' }}>
-            <div style={{ fontSize: '0.7rem', color: 'var(--accent-blue)', fontWeight: 800, textTransform: 'uppercase' }}>
-              🔵 Fase 1: Pré Kickoff-01 (Azul)
-            </div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '0.25rem' }}>
-              {obraCards.filter(c => c.gradientId === 'cyan' || c.stagePhase === 'pre-kickoff-01').reduce((acc, curr) => {
-                const hrs = (curr.workedDays || []).reduce((hAcc, w) => hAcc + (w.hours || 0), 0);
-                return acc + hrs;
-              }, 0)}h acumuladas
-            </div>
-          </div>
-
-          <div style={{ padding: '0.85rem', borderRadius: '6px', background: 'rgba(245, 158, 11, 0.08)', border: '1px solid var(--accent-amber)' }}>
-            <div style={{ fontSize: '0.7rem', color: 'var(--accent-amber)', fontWeight: 800, textTransform: 'uppercase' }}>
-              🟠 Fase 2: Entre Kickoff-01 e Kickoff-02 (Laranja)
-            </div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '0.25rem' }}>
-              {obraCards.filter(c => c.gradientId === 'amber' || c.stagePhase === 'mid-kickoff').reduce((acc, curr) => {
-                const hrs = (curr.workedDays || []).reduce((hAcc, w) => hAcc + (w.hours || 0), 0);
-                return acc + hrs;
-              }, 0)}h acumuladas
-            </div>
-          </div>
-
-          <div style={{ padding: '0.85rem', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid var(--accent-emerald)' }}>
-            <div style={{ fontSize: '0.7rem', color: 'var(--accent-emerald)', fontWeight: 800, textTransform: 'uppercase' }}>
-              🟢 Fase 3: Pós Kickoff-02 (Verde)
-            </div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '0.25rem' }}>
-              {obraCards.filter(c => c.gradientId === 'emerald' || c.stagePhase === 'post-kickoff-02').reduce((acc, curr) => {
-                const hrs = (curr.workedDays || []).reduce((hAcc, w) => hAcc + (w.hours || 0), 0);
-                return acc + hrs;
-              }, 0)}h acumuladas
-            </div>
-          </div>
-        </div>
-
-        {/* Individual Activities Table */}
-        <div style={{ overflowX: 'auto', maxHeight: '400px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
-            <thead>
-              <tr style={{ background: 'var(--bg-main)', color: 'var(--text-muted)', textAlign: 'left' }}>
-                <th style={{ padding: '0.5rem' }}>Etapa / Atividade</th>
-                <th style={{ padding: '0.5rem' }}>Fase Kickoff</th>
-                <th style={{ padding: '0.5rem' }}>Status</th>
-                <th style={{ padding: '0.5rem' }}>Horas Apontadas</th>
-                <th style={{ padding: '0.5rem' }}>Operador Responsável</th>
-              </tr>
-            </thead>
-            <tbody>
-              {obraCards.map(c => {
-                const hrs = (c.workedDays || []).reduce((acc, w) => acc + (w.hours || 0), 0);
-                const isBlue = c.gradientId === 'cyan' || c.stagePhase === 'pre-kickoff-01';
-                const isAmber = c.gradientId === 'amber' || c.stagePhase === 'mid-kickoff';
-
-                return (
-                  <tr key={c.id} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '0.55rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                      {c.title}
-                    </td>
-                    <td style={{ padding: '0.55rem' }}>
-                      <span className={`badge ${isBlue ? 'badge-blue' : (isAmber ? 'badge-amber' : 'badge-emerald')}`} style={{ fontSize: '0.65rem' }}>
-                        {isBlue ? 'Pré Kickoff-01 (Azul)' : (isAmber ? 'Entre Kickoffs (Laranja)' : 'Pós Kickoff-02 (Verde)')}
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.55rem' }}>
-                      <span className={`badge ${
-                        c.column === 'completed' ? 'badge-emerald' : (c.column === 'in_progress' ? 'badge-amber' : 'badge-purple')
-                      }`} style={{ fontSize: '0.65rem' }}>
-                        {c.column === 'completed' ? 'Concluído' : (c.column === 'in_progress' ? 'Em Andamento' : 'A Fazer')}
-                      </span>
-                    </td>
-                    <td style={{ padding: '0.55rem', fontWeight: 700, color: hrs > 0 ? 'var(--accent-amber)' : 'var(--text-muted)' }}>
-                      {hrs} horas
-                    </td>
-                    <td style={{ padding: '0.55rem', color: 'var(--text-secondary)' }}>
-                      {c.assignedUserName || 'Não atribuído'}
-                    </td>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="rl-tabela">
+              <thead><tr><th>Atividade</th><th>Situação</th><th className="num">Evolução</th><th className="num">Horas</th></tr></thead>
+              <tbody>
+                {g.cards.map((c) => (
+                  <tr key={c.id}>
+                    <td style={{ fontWeight: 600 }}>{c.title}</td>
+                    <td><span className={`rl-selo ${SELO_COLUNA[c.column] ?? ''}`}>{ROTULO_COLUNA[c.column] || c.column}</span></td>
+                    <td className="num">{evol(c)}%</td>
+                    <td className="num">{horasDoCard(c)}h</td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      );
+    });
+  };
+
+  const atividades = obraCards
+    .filter((c) => filtroColuna === 'todas' || c.column === filtroColuna)
+    .sort((a, b) => horasDoCard(b) - horasDoCard(a));
+
+  return (
+    <div className="rl-wrap">
+      <div className="rl-topo">
+        <div>
+          <h2><BarChart3 size={20} /> Relatórios</h2>
+          <span className="rl-dica">{activeObra.name} · financeiro, equipe e execução</span>
+        </div>
+        <span className="rl-espaco" />
+        <button type="button" className="btn btn-secondary btn-sm" onClick={exportarPdf}><FileText size={14} /> PDF</button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={exportarCsv}><FileSpreadsheet size={14} /> Excel (CSV)</button>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={exportarPowerBI}><Zap size={14} /> Power BI</button>
+      </div>
+
+      <div className="rl-kpis">
+        <div className="rl-kpi blue"><span>Verba geral</span><strong>{brl(verbaGeral)}</strong><small>soma das 4 verbas</small></div>
+        <div className="rl-kpi">
+          <span>Gasto</span><strong>{brl(gastoGeral)}</strong>
+          <Barra pct={consumo} tom={tomBarra(consumo)} />
+          <small>{consumo}% da verba</small>
+        </div>
+        <div className={`rl-kpi ${saldoGeral < 0 ? 'rose' : 'emerald'}`}><span>Saldo</span><strong>{brl(saldoGeral)}</strong><small>{saldoGeral < 0 ? 'verba estourada' : 'disponível'}</small></div>
+        <div className="rl-kpi emerald">
+          <span>Avanço da execução</span><strong>{progresso}%</strong>
+          <Barra pct={progresso} />
+          <small>{concluidos} de {obraCards.length} atividades concluídas</small>
         </div>
       </div>
 
-      {/* NEW: Detailed Report per Quadro & Infraestrutura */}
-      <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)' }}>
-        <h3 style={{ fontSize: '1.05rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <Layers size={18} className="text-purple" /> Relatório Detalhado por Quadro & Infraestrutura
-        </h3>
+      <div className="rl-abas" role="tablist">
+        {ABAS.map((a) => (
+          <button key={a.id} type="button" role="tab" aria-selected={aba === a.id} className={`rl-aba ${aba === a.id ? 'ativo' : ''}`} onClick={() => setAba(a.id)}>
+            {a.rotulo}
+          </button>
+        ))}
+      </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {quadros.filter(q => q.obraId === activeObra?.id).map(quadro => {
-            const qCards = cards.filter(c => c.quadroId === quadro.id);
-            const totalQCards = qCards.length;
-            const qEvolutionSum = qCards.reduce((acc, c) => acc + (getCardEvolutionPct ? getCardEvolutionPct(c.column) : 0), 0);
-            const qProgress = totalQCards > 0 ? Math.round(qEvolutionSum / totalQCards) : 0;
-
-            const qHours = qCards.reduce((acc, c) => {
-              const cardHrs = (c.workedDays || []).reduce((hAcc, w) => hAcc + (w.hours || 0), 0);
-              return acc + cardHrs;
-            }, 0);
-            const qDays = Math.round((qHours / 8) * 10) / 10;
-
-            return (
-              <div key={quadro.id} style={{ padding: '1rem', borderRadius: 'var(--radius-sm)', background: 'var(--bg-main)', border: '1px solid var(--border-color)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <div>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                      ⚡ {quadro.name}
-                    </h4>
-                    <span style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
-                      {totalQCards} Post-its no Quadro | Tempo Acumulado: <strong style={{ color: 'var(--accent-amber)' }}>{qDays} dias ({qHours}h)</strong> desde a Data Inicial ({activeObra?.startDate || 'Definida'})
-                    </span>
-                  </div>
-
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>
-                      Evolução: {qProgress}%
-                    </span>
-                    <div style={{ width: '120px', height: '6px', background: 'var(--border-color)', borderRadius: '3px', overflow: 'hidden', marginTop: '2px' }}>
-                      <div style={{ width: `${qProgress}%`, height: '100%', background: 'var(--accent-emerald)' }} />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Sub-table of cards in Quadro */}
-                <div style={{ overflowX: 'auto', marginTop: '0.5rem' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
-                    <thead>
-                      <tr style={{ background: 'var(--bg-card)', color: 'var(--text-muted)', textAlign: 'left' }}>
-                        <th style={{ padding: '0.35rem' }}>Post-it / Atividade</th>
-                        <th style={{ padding: '0.35rem' }}>Coluna Atual</th>
-                        <th style={{ padding: '0.35rem' }}>Nível de Evolução</th>
-                        <th style={{ padding: '0.35rem' }}>Horas Trabalhadas</th>
+      {aba === 'financeiro' && (
+        <>
+          <div className="rl-card">
+            <h3>Balanço das verbas</h3>
+            <div style={{ overflowX: 'auto' }}>
+              <table className="rl-tabela">
+                <thead><tr><th>Categoria</th><th className="num">Verba</th><th className="num">Gasto</th><th className="num">Saldo</th><th>Consumo</th></tr></thead>
+                <tbody>
+                  {verbas.map((v) => {
+                    const p = pctDe(v.gasto, v.verba);
+                    return (
+                      <tr key={v.id}>
+                        <td style={{ fontWeight: 700 }}>{v.nome}</td>
+                        <td className="num">{brl(v.verba)}</td>
+                        <td className="num">{brl(v.gasto)}</td>
+                        <td className={`num ${v.verba - v.gasto < 0 ? 'rl-neg' : ''}`}>{brl(v.verba - v.gasto)}</td>
+                        <td style={{ minWidth: 130 }}>
+                          {v.verba > 0 ? <><Barra pct={p} tom={tomBarra(p)} /><span className="rl-dica">{p}%</span></> : <span className="rl-dica">sem verba definida</span>}
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody>
-                      {qCards.map(c => {
-                        const cHrs = (c.workedDays || []).reduce((acc, w) => acc + (w.hours || 0), 0);
-                        const cPct = getCardEvolutionPct ? getCardEvolutionPct(c.column) : 0;
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr><td>Total</td><td className="num">{brl(verbaGeral)}</td><td className="num">{brl(gastoGeral)}</td><td className={`num ${saldoGeral < 0 ? 'rl-neg' : ''}`}>{brl(saldoGeral)}</td><td>{consumo}%</td></tr>
+                </tfoot>
+              </table>
+            </div>
+            <span className="rl-dica">
+              Mão de obra é calculada pelas horas apontadas nos post-its × diária de cada operador; materiais e infraestrutura vêm dos pedidos de compra; indiretos, das viagens agendadas.
+            </span>
+          </div>
 
-                        return (
-                          <tr key={c.id} style={{ borderBottom: '1px dashed var(--border-color)' }}>
-                            <td style={{ padding: '0.35rem', fontWeight: 600, color: 'var(--text-primary)' }}>{c.title}</td>
-                            <td style={{ padding: '0.35rem' }}>{c.column}</td>
-                            <td style={{ padding: '0.35rem', fontWeight: 700, color: cPct === 100 ? 'var(--accent-emerald)' : 'var(--accent-amber)' }}>{cPct}%</td>
-                            <td style={{ padding: '0.35rem' }}>{cHrs}h</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+          <div className="rl-card">
+            <h3>Pedidos de compra ({obraPOs.length})</h3>
+            {obraPOs.length === 0 ? (
+              <span className="rl-dica">Nenhum pedido lançado nesta obra.</span>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="rl-tabela">
+                  <thead><tr><th>Pedido</th><th>Fornecedor</th><th>Verba</th><th>Recebimento</th><th className="num">Valor</th></tr></thead>
+                  <tbody>
+                    {obraPOs.map((p) => {
+                      const it = p.items || [];
+                      const ok = it.filter((i) => i.status === 'Já Chegou').length;
+                      return (
+                        <tr key={p.id}>
+                          <td>{p.orderNumber || '—'}</td>
+                          <td style={{ fontWeight: 600 }}>{p.fornecedor}</td>
+                          <td><span className={`rl-selo ${p.destination === 'infraestrutura' ? 'par' : ''}`}>{p.destination === 'infraestrutura' ? 'Infraestrutura' : 'Quadros'}</span></td>
+                          <td>{it.length ? `${ok}/${it.length} itens` : '—'}</td>
+                          <td className="num">{brl(p.totalValue)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
-            );
-          })}
+            )}
+          </div>
+        </>
+      )}
+
+      {aba === 'equipe' && (
+        <div className="rl-card">
+          <h3>Apontamento por operador</h3>
+          {equipe.length === 0 ? (
+            <span className="rl-dica">Nenhuma hora apontada nos post-its desta obra ainda.</span>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="rl-tabela">
+                <thead><tr><th>Operador</th><th className="num">Horas</th><th className="num">Dias (8h)</th><th className="num">Diária</th><th className="num">Custo</th><th>Participação</th></tr></thead>
+                <tbody>
+                  {equipe.map((e) => (
+                    <tr key={e.user.id}>
+                      <td style={{ fontWeight: 700 }}>{e.user.name}</td>
+                      <td className="num">{e.horas}h</td>
+                      <td className="num">{e.dias}</td>
+                      <td className="num">{brl(e.diaria)}</td>
+                      <td className="num">{brl(e.custo)}</td>
+                      <td style={{ minWidth: 120 }}><Barra pct={e.share} tom="blue" /><span className="rl-dica">{e.share}%</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr><td>Total</td><td className="num">{totalHours}h</td><td className="num">{Math.round((totalHours / 8) * 10) / 10}</td><td /><td className="num">{brl(totalLaborCost)}</td><td /></tr>
+                </tfoot>
+              </table>
+            </div>
+          )}
         </div>
-      </div>
+      )}
+
+      {aba === 'quadros' && <Grupos lista={cardsQuadro} vazio="Nenhuma atividade de quadros nesta obra." />}
+      {aba === 'infra' && <Grupos lista={cardsInfra} vazio="Nenhuma atividade de infraestrutura nesta obra." />}
+
+      {aba === 'atividades' && (
+        <div className="rl-card">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+            <h3 style={{ flex: 1 }}>Todas as atividades por horas apontadas</h3>
+            <select className="form-control" style={{ width: 'auto' }} value={filtroColuna} onChange={(e) => setFiltroColuna(e.target.value)} aria-label="Situação">
+              <option value="todas">Todas as situações</option>
+              {Object.entries(ROTULO_COLUNA).map(([id, r]) => <option key={id} value={id}>{r}</option>)}
+            </select>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="rl-tabela">
+              <thead><tr><th>Atividade</th><th>Tipo</th><th>Situação</th><th className="num">Evolução</th><th className="num">Horas</th><th>Responsável</th></tr></thead>
+              <tbody>
+                {atividades.map((c) => (
+                  <tr key={c.id}>
+                    <td style={{ fontWeight: 600 }}>{c.title}</td>
+                    <td>{ehCardInfra(c) ? 'Infraestrutura' : 'Quadro'}</td>
+                    <td><span className={`rl-selo ${SELO_COLUNA[c.column] ?? ''}`}>{ROTULO_COLUNA[c.column] || c.column}</span></td>
+                    <td className="num">{evol(c)}%</td>
+                    <td className="num">{horasDoCard(c)}h</td>
+                    <td>{c.assignedUserName || '—'}</td>
+                  </tr>
+                ))}
+                {atividades.length === 0 && <tr><td colSpan={6} className="rl-dica">Nenhuma atividade encontrada.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

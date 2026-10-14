@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Calendar as CalendarIcon, Plus, Plane, ChevronLeft, ChevronRight, AlertCircle, Pencil, Trash2, Car, MapPin
+  Calendar as CalendarIcon, Plus, Plane, ChevronLeft, ChevronRight, AlertCircle, Pencil, Trash2, Car, MapPin,
+  Download, Printer, Copy
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { ModalShell } from './dimensionamento/ModalShell';
 import { hojeIso } from './diario/utils';
+import { baixar, nomeArquivo, imprimirHtml, h } from './dimensionamento/helpers';
 import './escala/escala.css';
 
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
@@ -25,9 +27,10 @@ const custoViagem = (km, pessoas) => {
 };
 
 // ---------------------------------------------------------------- formulário
-const ViagemForm = ({ obra, viagem, dataInicial, todasViagens, onFechar }) => {
-  const { users } = useAuth();
-  const { addScheduledTrip, updateScheduledTrip } = useData();
+const ViagemForm = ({ obra, viagem, modelo, dataInicial, todasViagens, onFechar }) => {
+  const { users, currentUser } = useAuth();
+  const { addScheduledTrip, updateScheduledTrip, addNotification } = useData();
+  const origem = viagem ?? modelo;
   const editando = !!viagem;
 
   const equipe = useMemo(() => {
@@ -36,10 +39,10 @@ const ViagemForm = ({ obra, viagem, dataInicial, todasViagens, onFechar }) => {
     return [...aprovados].sort((a, b) => Number(doProjeto.includes(b.id)) - Number(doProjeto.includes(a.id)));
   }, [users, obra]);
 
-  const [ids, setIds] = useState(viagem ? idsDe(viagem) : (obra.assignedUserIds || []).slice(0, 1));
+  const [ids, setIds] = useState(origem ? idsDe(origem) : (obra.assignedUserIds || []).slice(0, 1));
   const [inicio, setInicio] = useState(viagem?.startDate ?? dataInicial ?? hojeIso());
   const [fim, setFim] = useState(viagem?.endDate ?? dataInicial ?? hojeIso());
-  const [notas, setNotas] = useState(viagem?.notes ?? '');
+  const [notas, setNotas] = useState(origem?.notes ?? '');
   const [erro, setErro] = useState('');
 
   const km = parseFloat(obra.distanceKm) || 0;
@@ -80,13 +83,27 @@ const ViagemForm = ({ obra, viagem, dataInicial, todasViagens, onFechar }) => {
       isDoubleCar: duplo,
       notes: notas.trim() || `Viagem de serviço para ${obra.name}`
     };
-    if (editando) updateScheduledTrip(obra.id, viagem.id, dados);
-    else addScheduledTrip(obra.id, dados);
+    if (editando) {
+      updateScheduledTrip(obra.id, viagem.id, dados);
+      ids.filter((id) => id !== currentUser?.id).forEach((id) =>
+        addNotification({
+          recipientUserId: id,
+          senderUserId: currentUser?.id,
+          senderName: currentUser?.name,
+          type: 'travel_schedule',
+          title: 'Viagem alterada',
+          message: `${currentUser?.name} atualizou a viagem para "${obra.name}": ${dataBr(inicio)} a ${dataBr(fim)}.`,
+          obraId: obra.id
+        })
+      );
+    } else {
+      addScheduledTrip(obra.id, dados);
+    }
     onFechar();
   };
 
   return (
-    <ModalShell title={editando ? 'Editar viagem' : 'Agendar viagem'} subtitle={obra.name} onClose={onFechar} maxWidth={540}>
+    <ModalShell title={editando ? 'Editar viagem' : modelo ? 'Duplicar viagem' : 'Agendar viagem'} subtitle={obra.name} onClose={onFechar} maxWidth={540}>
       <form onSubmit={salvar} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
         <div className="dq-grid">
           <label className="dq-field">
@@ -137,8 +154,8 @@ const ViagemForm = ({ obra, viagem, dataInicial, todasViagens, onFechar }) => {
 
 // ---------------------------------------------------------------- principal
 export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
-  const { isAdmin, currentUser } = useAuth();
-  const { obras, activeObra, deleteScheduledTrip } = useData();
+  const { isAdmin, currentUser, users } = useAuth();
+  const { obras, activeObra, deleteScheduledTrip, addNotification } = useData();
 
   const [modo, setModo] = useState(defaultViewMode); // 'obra' | 'personal'
   useEffect(() => { if (defaultViewMode) setModo(defaultViewMode); }, [defaultViewMode]);
@@ -175,6 +192,72 @@ export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
   const isoDia = (d) => `${ano}-${String(mesNum + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
   const mudarMes = (n) => setMes(new Date(ano, mesNum + n, 1));
 
+  const excluir = (t) => {
+    if (!window.confirm(`Cancelar a viagem de ${dataBr(t.startDate)} a ${dataBr(t.endDate)}?`)) return;
+    deleteScheduledTrip(t.obraId, t.id);
+    idsDe(t).filter((id) => id !== currentUser?.id).forEach((id) =>
+      addNotification({
+        recipientUserId: id,
+        senderUserId: currentUser?.id,
+        senderName: currentUser?.name,
+        type: 'travel_schedule',
+        title: 'Viagem cancelada',
+        message: `${currentUser?.name} cancelou a viagem para "${t.obraName}" (${dataBr(t.startDate)} a ${dataBr(t.endDate)}).`,
+        obraId: t.obraId
+      })
+    );
+    setDetalhe(null);
+  };
+
+  const duplicar = (t) => {
+    const obra = obras.find((o) => o.id === t.obraId);
+    if (obra) { setDetalhe(null); setForm({ obra, modelo: t, dataInicial: hoje }); }
+  };
+
+  const corDe = (t) => users.find((u) => u.id === idsDe(t)[0])?.userColorTag;
+
+  // dias de viagem de cada pessoa no mês exibido
+  const diasPorPessoa = (() => {
+    const mapa = new Map();
+    const ini = `${ano}-${String(mesNum + 1).padStart(2, '0')}-01`;
+    const fimMes = `${ano}-${String(mesNum + 1).padStart(2, '0')}-${String(diasNoMes).padStart(2, '0')}`;
+    lista.forEach((t) => {
+      const a = t.startDate > ini ? t.startDate : ini;
+      const b = t.endDate < fimMes ? t.endDate : fimMes;
+      if (a > b) return;
+      const dias = Math.round((new Date(`${b}T12:00:00`) - new Date(`${a}T12:00:00`)) / 86400000) + 1;
+      idsDe(t).forEach((id) => mapa.set(id, (mapa.get(id) || 0) + dias));
+    });
+    return [...mapa.entries()]
+      .map(([id, dias]) => [users.find((u) => u.id === id)?.name || 'Pessoa', dias])
+      .sort((a, b) => b[1] - a[1]);
+  })();
+
+  const exportarCsv = () => {
+    const l = [['Obra', 'Ida', 'Volta', 'Equipe', 'Carros', 'Custo (R$)', 'Objetivo']];
+    lista.forEach((t) =>
+      l.push([t.obraName, dataBr(t.startDate), dataBr(t.endDate), nomesDe(t).join(', '), t.isDoubleCar ? 2 : 1, String(t.cost ?? '').replace('.', ','), t.notes || ''])
+    );
+    const csv = l.map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+    baixar(`escala-viagens-${nomeArquivo(pessoal ? 'minha-agenda' : activeObra.name)}.csv`, '\uFEFF' + csv);
+  };
+
+  const exportarPdf = () => {
+    const linhas = lista.map((t) => `<tr><td>${h(dataBr(t.startDate))} → ${h(dataBr(t.endDate))}</td><td>${h(t.obraName)}</td><td>${h(nomesDe(t).join(', '))}</td><td>${t.isDoubleCar ? 2 : 1}</td>${isAdmin ? `<td class="n">${h(Number(t.cost || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }))}</td>` : ''}<td>${h(t.notes || '')}</td></tr>`).join('');
+    const html = `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Escala de viagens</title><style>
+      *{box-sizing:border-box}body{font-family:'Segoe UI',system-ui,sans-serif;color:#1f2733;margin:22px;font-size:12px}
+      h1{font-size:20px;margin:0}.sub{color:#667085}.cab{border-bottom:3px solid #4f7cf0;padding-bottom:10px;margin-bottom:14px}
+      table{width:100%;border-collapse:collapse}th{text-align:left;background:#f3f5fa;font-size:10px;text-transform:uppercase;padding:5px 6px}
+      td{padding:5px 6px;border-bottom:1px solid #e3e7f0}.n{text-align:right;white-space:nowrap}
+    </style></head><body>
+      <div class="cab"><h1>Escala de viagens</h1>
+      <div class="sub">${h(pessoal ? 'Minha agenda' : activeObra.name)} · ${lista.length} viagem(ns) · ${new Date().toLocaleDateString('pt-BR')}</div></div>
+      <table><tr><th>Período</th><th>Obra</th><th>Equipe</th><th>Carros</th>${isAdmin ? '<th class="n">Custo</th>' : ''}<th>Objetivo</th></tr>${linhas}</table>
+      <script>window.addEventListener('load',function(){setTimeout(function(){window.print()},400)})<\/script>
+    </body></html>`;
+    if (!imprimirHtml(html)) window.alert('Permita pop-ups para gerar o PDF.');
+  };
+
   const abrirNovo = (dataInicial) => {
     if (!isAdmin || !activeObra) return;
     setForm({ obra: activeObra, dataInicial });
@@ -183,11 +266,7 @@ export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
     const obra = obras.find((o) => o.id === t.obraId);
     if (obra) { setDetalhe(null); setForm({ obra, viagem: t }); }
   };
-  const excluir = (t) => {
-    if (!window.confirm(`Cancelar a viagem de ${dataBr(t.startDate)} a ${dataBr(t.endDate)}?`)) return;
-    deleteScheduledTrip(t.obraId, t.id);
-    setDetalhe(null);
-  };
+
 
   if (!activeObra && modo === 'obra' && minhas.length === 0 && todas.length === 0) {
     return (
@@ -221,6 +300,12 @@ export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
           )}
           <button type="button" className={`pessoal ${pessoal ? 'ativo' : ''}`} onClick={() => setModo('personal')}>Minha agenda</button>
         </div>
+        {lista.length > 0 && (
+          <>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={exportarCsv}><Download size={13} /> CSV</button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={exportarPdf}><Printer size={13} /> PDF</button>
+          </>
+        )}
         {isAdmin && activeObra && !pessoal && (
           <button type="button" className="btn btn-primary" onClick={() => abrirNovo(hoje)}>
             <Plus size={15} /> Agendar viagem
@@ -287,6 +372,7 @@ export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
                       key={t.id}
                       type="button"
                       className={`es-chip ${pessoal ? 'pessoal' : t.isDoubleCar ? 'duplo' : ''}`}
+                      style={!pessoal && !t.isDoubleCar && corDe(t) ? { background: corDe(t) } : undefined}
                       title={`${pessoal ? t.obraName : nomesDe(t).join(', ')} — ${t.notes || ''}`}
                       onClick={(e) => { e.stopPropagation(); setDetalhe(t); }}
                     >
@@ -335,6 +421,19 @@ export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
         </div>
       </div>
 
+      {diasPorPessoa.length > 0 && (
+        <div className="es-card">
+          <h3>Dias de viagem em {MESES[mesNum]}</h3>
+          <div className="es-pessoas">
+            {diasPorPessoa.map(([nome, dias]) => (
+              <span key={nome} className="es-pessoa ativo" style={{ cursor: 'default' }}>
+                {nome.split(' ')[0]} · {dias} dia(s)
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
       {detalhe && (
         <ModalShell title="Detalhes da viagem" subtitle={detalhe.obraName} onClose={() => setDetalhe(null)} maxWidth={460}>
           <dl className="es-detalhe">
@@ -348,6 +447,7 @@ export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
             {isAdmin && (
               <>
                 <button type="button" className="btn btn-danger btn-sm" onClick={() => excluir(detalhe)}><Trash2 size={13} /> Cancelar viagem</button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => duplicar(detalhe)}><Copy size={13} /> Duplicar</button>
                 <button type="button" className="btn btn-secondary btn-sm" onClick={() => abrirEdicao(detalhe)}><Pencil size={13} /> Editar</button>
               </>
             )}
@@ -360,6 +460,7 @@ export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
         <ViagemForm
           obra={form.obra}
           viagem={form.viagem}
+          modelo={form.modelo}
           dataInicial={form.dataInicial}
           todasViagens={todas}
           onFechar={() => setForm(null)}

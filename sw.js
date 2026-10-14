@@ -1,5 +1,5 @@
 // Auto-updating Service Worker with Cache-Busting Strategy
-const CACHE_NAME = 'omnifield-v2.5-mobile-fix';
+const CACHE_NAME = 'omnifield-v3-offline';
 
 const ASSETS_TO_CACHE = [
   './',
@@ -43,9 +43,57 @@ self.addEventListener('message', (event) => {
   }
 });
 
+// Notificações push (Firebase Cloud Messaging, mensagens só com "data").
+self.addEventListener('push', (event) => {
+  let dados = {};
+  try { dados = event.data ? event.data.json() : {}; } catch { dados = { data: { title: 'Gestão Elétrica', body: event.data?.text() } }; }
+  const d = dados.data || dados.notification || {};
+  event.waitUntil(
+    self.registration.showNotification(d.title || 'Gestão Elétrica', {
+      body: d.body || '',
+      icon: './logo.png',
+      badge: './favicon.png',
+      tag: d.tag || undefined,
+      data: { link: d.link || './' }
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const link = event.notification.data?.link || './';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((janelas) => {
+      const aberta = janelas.find((j) => j.url.startsWith(self.registration.scope));
+      if (aberta) {
+        aberta.navigate(link).catch(() => {});
+        return aberta.focus();
+      }
+      return self.clients.openWindow(link);
+    })
+  );
+});
+
 // Fetch Event: Network-first strategy for fresh updates, falling back to cache if offline
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  const url = new URL(event.request.url);
+  // Só arquivos do próprio sistema; banco (Firestore), login e CDNs ficam fora do cache.
+  if (url.origin !== self.location.origin) return;
+
+  // Arquivos com hash no nome (assets/...) nunca mudam: cache primeiro, abre rápido e sem internet.
+  if (url.pathname.includes('/assets/')) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
+        if (response.status === 200) {
+          const copia = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copia));
+        }
+        return response;
+      }))
+    );
+    return;
+  }
 
   // Always fetch HTML documents from network first to catch deployments instantly
   const isHtmlRequest = event.request.mode === 'navigate' || event.request.headers.get('accept')?.includes('text/html');
@@ -58,7 +106,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
           return response;
         })
-        .catch(() => caches.match(event.request))
+        .catch(() => caches.match(event.request).then((r) => r || caches.match('./index.html')))
     );
     return;
   }

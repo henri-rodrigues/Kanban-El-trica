@@ -489,6 +489,19 @@ export const DataProvider = ({ children }) => {
     }));
   };
 
+  const updateScheduledTrip = (obraId, tripId, patch) => {
+    if (!isAdmin) return;
+    setRawObras(prev => prev.map(o => {
+      if (o.id === obraId) {
+        const updatedTrips = (o.scheduledTrips || []).map(t => (t.id === tripId ? { ...t, ...patch } : t));
+        const updated = { ...o, scheduledTrips: updatedTrips };
+        if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updated);
+        return updated;
+      }
+      return o;
+    }));
+  };
+
   const STANDARD_QUADRO_POSTITS = [
     'Verificar orçamento e serviço vendido',
     'Verificar verbas',
@@ -936,6 +949,7 @@ export const DataProvider = ({ children }) => {
         addChecklistItem,
         addScheduledTrip,
         deleteScheduledTrip,
+        updateScheduledTrip,
         getCardEvolutionPct,
         fieldReports,
         addFieldReport,

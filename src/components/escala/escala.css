@@ -1,0 +1,68 @@
+/* Escala de viagens — usa os tokens do design system */
+.es-wrap { display: flex; flex-direction: column; gap: 0.9rem; max-width: 1100px; margin: 0 auto; }
+.es-topo { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.es-topo h2 { font-size: 1.2rem; font-weight: 800; display: flex; align-items: center; gap: 0.45rem; }
+.es-topo h2 svg { color: var(--accent-blue); }
+.es-espaco { flex: 1; }
+.es-dica { color: var(--text-muted); font-size: 0.76rem; }
+
+.es-seg { display: inline-flex; background: var(--bg-subtle); padding: 3px; border-radius: var(--radius-pill); gap: 2px; }
+.es-seg button { border: none; background: transparent; color: var(--text-secondary); font-family: inherit; font-size: 0.78rem; font-weight: 700; padding: 0.3rem 0.9rem; border-radius: var(--radius-pill); cursor: pointer; }
+.es-seg button.ativo { background: var(--accent-blue); color: #fff; }
+.es-seg button.ativo.pessoal { background: var(--accent-purple); }
+
+.es-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.65rem; }
+.es-kpi { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.6rem 0.85rem; display: flex; flex-direction: column; }
+.es-kpi span { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.es-kpi strong { font-size: 1.2rem; font-weight: 800; }
+.es-kpi small { font-size: 0.72rem; color: var(--text-secondary); }
+.es-kpi.amber strong { color: var(--accent-amber); }
+
+.es-grade { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 0.9rem; align-items: start; }
+@media (max-width: 860px) { .es-grade { grid-template-columns: 1fr; } }
+.es-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius-lg); box-shadow: var(--shadow-xs); padding: 0.9rem 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.es-card h3 { font-size: 0.95rem; font-weight: 800; }
+
+.es-mes { display: flex; align-items: center; gap: 0.4rem; }
+.es-mes h3 { flex: 1; text-align: center; }
+.es-dias-semana { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; font-size: 0.7rem; font-weight: 700; color: var(--text-muted); }
+.es-dias { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.es-dia { min-height: 78px; border: 1px solid var(--border-color); border-radius: var(--radius-sm); background: var(--bg-card); padding: 4px; display: flex; flex-direction: column; gap: 2px; text-align: left; font-family: inherit; color: inherit; overflow: hidden; }
+.es-dia.vazio { border: none; background: transparent; }
+.es-dia.clicavel { cursor: pointer; }
+.es-dia.clicavel:hover { border-color: var(--accent-blue); }
+.es-dia.hoje { border: 2px solid var(--accent-blue); }
+.es-dia.fds { background: var(--bg-subtle); }
+.es-dia-num { font-size: 0.74rem; font-weight: 700; }
+.es-dia.hoje .es-dia-num { color: var(--accent-blue); }
+.es-chip { font-size: 0.62rem; font-weight: 700; border-radius: 4px; padding: 1px 4px; color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border: none; font-family: inherit; text-align: left; cursor: pointer; background: var(--accent-blue); }
+.es-chip.duplo { background: var(--accent-amber); }
+.es-chip.pessoal { background: var(--accent-purple); }
+.es-mais { font-size: 0.6rem; color: var(--text-muted); font-weight: 700; }
+
+.es-lista { display: flex; flex-direction: column; gap: 0.5rem; max-height: 560px; overflow-y: auto; }
+.es-grupo-titulo { font-size: 0.68rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-top: 0.3rem; }
+.es-viagem { border: 1px solid var(--border-color); border-left: 4px solid var(--accent-blue); border-radius: var(--radius-md); padding: 0.55rem 0.7rem; background: var(--bg-card); cursor: pointer; display: flex; flex-direction: column; gap: 0.15rem; text-align: left; font-family: inherit; color: inherit; width: 100%; }
+.es-viagem:hover { background: var(--bg-subtle); }
+.es-viagem.duplo { border-left-color: var(--accent-amber); }
+.es-viagem.pessoal { border-left-color: var(--accent-purple); }
+.es-viagem.passada { opacity: 0.65; }
+.es-viagem strong { font-size: 0.84rem; }
+.es-viagem small { color: var(--text-secondary); font-size: 0.74rem; }
+.es-selo { font-size: 0.64rem; font-weight: 700; padding: 0.05rem 0.5rem; border-radius: var(--radius-pill); background: var(--wash-emerald); color: var(--accent-emerald); align-self: flex-start; }
+.es-selo.duplo { background: var(--wash-amber); color: var(--accent-amber); }
+.es-selo.andamento { background: var(--wash-blue); color: var(--accent-blue); }
+
+.es-vazio { text-align: center; padding: 1.6rem 1rem; border: 2px dashed var(--border-highlight); border-radius: var(--radius-lg); color: var(--text-secondary); display: flex; flex-direction: column; align-items: center; gap: 0.4rem; font-size: 0.82rem; }
+.es-vazio svg { color: var(--text-muted); }
+
+.es-pessoas { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.es-pessoa { border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-secondary); border-radius: var(--radius-pill); padding: 0.25rem 0.7rem; font-family: inherit; font-size: 0.76rem; font-weight: 600; cursor: pointer; display: inline-flex; gap: 0.3rem; align-items: center; }
+.es-pessoa.ativo { background: var(--wash-blue-strong); border-color: var(--accent-blue); color: var(--accent-blue); }
+.es-aviso { background: var(--wash-amber); color: var(--accent-amber); border-radius: var(--radius-md); padding: 0.5rem 0.75rem; font-size: 0.78rem; font-weight: 600; }
+.es-erro { background: var(--wash-rose); color: var(--accent-rose); border-radius: var(--radius-md); padding: 0.5rem 0.75rem; font-size: 0.8rem; font-weight: 600; }
+.es-custo { background: var(--bg-subtle); border-radius: var(--radius-md); padding: 0.55rem 0.75rem; font-size: 0.82rem; display: flex; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
+.es-detalhe { display: flex; flex-direction: column; gap: 0.5rem; font-size: 0.85rem; }
+.es-detalhe dt { font-size: 0.68rem; text-transform: uppercase; font-weight: 700; color: var(--text-muted); }
+.es-detalhe dd { margin: 0 0 0.3rem; }
+.es-acoes { display: flex; justify-content: flex-end; gap: 0.5rem; flex-wrap: wrap; }

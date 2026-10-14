@@ -1,836 +1,369 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Calendar as CalendarIcon, Plus, Plane, ChevronLeft, ChevronRight, AlertCircle, Pencil, Trash2, Car, MapPin
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { 
-  Calendar as CalendarIcon, 
-  MapPin, 
-  Users, 
-  Plus, 
-  Trash2, 
-  Send, 
-  Check, 
-  X, 
-  AlertCircle, 
-  Plane, 
-  Car, 
-  Clock,
-  DollarSign,
-  ChevronLeft,
-  ChevronRight,
-  UserCheck,
-  Briefcase,
-  Building2,
-  Info
-} from 'lucide-react';
+import { ModalShell } from './dimensionamento/ModalShell';
+import { hojeIso } from './diario/utils';
+import './escala/escala.css';
 
+const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const VALOR_KM = 1.5;
+const MAX_POR_CARRO = 4;
+
+const brl = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0);
+const dataBr = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
+const nomesDe = (t) => (t.userNames?.length ? t.userNames : [t.userName || 'Equipe']);
+const idsDe = (t) => t.userIds || (t.userId ? [t.userId] : []);
+
+const situacao = (t, hoje) => (t.endDate < hoje ? 'passada' : t.startDate <= hoje ? 'andamento' : 'futura');
+const custoViagem = (km, pessoas) => {
+  const base = (parseFloat(km) || 0) * VALOR_KM;
+  return pessoas > MAX_POR_CARRO ? base * 2 : base;
+};
+
+// ---------------------------------------------------------------- formulário
+const ViagemForm = ({ obra, viagem, dataInicial, todasViagens, onFechar }) => {
+  const { users } = useAuth();
+  const { addScheduledTrip, updateScheduledTrip } = useData();
+  const editando = !!viagem;
+
+  const equipe = useMemo(() => {
+    const aprovados = users.filter((u) => u.status === 'approved' || u.status === undefined);
+    const doProjeto = obra.assignedUserIds || [];
+    return [...aprovados].sort((a, b) => Number(doProjeto.includes(b.id)) - Number(doProjeto.includes(a.id)));
+  }, [users, obra]);
+
+  const [ids, setIds] = useState(viagem ? idsDe(viagem) : (obra.assignedUserIds || []).slice(0, 1));
+  const [inicio, setInicio] = useState(viagem?.startDate ?? dataInicial ?? hojeIso());
+  const [fim, setFim] = useState(viagem?.endDate ?? dataInicial ?? hojeIso());
+  const [notas, setNotas] = useState(viagem?.notes ?? '');
+  const [erro, setErro] = useState('');
+
+  const km = parseFloat(obra.distanceKm) || 0;
+  const duplo = ids.length > MAX_POR_CARRO;
+  const custo = custoViagem(km, ids.length);
+
+  const conflitos = useMemo(() => {
+    if (!inicio || !fim) return [];
+    const achados = new Set();
+    todasViagens.forEach((t) => {
+      if (viagem && t.id === viagem.id) return;
+      if (t.endDate < inicio || t.startDate > fim) return;
+      idsDe(t).filter((id) => ids.includes(id)).forEach((id) => {
+        const u = users.find((x) => x.id === id);
+        if (u) achados.add(`${u.name.split(' ')[0]} (${t.obraName})`);
+      });
+    });
+    return [...achados];
+  }, [todasViagens, ids, inicio, fim, viagem, users]);
+
+  const alternar = (id) => setIds((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+
+  const salvar = (e) => {
+    e.preventDefault();
+    if (!ids.length) return setErro('Escolha ao menos uma pessoa.');
+    if (!inicio || !fim) return setErro('Informe as datas de ida e volta.');
+    if (fim < inicio) return setErro('A volta não pode ser antes da ida.');
+    const sel = users.filter((u) => ids.includes(u.id));
+    const dados = {
+      userIds: ids,
+      userNames: sel.map((u) => u.name),
+      userName: sel.map((u) => u.name).join(', '),
+      userColorTag: sel[0]?.userColorTag || 'var(--accent-blue)',
+      startDate: inicio,
+      endDate: fim,
+      distanceKm: km,
+      cost: custo,
+      isDoubleCar: duplo,
+      notes: notas.trim() || `Viagem de serviço para ${obra.name}`
+    };
+    if (editando) updateScheduledTrip(obra.id, viagem.id, dados);
+    else addScheduledTrip(obra.id, dados);
+    onFechar();
+  };
+
+  return (
+    <ModalShell title={editando ? 'Editar viagem' : 'Agendar viagem'} subtitle={obra.name} onClose={onFechar} maxWidth={540}>
+      <form onSubmit={salvar} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+        <div className="dq-grid">
+          <label className="dq-field">
+            <span>Ida</span>
+            <input className="form-control" type="date" required value={inicio} onChange={(e) => { setInicio(e.target.value); if (fim < e.target.value) setFim(e.target.value); }} />
+          </label>
+          <label className="dq-field">
+            <span>Volta</span>
+            <input className="form-control" type="date" required min={inicio} value={fim} onChange={(e) => setFim(e.target.value)} />
+          </label>
+        </div>
+
+        <div className="dq-field">
+          <span>Equipe ({ids.length})</span>
+          <div className="es-pessoas">
+            {equipe.map((u) => (
+              <button key={u.id} type="button" className={`es-pessoa ${ids.includes(u.id) ? 'ativo' : ''}`} onClick={() => alternar(u.id)}>
+                {u.name.split(' ')[0]}
+                {(obra.assignedUserIds || []).includes(u.id) && <small>· obra</small>}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="es-custo">
+          <span><Car size={13} /> {duplo ? '2 carros (mais de 4 pessoas)' : '1 carro'}</span>
+          <span>{km} km × {brl(VALOR_KM)}/km{duplo ? ' × 2' : ''} = <strong>{brl(custo)}</strong></span>
+        </div>
+
+        {conflitos.length > 0 && (
+          <div className="es-aviso">Atenção: já viajam nesse período — {conflitos.join(', ')}.</div>
+        )}
+
+        <label className="dq-field">
+          <span>Objetivo / observações</span>
+          <textarea className="form-control" rows={2} value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Ex.: Instalação dos quadros do 2º pavimento" />
+        </label>
+
+        {erro && <div className="es-erro" role="alert">{erro}</div>}
+        <div className="es-acoes">
+          <button type="button" className="btn btn-secondary" onClick={onFechar}>Cancelar</button>
+          <button type="submit" className="btn btn-primary">{editando ? 'Salvar alterações' : 'Agendar viagem'}</button>
+        </div>
+      </form>
+    </ModalShell>
+  );
+};
+
+// ---------------------------------------------------------------- principal
 export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
-  const { isAdmin, users, currentUser } = useAuth();
-  const { obras, activeObra, addScheduledTrip, deleteScheduledTrip } = useData();
+  const { isAdmin, currentUser } = useAuth();
+  const { obras, activeObra, deleteScheduledTrip } = useData();
 
-  const [activeViewMode, setActiveViewMode] = useState(defaultViewMode); // 'obra' | 'personal'
+  const [modo, setModo] = useState(defaultViewMode); // 'obra' | 'personal'
+  useEffect(() => { if (defaultViewMode) setModo(defaultViewMode); }, [defaultViewMode]);
 
-  React.useEffect(() => {
-    if (defaultViewMode) {
-      setActiveViewMode(defaultViewMode);
-    }
-  }, [defaultViewMode]);
+  const [mes, setMes] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
+  const [form, setForm] = useState(null); // { viagem?, dataInicial?, obra }
+  const [detalhe, setDetalhe] = useState(null);
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedUserIds, setSelectedUserIds] = useState([]);
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
-  const [notes, setNotes] = useState('');
-  const [selectedPersonalTripDetail, setSelectedPersonalTripDetail] = useState(null);
+  const hoje = hojeIso();
 
-  const formatBRL = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+  const todas = useMemo(
+    () => obras.flatMap((o) => (o.scheduledTrips || []).map((t) => ({ ...t, obraId: o.id, obraName: o.name, obraClient: o.client }))),
+    [obras]
+  );
+  const daObra = useMemo(
+    () => todas.filter((t) => t.obraId === activeObra?.id).sort((a, b) => a.startDate.localeCompare(b.startDate)),
+    [todas, activeObra]
+  );
+  const minhas = useMemo(
+    () => todas.filter((t) => currentUser && idsDe(t).includes(currentUser.id)).sort((a, b) => a.startDate.localeCompare(b.startDate)),
+    [todas, currentUser]
+  );
 
-  if (!activeObra && activeViewMode === 'obra') {
+  const pessoal = modo === 'personal' || !activeObra;
+  const lista = pessoal ? minhas : daObra;
+  const custoTotal = daObra.reduce((s, t) => s + (parseFloat(t.cost) || 0), 0);
+  const proxima = lista.find((t) => t.endDate >= hoje);
+  const distanciaKm = parseFloat(activeObra?.distanceKm) || 0;
+
+  const ano = mes.getFullYear();
+  const mesNum = mes.getMonth();
+  const diasNoMes = new Date(ano, mesNum + 1, 0).getDate();
+  const primeiroDia = new Date(ano, mesNum, 1).getDay();
+  const isoDia = (d) => `${ano}-${String(mesNum + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+  const mudarMes = (n) => setMes(new Date(ano, mesNum + n, 1));
+
+  const abrirNovo = (dataInicial) => {
+    if (!isAdmin || !activeObra) return;
+    setForm({ obra: activeObra, dataInicial });
+  };
+  const abrirEdicao = (t) => {
+    const obra = obras.find((o) => o.id === t.obraId);
+    if (obra) { setDetalhe(null); setForm({ obra, viagem: t }); }
+  };
+  const excluir = (t) => {
+    if (!window.confirm(`Cancelar a viagem de ${dataBr(t.startDate)} a ${dataBr(t.endDate)}?`)) return;
+    deleteScheduledTrip(t.obraId, t.id);
+    setDetalhe(null);
+  };
+
+  if (!activeObra && modo === 'obra' && minhas.length === 0 && todas.length === 0) {
     return (
-      <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
-        <AlertCircle size={48} className="text-amber" style={{ marginBottom: '1rem' }} />
-        <h3>Nenhuma Obra Selecionada</h3>
-        <p style={{ color: 'var(--text-muted)', marginBottom: '1rem' }}>
-          Selecione uma obra na vitrine para gerenciar a escala da equipe da obra ou acesse sua Agenda Pessoal abaixo.
-        </p>
-        <button onClick={() => setActiveViewMode('personal')} className="btn btn-primary">
-          <UserCheck size={16} /> Ver Minha Agenda Pessoal
-        </button>
+      <div className="es-vazio">
+        <AlertCircle size={36} />
+        <h3>Nenhuma obra selecionada</h3>
+        <p>Selecione uma obra na Vitrine para ver e agendar as viagens da equipe.</p>
       </div>
     );
   }
 
-  const scheduledTrips = activeObra?.scheduledTrips || [];
-  const distanceKm = parseFloat(activeObra?.distanceKm) || 0;
-  const baseTripCost = distanceKm * 1.5;
-
-  const totalTravelSpent = scheduledTrips.reduce((acc, curr) => acc + (parseFloat(curr.cost) || 0), 0);
-
-  // Available users for this obra
-  const assignedUsers = users.filter(u => (activeObra?.assignedUserIds || []).includes(u.id));
-
-  const handleOpenAddModal = (dateStr) => {
-    if (!isAdmin) return;
-    if (dateStr) {
-      setStartDate(dateStr);
-      setEndDate(dateStr);
-    }
-    if (users.length > 0) {
-      const defaultUser = assignedUsers[0] || users[0];
-      setSelectedUserIds([defaultUser.id]);
-    }
-    setIsModalOpen(true);
-  };
-
-  const handleToggleUserSelection = (userId) => {
-    if (selectedUserIds.includes(userId)) {
-      if (selectedUserIds.length > 1) {
-        setSelectedUserIds(selectedUserIds.filter(id => id !== userId));
-      }
-    } else {
-      setSelectedUserIds([...selectedUserIds, userId]);
-    }
-  };
-
-  // Cost calculation for selected collaborators in modal
-  const modalColabCount = selectedUserIds.length || 1;
-  const modalIsDoubleCar = modalColabCount > 4;
-  const modalCalculatedCost = modalIsDoubleCar ? baseTripCost * 2 : baseTripCost;
-
-  const handleScheduleSubmit = (e) => {
-    e.preventDefault();
-    if (!selectedUserIds.length || !startDate || !endDate || !activeObra) return;
-
-    const selectedUsersObj = users.filter(u => selectedUserIds.includes(u.id));
-    const userNames = selectedUsersObj.map(u => u.name);
-
-    addScheduledTrip(activeObra.id, {
-      userIds: selectedUserIds,
-      userNames: userNames,
-      userName: userNames.join(', '),
-      userColorTag: selectedUsersObj[0]?.userColorTag || 'var(--accent-blue)',
-      startDate,
-      endDate,
-      distanceKm,
-      cost: modalCalculatedCost,
-      isDoubleCar: modalIsDoubleCar,
-      notes: notes || `Viagem de serviço para ${activeObra.name}`
-    });
-
-    setIsModalOpen(false);
-    setNotes('');
-  };
-
-  // Infinite Calendar State
-  const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
-
-  const handlePrevMonth = () => {
-    setCurrentCalendarDate(prev => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
-  };
-
-  const handleNextMonth = () => {
-    setCurrentCalendarDate(prev => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
-  };
-
-  // Build calendar month grid for selected month
-  const today = new Date();
-  const currentYear = currentCalendarDate.getFullYear();
-  const currentMonth = currentCalendarDate.getMonth();
-
-  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-  const firstDayOfWeek = new Date(currentYear, currentMonth, 1).getDay();
-
-  const monthNames = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-  ];
-
-  const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-
-  // Collect personal trips for current user across ALL obras
-  const myPersonalTrips = [];
-  if (currentUser) {
-    obras.forEach(obra => {
-      (obra.scheduledTrips || []).forEach(trip => {
-        const isUserIncluded = (trip.userIds && trip.userIds.includes(currentUser.id)) || trip.userId === currentUser.id;
-        if (isUserIncluded) {
-          myPersonalTrips.push({
-            ...trip,
-            obraId: obra.id,
-            obraName: obra.name,
-            obraCode: obra.code || 'N/A',
-            obraClient: obra.client || 'Cliente'
-          });
-        }
-      });
-    });
-  }
-
-  // Count distinct obras user is traveling to
-  const personalObrasCount = new Set(myPersonalTrips.map(t => t.obraId)).size;
+  const grupos = [
+    ['Em andamento', lista.filter((t) => situacao(t, hoje) === 'andamento')],
+    ['Próximas', lista.filter((t) => situacao(t, hoje) === 'futura')],
+    ['Realizadas', [...lista.filter((t) => situacao(t, hoje) === 'passada')].reverse()]
+  ].filter(([, itens]) => itens.length);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '1200px', margin: '0 auto' }}>
-      {/* View Switcher Bar: Obra Agenda vs Minha Agenda Pessoal */}
-      <div className="glass-panel" style={{ padding: '0.85rem 1.25rem', borderRadius: 'var(--radius-lg)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.75rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-main)', padding: '4px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
-          {activeObra && (
-            <button
-              type="button"
-              onClick={() => setActiveViewMode('obra')}
-              style={{
-                padding: '0.45rem 0.85rem',
-                fontSize: '0.825rem',
-                fontWeight: 700,
-                borderRadius: 'var(--radius-sm)',
-                border: 'none',
-                cursor: 'pointer',
-                background: activeViewMode === 'obra' ? 'var(--accent-blue)' : 'transparent',
-                color: activeViewMode === 'obra' ? '#ffffff' : 'var(--text-muted)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem'
-              }}
-            >
-              <CalendarIcon size={15} /> Agenda da Obra ({activeObra?.name || 'Geral'})
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setActiveViewMode('personal')}
-            style={{
-              padding: '0.45rem 0.85rem',
-              fontSize: '0.825rem',
-              fontWeight: 700,
-              borderRadius: 'var(--radius-sm)',
-              border: 'none',
-              cursor: 'pointer',
-              background: activeViewMode === 'personal' ? 'var(--accent-purple)' : 'transparent',
-              color: activeViewMode === 'personal' ? '#ffffff' : 'var(--text-muted)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem'
-            }}
-          >
-            <UserCheck size={15} /> 📅 Minha Agenda Pessoal ({myPersonalTrips.length} viagens em {personalObrasCount} obras)
-          </button>
+    <div className="es-wrap">
+      <div className="es-topo">
+        <div>
+          <h2><Plane size={20} /> Escala de viagens</h2>
+          <span className="es-dica">
+            {pessoal ? `Minhas viagens em todas as obras` : `${activeObra.name} · ${distanciaKm} km · ${brl(VALOR_KM)}/km · acima de ${MAX_POR_CARRO} pessoas = 2 carros`}
+          </span>
         </div>
+        <span className="es-espaco" />
+        <div className="es-seg" role="group" aria-label="Visão">
+          {activeObra && (
+            <button type="button" className={modo === 'obra' ? 'ativo' : ''} onClick={() => setModo('obra')}>Da obra</button>
+          )}
+          <button type="button" className={`pessoal ${pessoal ? 'ativo' : ''}`} onClick={() => setModo('personal')}>Minha agenda</button>
+        </div>
+        {isAdmin && activeObra && !pessoal && (
+          <button type="button" className="btn btn-primary" onClick={() => abrirNovo(hoje)}>
+            <Plus size={15} /> Agendar viagem
+          </button>
+        )}
+      </div>
 
-        {activeViewMode === 'obra' && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '0.675rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Custo Total de Viagens</div>
-              <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent-amber)' }}>
-                {formatBRL(totalTravelSpent)}
-              </div>
-            </div>
-
-            {isAdmin && (
-              <button onClick={() => handleOpenAddModal(null)} className="btn btn-primary btn-sm">
-                <Plus size={16} /> Agendar Viagem
-              </button>
-            )}
+      <div className="es-kpis">
+        <div className="es-kpi">
+          <span>{pessoal ? 'Minhas viagens' : 'Viagens da obra'}</span>
+          <strong>{lista.length}</strong>
+          <small>{lista.filter((t) => situacao(t, hoje) !== 'passada').length} em andamento ou futuras</small>
+        </div>
+        <div className="es-kpi">
+          <span>Próxima viagem</span>
+          <strong>{proxima ? dataBr(proxima.startDate).slice(0, 5) : '—'}</strong>
+          <small>{proxima ? (pessoal ? proxima.obraName : nomesDe(proxima).map((n) => n.split(' ')[0]).join(', ')) : 'nada agendado'}</small>
+        </div>
+        {!pessoal && isAdmin && (
+          <div className="es-kpi amber">
+            <span>Custo de viagens</span>
+            <strong>{brl(custoTotal)}</strong>
+            <small>debitado dos indiretos da obra</small>
+          </div>
+        )}
+        {pessoal && (
+          <div className="es-kpi">
+            <span>Obras com viagem</span>
+            <strong>{new Set(minhas.map((t) => t.obraId)).size}</strong>
+            <small>na sua agenda</small>
           </div>
         )}
       </div>
 
-      {/* VIEW 1: AGENDA DA OBRA ATIVA */}
-      {activeViewMode === 'obra' && activeObra && (
-        <>
-          {/* Header Banner */}
-          <div className="glass-panel" style={{
-            padding: '1.25rem',
-            borderRadius: 'var(--radius-lg)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            flexWrap: 'wrap',
-            gap: '1rem'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-              <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-                <CalendarIcon size={24} />
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.15rem' }}>
-                  <span className="badge badge-blue">Escala de Viagens de Equipe</span>
-                  <span className="badge badge-amber"><MapPin size={12} /> {distanceKm} km (R$ 1,50/km)</span>
-                  <span className="badge badge-purple"><Car size={12} /> Acima de 4 pessoas = 2 Carros</span>
-                </div>
-                <h1 style={{ fontSize: '1.3rem', fontWeight: 800 }}>
-                  Agenda de Alocação - {activeObra.name}
-                </h1>
-              </div>
-            </div>
+      <div className="es-grade">
+        <div className="es-card">
+          <div className="es-mes">
+            <button type="button" className="btn btn-secondary btn-sm" aria-label="Mês anterior" onClick={() => mudarMes(-1)}><ChevronLeft size={15} /></button>
+            <h3>{MESES[mesNum]} {ano}</h3>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { const d = new Date(); setMes(new Date(d.getFullYear(), d.getMonth(), 1)); }}>Hoje</button>
+            <button type="button" className="btn btn-secondary btn-sm" aria-label="Próximo mês" onClick={() => mudarMes(1)}><ChevronRight size={15} /></button>
           </div>
 
-          {/* Main Grid: Calendar + Trips List */}
-          <div className="schedule-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.25rem' }}>
-            {/* Calendar Grid */}
-            <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <button 
-                    type="button" 
-                    onClick={handlePrevMonth} 
-                    className="btn btn-secondary btn-sm"
-                    style={{ padding: '0.2rem 0.5rem' }}
-                    title="Mês Anterior"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                    📅 {monthNames[currentMonth]} {currentYear}
-                  </h3>
-                  <button 
-                    type="button" 
-                    onClick={handleNextMonth} 
-                    className="btn btn-secondary btn-sm"
-                    style={{ padding: '0.2rem 0.5rem' }}
-                    title="Próximo Mês"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  {isAdmin ? 'Clique em um dia para agendar equipe' : 'Modo de Visualização para Operadores'}
-                </span>
-              </div>
-
-              {/* Day of Week Headers */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', textAlign: 'center', fontWeight: 700, fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                <div>Dom</div>
-                <div>Seg</div>
-                <div>Ter</div>
-                <div>Qua</div>
-                <div>Qui</div>
-                <div>Sex</div>
-                <div>Sáb</div>
-              </div>
-
-              {/* Days Cells */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
-                {/* Empty slots before first day */}
-                {Array.from({ length: firstDayOfWeek }).map((_, idx) => (
-                  <div key={`empty-${idx}`} className="calendar-cell" style={{ height: '75px', borderRadius: '6px', background: 'rgba(255,255,255,0.02)' }} />
-                ))}
-
-                {daysArray.map(day => {
-                  const dayFormatted = day < 10 ? `0${day}` : `${day}`;
-                  const monthFormatted = currentMonth + 1 < 10 ? `0${currentMonth + 1}` : `${currentMonth + 1}`;
-                  const dateStr = `${currentYear}-${monthFormatted}-${dayFormatted}`;
-
-                  // Find trips on this day
-                  const dayTrips = scheduledTrips.filter(t => dateStr >= t.startDate && dateStr <= t.endDate);
-
-                  const isToday = day === today.getDate();
-
-                  return (
-                    <div
-                      key={day}
-                      className="calendar-cell"
-                      onClick={() => isAdmin && handleOpenAddModal(dateStr)}
-                      style={{
-                        height: '75px',
-                        borderRadius: '6px',
-                        border: isToday ? '2px solid var(--accent-blue)' : '1px solid var(--border-color)',
-                        background: dayTrips.length > 0 ? 'var(--wash-blue)' : 'var(--bg-main)',
-                        padding: '4px',
-                        cursor: isAdmin ? 'pointer' : 'default',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        transition: 'border-color 0.15s ease'
-                      }}
-                      onMouseEnter={(e) => isAdmin && (e.currentTarget.style.borderColor = 'var(--accent-blue)')}
-                      onMouseLeave={(e) => isAdmin && (e.currentTarget.style.borderColor = isToday ? 'var(--accent-blue)' : 'var(--border-color)')}
+          <div className="es-dias-semana">{SEMANA.map((d) => <div key={d}>{d}</div>)}</div>
+          <div className="es-dias">
+            {Array.from({ length: primeiroDia }).map((_, i) => <div key={`v${i}`} className="es-dia vazio" />)}
+            {Array.from({ length: diasNoMes }, (_, i) => i + 1).map((d) => {
+              const iso = isoDia(d);
+              const doDia = lista.filter((t) => iso >= t.startDate && iso <= t.endDate);
+              const fds = [0, 6].includes(new Date(ano, mesNum, d).getDay());
+              const clicavel = isAdmin && !pessoal;
+              return (
+                <div
+                  key={d}
+                  role={clicavel ? 'button' : undefined}
+                  tabIndex={clicavel ? 0 : undefined}
+                  className={`es-dia ${iso === hoje ? 'hoje' : ''} ${fds ? 'fds' : ''} ${clicavel ? 'clicavel' : ''}`}
+                  onClick={() => clicavel && abrirNovo(iso)}
+                  onKeyDown={(e) => clicavel && e.key === 'Enter' && abrirNovo(iso)}
+                >
+                  <span className="es-dia-num">{d}</span>
+                  {doDia.slice(0, 2).map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className={`es-chip ${pessoal ? 'pessoal' : t.isDoubleCar ? 'duplo' : ''}`}
+                      title={`${pessoal ? t.obraName : nomesDe(t).join(', ')} — ${t.notes || ''}`}
+                      onClick={(e) => { e.stopPropagation(); setDetalhe(t); }}
                     >
-                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: isToday ? 'var(--accent-blue)' : 'var(--text-primary)' }}>
-                        {day}
-                      </div>
-
-                      {/* Badges of booked users */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflowY: 'auto' }}>
-                        {dayTrips.map(trip => {
-                          const colabNames = trip.userNames ? trip.userNames.join(', ') : (trip.userName || 'Equipe');
-                          return (
-                            <div
-                              key={trip.id}
-                              style={{
-                                fontSize: '0.625rem',
-                                fontWeight: 700,
-                                borderRadius: '3px',
-                                padding: '1px 3px',
-                                background: trip.isDoubleCar ? 'var(--accent-amber)' : (trip.userColorTag || 'var(--accent-blue)'),
-                                color: '#ffffff',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis'
-                              }}
-                              title={`${colabNames}: ${trip.notes} (${trip.isDoubleCar ? '2 carros' : '1 carro'} - R$ ${trip.cost})`}
-                            >
-                              ✈️ {colabNames.split(',')[0]} {trip.isDoubleCar ? '🚘🚘' : '🚘'}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Trips List Panel */}
-            <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Plane size={18} className="text-blue" /> Viagens Agendadas ({scheduledTrips.length})
-              </h3>
-
-              {scheduledTrips.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', overflowY: 'auto', maxHeight: '500px' }}>
-                  {scheduledTrips.map(trip => {
-                    const colabsList = trip.userNames ? trip.userNames : [trip.userName || 'Operador'];
-                    return (
-                      <div
-                        key={trip.id}
-                        style={{
-                          padding: '0.75rem',
-                          borderRadius: 'var(--radius-sm)',
-                          background: 'var(--bg-main)',
-                          border: '1px solid var(--border-color)',
-                          borderLeft: `4px solid ${trip.isDoubleCar ? 'var(--accent-amber)' : (trip.userColorTag || 'var(--accent-blue)')}`
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                          <strong style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
-                            👥 {colabsList.join(', ')}
-                          </strong>
-                          {isAdmin && (
-                            <button
-                              onClick={() => {
-                                if (window.confirm(`Cancelar agendamento de viagem da equipe?`)) {
-                                  deleteScheduledTrip(activeObra.id, trip.id);
-                                }
-                              }}
-                              style={{ background: 'none', border: 'none', color: 'var(--accent-rose)', cursor: 'pointer' }}
-                              title="Excluir Viagem"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
-                        </div>
-
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                          <div>📅 <strong>Período:</strong> {trip.startDate} até {trip.endDate}</div>
-                          <div>
-                            {trip.isDoubleCar ? (
-                              <span style={{ color: 'var(--accent-amber)', fontWeight: 700 }}>🚘🚘 2 Carros (Mais de 4 pessoas - Custo Dobrado): {formatBRL(trip.cost)}</span>
-                            ) : (
-                              <span style={{ color: 'var(--accent-emerald)', fontWeight: 700 }}>🚘 1 Carro: {formatBRL(trip.cost)}</span>
-                            )}
-                          </div>
-                          {trip.notes && (
-                            <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '0.2rem' }}>
-                              "{trip.notes}"
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)' }}>
-                  Nenhuma viagem agendada até o momento.
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* VIEW 2: MINHA AGENDA PESSOAL (VISUAL CALENDAR GRID + PERSONAL TRIPS LIST) */}
-      {activeViewMode === 'personal' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {/* Header Banner */}
-          <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: 'var(--radius-lg)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-              <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--accent-purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-                <UserCheck size={24} />
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.15rem' }}>
-                  <span className="badge badge-purple">Minha Agenda Pessoal de Campo</span>
-                  <span className="badge badge-blue">🏢 {personalObrasCount} Obra(s) Programada(s)</span>
-                  <span className="badge badge-emerald">✈️ {myPersonalTrips.length} Viagem(ns) no Total</span>
-                </div>
-                <h1 style={{ fontSize: '1.3rem', fontWeight: 800 }}>
-                  Agenda de Viagens de {currentUser?.name || 'Usuário'}
-                </h1>
-                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                  Calendário mensal unificado com todas as suas viagens agendadas em todas as obras.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Main Grid: Personal Visual Calendar + Personal Trips List */}
-          <div className="schedule-grid" style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.25rem' }}>
-            {/* Visual Calendar Grid for Personal Agenda */}
-            <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                  <button 
-                    type="button" 
-                    onClick={handlePrevMonth} 
-                    className="btn btn-secondary btn-sm"
-                    style={{ padding: '0.2rem 0.5rem' }}
-                    title="Mês Anterior"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                  <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                    📅 {monthNames[currentMonth]} {currentYear}
-                  </h3>
-                  <button 
-                    type="button" 
-                    onClick={handleNextMonth} 
-                    className="btn btn-secondary btn-sm"
-                    style={{ padding: '0.2rem 0.5rem' }}
-                    title="Próximo Mês"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                  Minhas Viagens por Obra
-                </span>
-              </div>
-
-              {/* Day of Week Headers */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', textAlign: 'center', fontWeight: 700, fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                <div>Dom</div>
-                <div>Seg</div>
-                <div>Ter</div>
-                <div>Qua</div>
-                <div>Qui</div>
-                <div>Sex</div>
-                <div>Sáb</div>
-              </div>
-
-              {/* Days Cells */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
-                {/* Empty slots before first day */}
-                {Array.from({ length: firstDayOfWeek }).map((_, idx) => (
-                  <div key={`empty-p-${idx}`} className="calendar-cell" style={{ height: '80px', borderRadius: '6px', background: 'rgba(255,255,255,0.02)' }} />
-                ))}
-
-                {daysArray.map(day => {
-                  const dayFormatted = day < 10 ? `0${day}` : `${day}`;
-                  const monthFormatted = currentMonth + 1 < 10 ? `0${currentMonth + 1}` : `${currentMonth + 1}`;
-                  const dateStr = `${currentYear}-${monthFormatted}-${dayFormatted}`;
-
-                  // Find user personal trips on this day across all obras
-                  const dayTrips = myPersonalTrips.filter(t => dateStr >= t.startDate && dateStr <= t.endDate);
-
-                  const isToday = day === today.getDate();
-
-                  return (
-                    <div
-                      key={day}
-                      className="calendar-cell"
-                      style={{
-                        height: '80px',
-                        borderRadius: '6px',
-                        border: isToday ? '2px solid var(--accent-purple)' : '1px solid var(--border-color)',
-                        background: dayTrips.length > 0 ? 'var(--wash-purple)' : 'var(--bg-main)',
-                        padding: '4px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      <div style={{ fontSize: '0.75rem', fontWeight: 700, color: isToday ? 'var(--accent-purple)' : 'var(--text-primary)' }}>
-                        {day}
-                      </div>
-
-                      {/* Badges of user's personal trips */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', overflowY: 'auto' }}>
-                        {dayTrips.map(trip => (
-                          <div
-                            key={trip.id}
-                            onClick={() => setSelectedPersonalTripDetail(trip)}
-                            style={{
-                              fontSize: '0.625rem',
-                              fontWeight: 700,
-                              borderRadius: '3px',
-                              padding: '2px 4px',
-                              background: trip.isDoubleCar ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #7c3aed, #0284c7)',
-                              color: '#ffffff',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              cursor: 'pointer',
-                              boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
-                            }}
-                            title={`Obra: ${trip.obraName} | ${trip.notes}`}
-                          >
-                            🏢 {trip.obraName.split(' ')[0]} {trip.isDoubleCar ? '🚘🚘' : '🚘'}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* List of Personal Trips Side Panel */}
-            <div className="glass-panel" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <Briefcase size={18} className="text-purple" /> Minhas Viagens ({myPersonalTrips.length})
-              </h3>
-
-              {myPersonalTrips.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto', maxHeight: '520px' }}>
-                  {myPersonalTrips.map(trip => (
-                    <div
-                      key={trip.id}
-                      onClick={() => setSelectedPersonalTripDetail(trip)}
-                      style={{
-                        padding: '0.85rem',
-                        borderRadius: 'var(--radius-sm)',
-                        background: 'var(--bg-main)',
-                        border: '1px solid var(--border-color)',
-                        borderLeft: `4px solid ${trip.isDoubleCar ? 'var(--accent-amber)' : 'var(--accent-purple)'}`,
-                        cursor: 'pointer',
-                        transition: 'transform 0.15s ease, border-color 0.15s ease'
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
-                        <span className="badge badge-purple" style={{ fontSize: '0.7rem' }}>
-                          <Building2 size={11} /> {trip.obraName}
-                        </span>
-                        <span className={`badge ${trip.isDoubleCar ? 'badge-amber' : 'badge-emerald'}`} style={{ fontSize: '0.65rem' }}>
-                          {trip.isDoubleCar ? '🚘🚘 2 Carros' : '🚘 1 Carro'}
-                        </span>
-                      </div>
-
-                      <strong style={{ fontSize: '0.875rem', color: 'var(--text-primary)', display: 'block', marginBottom: '0.25rem' }}>
-                        ✈️ Viagem de Serviço
-                      </strong>
-
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-                        <div>📅 <strong>Período:</strong> {trip.startDate} até {trip.endDate}</div>
-                        <div>👥 <strong>Equipe:</strong> {trip.userNames ? trip.userNames.join(', ') : (trip.userName || currentUser?.name)}</div>
-                        {trip.notes && (
-                          <div style={{ fontStyle: 'italic', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
-                            "{trip.notes}"
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div style={{ padding: '2.5rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.825rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-md)' }}>
-                  <Plane size={36} style={{ color: 'var(--text-muted)', marginBottom: '0.5rem' }} />
-                  <div>Nenhuma viagem agendada para você nas obras ativas.</div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Modal / Card Details for Personal Trip Click */}
-          {selectedPersonalTripDetail && (
-            <div className="mobile-modal-overlay" style={{
-              position: 'fixed',
-              inset: 0,
-              background: 'rgba(0, 0, 0, 0.85)',
-              backdropFilter: 'blur(4px)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              zIndex: 1100,
-              padding: '1rem'
-            }}>
-              <div className="glass-panel mobile-modal-content" style={{ width: '100%', maxWidth: '480px', borderRadius: 'var(--radius-lg)', padding: '1.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <Plane size={20} className="text-purple" />
-                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Detalhes da Viagem de Campo</h3>
-                  </div>
-                  <button onClick={() => setSelectedPersonalTripDetail(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                    <X size={20} />
-                  </button>
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', fontSize: '0.85rem' }}>
-                  <div style={{ padding: '0.75rem', borderRadius: '6px', background: 'var(--wash-purple)', border: '1px solid var(--accent-purple)' }}>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--accent-purple)', fontWeight: 800, textTransform: 'uppercase' }}>Obra de Destino</div>
-                    <strong style={{ fontSize: '1.1rem', color: 'var(--text-primary)' }}>{selectedPersonalTripDetail.obraName}</strong>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Cliente: {selectedPersonalTripDetail.obraClient}</div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                    <div style={{ padding: '0.65rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)' }}>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Data de Ida</div>
-                      <strong>📅 {selectedPersonalTripDetail.startDate}</strong>
-                    </div>
-                    <div style={{ padding: '0.65rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)' }}>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Data de Volta</div>
-                      <strong>📅 {selectedPersonalTripDetail.endDate}</strong>
-                    </div>
-                  </div>
-
-                  <div style={{ padding: '0.65rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)' }}>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Transporte Alocado</div>
-                    <strong style={{ color: selectedPersonalTripDetail.isDoubleCar ? 'var(--accent-amber)' : 'var(--accent-emerald)' }}>
-                      {selectedPersonalTripDetail.isDoubleCar ? '🚘🚘 2 Carros (Mais de 4 pessoas - Custo Dobrado)' : '🚘 1 Carro de Passeio / Utilitário'}
-                    </strong>
-                  </div>
-
-                  <div style={{ padding: '0.65rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)' }}>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Equipe Integrante</div>
-                    <div>👥 {selectedPersonalTripDetail.userNames ? selectedPersonalTripDetail.userNames.join(', ') : selectedPersonalTripDetail.userName}</div>
-                  </div>
-
-                  {selectedPersonalTripDetail.notes && (
-                    <div style={{ padding: '0.75rem', borderRadius: '6px', background: 'var(--bg-main)', border: '1px solid var(--border-color)' }}>
-                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Objetivo / Observações</div>
-                      <div style={{ fontStyle: 'italic', color: 'var(--text-primary)' }}>"{selectedPersonalTripDetail.notes}"</div>
-                    </div>
-                  )}
-
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
-                    <button onClick={() => setSelectedPersonalTripDetail(null)} className="btn btn-secondary">
-                      Fechar
+                      {pessoal ? t.obraName : nomesDe(t)[0].split(' ')[0]}
                     </button>
-                  </div>
+                  ))}
+                  {doDia.length > 2 && <span className="es-mais">+{doDia.length - 2}</span>}
                 </div>
-              </div>
+              );
+            })}
+          </div>
+          <span className="es-dica">{isAdmin && !pessoal ? 'Clique em um dia para agendar; clique numa viagem para ver os detalhes.' : 'Clique numa viagem para ver os detalhes.'}</span>
+        </div>
+
+        <div className="es-card">
+          <h3><CalendarIcon size={15} style={{ verticalAlign: '-2px' }} /> Viagens ({lista.length})</h3>
+          {lista.length === 0 ? (
+            <div className="es-vazio">
+              <Plane size={28} />
+              <span>{pessoal ? 'Você não tem viagens agendadas.' : 'Nenhuma viagem agendada nesta obra.'}</span>
+              {isAdmin && !pessoal && <button type="button" className="btn btn-primary btn-sm" onClick={() => abrirNovo(hoje)}><Plus size={14} /> Agendar a primeira</button>}
+            </div>
+          ) : (
+            <div className="es-lista">
+              {grupos.map(([titulo, itens]) => (
+                <React.Fragment key={titulo}>
+                  <div className="es-grupo-titulo">{titulo}</div>
+                  {itens.map((t) => (
+                    <button
+                      key={t.id}
+                      type="button"
+                      className={`es-viagem ${pessoal ? 'pessoal' : t.isDoubleCar ? 'duplo' : ''} ${situacao(t, hoje) === 'passada' ? 'passada' : ''}`}
+                      onClick={() => setDetalhe(t)}
+                    >
+                      <strong>{dataBr(t.startDate)}{t.endDate !== t.startDate ? ` → ${dataBr(t.endDate)}` : ''}</strong>
+                      <small>{pessoal ? `${t.obraName} · ` : ''}{nomesDe(t).join(', ')}</small>
+                      <span className={`es-selo ${t.isDoubleCar ? 'duplo' : situacao(t, hoje) === 'andamento' ? 'andamento' : ''}`}>
+                        {t.isDoubleCar ? '2 carros' : '1 carro'}{!pessoal && isAdmin ? ` · ${brl(t.cost)}` : ''}
+                      </span>
+                    </button>
+                  ))}
+                </React.Fragment>
+              ))}
             </div>
           )}
         </div>
+      </div>
+
+      {detalhe && (
+        <ModalShell title="Detalhes da viagem" subtitle={detalhe.obraName} onClose={() => setDetalhe(null)} maxWidth={460}>
+          <dl className="es-detalhe">
+            <div><dt>Período</dt><dd>{dataBr(detalhe.startDate)} até {dataBr(detalhe.endDate)}</dd></div>
+            <div><dt>Equipe</dt><dd>{nomesDe(detalhe).join(', ')}</dd></div>
+            <div><dt><Car size={11} /> Transporte</dt><dd>{detalhe.isDoubleCar ? '2 carros (mais de 4 pessoas)' : '1 carro'}{isAdmin ? ` · ${brl(detalhe.cost)}` : ''}</dd></div>
+            {detalhe.distanceKm > 0 && <div><dt><MapPin size={11} /> Distância</dt><dd>{detalhe.distanceKm} km</dd></div>}
+            {detalhe.notes && <div><dt>Objetivo</dt><dd>{detalhe.notes}</dd></div>}
+          </dl>
+          <div className="es-acoes">
+            {isAdmin && (
+              <>
+                <button type="button" className="btn btn-danger btn-sm" onClick={() => excluir(detalhe)}><Trash2 size={13} /> Cancelar viagem</button>
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => abrirEdicao(detalhe)}><Pencil size={13} /> Editar</button>
+              </>
+            )}
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setDetalhe(null)}>Fechar</button>
+          </div>
+        </ModalShell>
       )}
 
-      {/* Modal: Agendar Nova Viagem (Admin Only) */}
-      {isModalOpen && (
-        <div className="mobile-modal-overlay" style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0, 0, 0, 0.8)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1100,
-          padding: '1rem'
-        }}>
-          <div className="glass-panel mobile-modal-content" style={{ width: '100%', maxWidth: '520px', borderRadius: 'var(--radius-lg)', padding: '1.5rem', overflowY: 'auto', maxHeight: '90vh' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <Plane size={20} className="text-blue" />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Agendar Viagem de Equipe (Admin)</h3>
-              </div>
-              <button onClick={() => setIsModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                <X size={20} />
-              </button>
-            </div>
-
-            <form onSubmit={handleScheduleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              {/* Multi-Collaborator Selector */}
-              <div className="form-group">
-                <label style={{ fontSize: '0.8rem', fontWeight: 600, display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Selecione os Colaboradores da Viagem *</span>
-                  <span style={{ color: 'var(--accent-blue)' }}>{selectedUserIds.length} Selecionado(s)</span>
-                </label>
-
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.35rem' }}>
-                  {users.map(u => {
-                    const isSelected = selectedUserIds.includes(u.id);
-                    return (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={() => handleToggleUserSelection(u.id)}
-                        className="btn btn-sm"
-                        style={{
-                          background: isSelected ? 'var(--accent-blue)' : 'var(--bg-main)',
-                          color: isSelected ? '#ffffff' : 'var(--text-secondary)',
-                          borderColor: isSelected ? 'var(--accent-blue)' : 'var(--border-color)',
-                          fontSize: '0.75rem',
-                          padding: '0.3rem 0.6rem'
-                        }}
-                      >
-                        {isSelected ? '✓ ' : '+ '}{u.name} ({u.role === 'admin' ? 'Admin' : 'Op'})
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                <div className="form-group">
-                  <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Data de Ida *</label>
-                  <input type="date" required className="form-control" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                </div>
-                <div className="form-group">
-                  <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Data de Volta *</label>
-                  <input type="date" required className="form-control" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-                </div>
-              </div>
-
-              {/* Dynamic Multi-Car Travel Cost Card Info */}
-              <div style={{ 
-                padding: '0.85rem', 
-                borderRadius: '8px', 
-                background: modalIsDoubleCar ? 'var(--wash-amber)' : 'var(--wash-blue)', 
-                border: `1px solid ${modalIsDoubleCar ? 'var(--accent-amber)' : 'var(--accent-blue)'}`, 
-                fontSize: '0.8rem' 
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={{ fontWeight: 800, color: modalIsDoubleCar ? 'var(--accent-amber)' : 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <Car size={16} /> {modalIsDoubleCar ? '🚘🚘 Irão em 2 Carros (Mais de 4 Pessoas)' : '🚘 Irão em 1 Carro (Até 4 Pessoas)'}
-                    </div>
-                    <div style={{ fontSize: '0.725rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                      {modalIsDoubleCar ? 'Como há mais de 4 pessoas, o custo do combustível é dobrado.' : 'Custo normal para 1 veículo de transporte.'}
-                    </div>
-                  </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Custo Calculado:</div>
-                    <strong style={{ fontSize: '1.1rem', color: modalIsDoubleCar ? 'var(--accent-amber)' : 'var(--accent-emerald)' }}>
-                      {formatBRL(modalCalculatedCost)}
-                    </strong>
-                  </div>
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label style={{ fontSize: '0.8rem', fontWeight: 600 }}>Observações / Objetivo da Viagem</label>
-                <textarea 
-                  className="form-control" 
-                  rows={2} 
-                  value={notes} 
-                  onChange={(e) => setNotes(e.target.value)} 
-                  placeholder="Ex: Montagem no cliente e comissionamento..."
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <button type="button" onClick={() => setIsModalOpen(false)} className="btn btn-secondary">
-                  Cancelar
-                </button>
-                <button type="submit" className="btn btn-primary" style={{ fontWeight: 700 }}>
-                  <Send size={15} /> Agendar & Notificar Operadores
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {form && (
+        <ViagemForm
+          obra={form.obra}
+          viagem={form.viagem}
+          dataInicial={form.dataInicial}
+          todasViagens={todas}
+          onFechar={() => setForm(null)}
+        />
       )}
     </div>
   );

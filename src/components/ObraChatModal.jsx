@@ -1,199 +1,182 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { X, Send, MessageSquare, Users } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { X, Send, MessageSquare, Users, Sparkles } from 'lucide-react';
+import './obras/chat.css';
+
+const URL_RE = /(https?:\/\/[^\s]+)/g;
+
+const Texto = ({ texto }) =>
+  texto.split(URL_RE).map((parte, i) =>
+    /^https?:\/\//.test(parte) ? (
+      <a key={i} href={parte} target="_blank" rel="noreferrer noopener">{parte}</a>
+    ) : (
+      <React.Fragment key={i}>{parte}</React.Fragment>
+    )
+  );
+
+const diaIso = (iso) => {
+  const d = new Date(iso);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+};
+
+const rotuloDia = (iso) => {
+  const hoje = diaIso(new Date().toISOString());
+  const ontem = diaIso(new Date(Date.now() - 86400000).toISOString());
+  if (iso === hoje) return 'Hoje';
+  if (iso === ontem) return 'Ontem';
+  const [a, m, d] = iso.split('-');
+  return `${d}/${m}/${a}`;
+};
+
+const hora = (iso) => {
+  try {
+    return new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  } catch {
+    return '';
+  }
+};
 
 export const ObraChatModal = ({ isOpen, onClose }) => {
   const { currentUser, users } = useAuth();
-  const { activeObra, chatMessages, sendChatMessage } = useData();
+  const { activeObra, chatMessages, sendChatMessage, myNotifications, markNotificationAsRead } = useData();
 
-  const [messageText, setMessageText] = useState('');
-  const messagesEndRef = useRef(null);
+  const [texto, setTexto] = useState('');
+  const fimRef = useRef(null);
+  const campoRef = useRef(null);
 
-  const obraMessages = activeObra
-    ? chatMessages.filter(m => m.obraId === activeObra.id)
-    : [];
+  const mensagens = useMemo(
+    () =>
+      activeObra
+        ? chatMessages
+            .filter((m) => m.obraId === activeObra.id)
+            .sort((a, b) => (a.createdAt ?? '').localeCompare(b.createdAt ?? ''))
+        : [],
+    [chatMessages, activeObra]
+  );
+
+  // Agrupa por dia; mensagens seguidas da mesma pessoa ficam juntas.
+  const blocos = useMemo(() => {
+    const out = [];
+    mensagens.forEach((m) => {
+      const dia = diaIso(m.createdAt || new Date().toISOString());
+      let grupo = out[out.length - 1];
+      if (!grupo || grupo.dia !== dia) {
+        grupo = { dia, sequencias: [] };
+        out.push(grupo);
+      }
+      const ultima = grupo.sequencias[grupo.sequencias.length - 1];
+      if (ultima && ultima.senderId === m.senderId) ultima.itens.push(m);
+      else grupo.sequencias.push({ senderId: m.senderId, senderName: m.senderName, senderTitle: m.senderTitle, itens: [m] });
+    });
+    return out;
+  }, [mensagens]);
 
   useEffect(() => {
-    if (isOpen) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [obraMessages.length, isOpen]);
+    if (isOpen) fimRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [mensagens.length, isOpen]);
+
+  // Ao abrir o chat, os avisos de mensagem desta obra são marcados como lidos.
+  useEffect(() => {
+    if (!isOpen || !activeObra) return;
+    (myNotifications || [])
+      .filter((n) => n.type === 'chat' && n.obraId === activeObra.id && !n.read)
+      .forEach((n) => markNotificationAsRead(n.id));
+  }, [isOpen, activeObra, mensagens.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const aoTeclar = (e) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', aoTeclar);
+    campoRef.current?.focus();
+    return () => window.removeEventListener('keydown', aoTeclar);
+  }, [isOpen, onClose]);
 
   if (!isOpen || !activeObra) return null;
 
-  const handleSend = (e) => {
-    e.preventDefault();
-    if (!messageText.trim()) return;
-    sendChatMessage(activeObra.id, messageText);
-    setMessageText('');
-  };
-
-  const formatTime = (isoStr) => {
-    if (!isoStr) return '';
-    try {
-      const d = new Date(isoStr);
-      return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    } catch (e) {
-      return '';
-    }
-  };
-
-  // Get authorized members for this Obra
-  const assignedUsers = (activeObra.assignedUserIds && activeObra.assignedUserIds.length > 0)
-    ? users.filter(u => activeObra.assignedUserIds.includes(u.id))
+  const membros = activeObra.assignedUserIds?.length
+    ? users.filter((u) => activeObra.assignedUserIds.includes(u.id))
     : users;
 
-  return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      zIndex: 1050,
-      background: 'rgba(0, 0, 0, 0.75)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '1rem'
-    }}>
-      <div 
-        className="glass-panel"
-        style={{
-          width: '100%',
-          maxWidth: '600px',
-          height: '80vh',
-          maxHeight: '700px',
-          borderRadius: 'var(--radius-lg)',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          position: 'relative',
-          border: '1px solid var(--accent-blue)'
-        }}
-      >
-        {/* Header */}
-        <div style={{
-          padding: '1rem 1.25rem',
-          borderBottom: '1px solid var(--border-color)',
-          background: 'var(--bg-main)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '12px',
-              background: 'var(--accent-blue)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff'
-            }}>
-              <MessageSquare size={22} />
-            </div>
-            <div>
-              <div style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                Chat da Obra: {activeObra.name}
-              </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                <Users size={12} className="text-emerald" />
-                <span>{assignedUsers.length} integrantes com acesso ao chat</span>
-              </div>
-            </div>
+  const enviar = (e) => {
+    e?.preventDefault();
+    if (!texto.trim()) return;
+    sendChatMessage(activeObra.id, texto);
+    setTexto('');
+  };
+
+  const aoTeclar = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) enviar(e);
+  };
+
+  return createPortal(
+    <div className="ch-overlay" onClick={onClose}>
+      <div className="ch-janela glass-panel" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+        <header className="ch-topo">
+          <div className="ch-icone"><MessageSquare size={20} /></div>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <strong>Chat · {activeObra.name}</strong>
+            <span title={membros.map((u) => u.name).join(', ')}>
+              <Users size={11} /> {membros.map((u) => u.name.split(' ')[0]).join(', ')}
+            </span>
           </div>
+          <button type="button" className="ch-fechar" aria-label="Fechar chat" onClick={onClose}><X size={20} /></button>
+        </header>
 
-          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-            <X size={22} />
-          </button>
-        </div>
-
-        {/* Messages Stream */}
-        <div style={{
-          flex: 1,
-          padding: '1rem',
-          overflowY: 'auto',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.85rem',
-          background: 'var(--bg-card)'
-        }}>
-          {obraMessages.length > 0 ? (
-            obraMessages.map(msg => {
-              const isMine = msg.senderId === currentUser?.id;
-              const senderUser = users.find(u => u.id === msg.senderId);
-              const avatarColor = senderUser?.userColorTag || 'var(--accent-blue)';
-
-              return (
-                <div 
-                  key={msg.id}
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: isMine ? 'flex-end' : 'flex-start',
-                    maxWidth: '82%',
-                    alignSelf: isMine ? 'flex-end' : 'flex-start'
-                  }}
-                >
-                  <div style={{ fontSize: '0.675rem', color: 'var(--text-muted)', marginBottom: '0.2rem', padding: '0 0.2rem' }}>
-                    {isMine ? 'Você' : msg.senderName} • {formatTime(msg.createdAt)}
-                  </div>
-
-                  <div style={{
-                    padding: '0.75rem 1rem',
-                    borderRadius: isMine ? '16px 16px 2px 16px' : '16px 16px 16px 2px',
-                    background: isMine 
-                      ? 'linear-gradient(135deg, #0284c7, #0369a1)' 
-                      : 'var(--bg-main)',
-                    color: isMine ? '#ffffff' : 'var(--text-primary)',
-                    border: isMine ? 'none' : '1px solid var(--border-color)',
-                    fontSize: '0.85rem',
-                    lineHeight: '1.4',
-                    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)'
-                  }}>
-                    {msg.text}
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div style={{ textAlign: 'center', margin: 'auto', color: 'var(--text-muted)' }}>
-              <MessageSquare size={40} style={{ margin: '0 auto 0.5rem', opacity: 0.5 }} />
-              <p style={{ fontSize: '0.85rem' }}>Nenhuma mensagem ainda no chat desta obra.</p>
-              <p style={{ fontSize: '0.75rem' }}>Seja o primeiro a enviar uma mensagem para os integrantes!</p>
+        <div className="ch-mensagens">
+          {mensagens.length === 0 ? (
+            <div className="ch-vazio">
+              <MessageSquare size={36} />
+              <p>Nenhuma mensagem ainda.</p>
+              <span>Escreva abaixo para avisar a equipe desta obra.</span>
             </div>
+          ) : (
+            blocos.map((b) => (
+              <section key={b.dia}>
+                <div className="ch-dia"><span>{rotuloDia(b.dia)}</span></div>
+                {b.sequencias.map((s, i) => {
+                  const minha = s.senderId === currentUser?.id;
+                  const u = users.find((x) => x.id === s.senderId);
+                  const cor = u?.userColorTag || u?.avatarColor || 'var(--accent-blue)';
+                  return (
+                    <div key={i} className={`ch-seq ${minha ? 'minha' : ''}`}>
+                      {!minha && <span className="ch-avatar" style={{ background: cor }}>{(s.senderName || '?').charAt(0).toUpperCase()}</span>}
+                      <div className="ch-bolhas">
+                        {!minha && <span className="ch-autor">{s.senderName}{s.senderTitle ? ` · ${s.senderTitle}` : ''}</span>}
+                        {s.itens.map((m) => (
+                          <div key={m.id} className="ch-bolha">
+                            <p><Texto texto={m.text || ''} /></p>
+                            <time>{hora(m.createdAt)}</time>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
+            ))
           )}
-          <div ref={messagesEndRef} />
+          <div ref={fimRef} />
         </div>
 
-        {/* Input Area */}
-        <form onSubmit={handleSend} style={{
-          padding: '0.85rem 1rem',
-          background: 'var(--bg-main)',
-          borderTop: '1px solid var(--border-color)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.65rem'
-        }}>
-          <input
-            type="text"
+        <form className="ch-form" onSubmit={enviar}>
+          <textarea
+            ref={campoRef}
             className="form-control"
-            value={messageText}
-            onChange={(e) => setMessageText(e.target.value)}
-            placeholder={`Enviar mensagem para a equipe de ${activeObra.name}...`}
-            style={{ flex: 1, borderRadius: 'var(--radius-md)' }}
+            rows={1}
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            onKeyDown={aoTeclar}
+            placeholder="Escreva uma mensagem… (Enter envia, Shift+Enter quebra linha)"
           />
-
-          <button 
-            type="submit" 
-            className="btn btn-primary" 
-            disabled={!messageText.trim()}
-            style={{ borderRadius: 'var(--radius-md)' }}
-          >
-            <Send size={16} /> Enviar
+          <button type="submit" className="btn btn-primary" disabled={!texto.trim()} aria-label="Enviar mensagem">
+            <Send size={16} />
           </button>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

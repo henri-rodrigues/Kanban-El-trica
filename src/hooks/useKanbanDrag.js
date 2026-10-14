@@ -50,16 +50,13 @@ export function useKanbanDrag({ canDrag, onMove, onBlocked }) {
       ghost.classList.add('kb-fantasma');
       Object.assign(ghost.style, {
         position: 'fixed', left: `${r.left}px`, top: `${r.top}px`, width: `${r.width}px`, height: `${r.height}px`,
-        margin: '0', zIndex: '2500', pointerEvents: 'none', transition: 'none', willChange: 'transform'
+        margin: '0', zIndex: '2500', pointerEvents: 'none', willChange: 'transform',
+        transition: 'none', transform: 'translate3d(0, 0, 0) scale(1.04)'
       });
       document.body.appendChild(ghost);
       s.ghost = ghost;
       document.body.classList.add('kb-arrastando');
       setDraggingId(s.card.id);
-      ghost.animate(
-        [{ transform: 'scale(1)' }, { transform: 'scale(1.04) rotate(0deg)' }],
-        { duration: 140, easing: 'cubic-bezier(.2,.9,.3,1.2)', fill: 'forwards' }
-      );
     }
 
     // posição e inclinação (suavizada pela velocidade horizontal)

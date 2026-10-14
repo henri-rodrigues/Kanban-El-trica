@@ -10,7 +10,7 @@ import './checklist/checklist.css';
  * Checklist de conferência e liberação de quadros elétricos.
  * `quadroFixoId`: quando informado (pasta do quadro), mostra só os laudos desse quadro.
  */
-export const ChecklistModule = ({ quadroFixoId = null }) => {
+export const ChecklistModule = ({ quadroFixoId = null, onNavigate }) => {
   const { activeObra, activeQuadros, laudos, deleteLaudo } = useData();
 
   const [tela, setTela] = useState({ nome: 'lista' }); // lista | novo | detalhe | editar
@@ -46,6 +46,7 @@ export const ChecklistModule = ({ quadroFixoId = null }) => {
         obraQuadros={activeQuadros}
         laudo={tela.nome === 'editar' ? laudoAtual : null}
         quadroFixoId={quadroFixoId}
+        onNavigate={onNavigate}
         onCancelar={() => (laudoAtual ? setTela({ nome: 'detalhe', id: laudoAtual.id }) : voltar())}
         onSalvo={(l) => setTela({ nome: 'detalhe', id: l.id })}
       />
@@ -99,6 +100,17 @@ export const ChecklistModule = ({ quadroFixoId = null }) => {
         </button>
       </div>
 
+      {activeQuadros.length === 0 && !quadroFixoId && (
+        <div className="ck-erro" style={{ background: 'var(--wash-amber)', color: 'var(--text-primary)', fontWeight: 500 }}>
+          Para criar um checklist é preciso ter um quadro na obra: cada checklist fica na pasta do quadro conferido.{' '}
+          {onNavigate && (
+            <button type="button" className="btn btn-secondary btn-sm" style={{ marginLeft: 6 }} onClick={() => onNavigate('quadros')}>
+              Criar quadro
+            </button>
+          )}
+        </div>
+      )}
+
       <div className="ck-kpis">
         <div className="ck-kpi"><span>Relatórios</span><strong>{total}</strong></div>
         <div className={`ck-kpi ${comNaoConforme ? 'ck-kpi-nok' : ''}`}><span>Com não conformidade</span><strong>{comNaoConforme}</strong></div>
@@ -124,7 +136,7 @@ export const ChecklistModule = ({ quadroFixoId = null }) => {
         <div className="ck-vazio">
           <ShieldCheck size={36} />
           <h3>Nenhum checklist registrado</h3>
-          <p>Faça a conferência do quadro item a item (37 itens), anexe fotos das não conformidades e gere o laudo com assinatura.</p>
+          <p>Escolha um quadro da obra, confira os 37 itens, anexe fotos das não conformidades e gere o laudo com assinatura. Ele fica salvo na pasta do quadro.</p>
           <button type="button" className="btn btn-primary" onClick={() => setTela({ nome: 'novo' })}>
             <Plus size={15} /> Criar o primeiro checklist
           </button>

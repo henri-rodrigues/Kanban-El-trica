@@ -176,7 +176,7 @@ function MainLayout() {
             )}
 
             {activeTab === 'checklist' && (
-              <ChecklistModule />
+              <ChecklistModule onNavigate={setActiveTab} />
             )}
 
             {activeTab === 'agenda' && (

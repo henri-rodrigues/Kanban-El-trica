@@ -84,15 +84,17 @@ const Anexos = ({ fotos, onAdd, onRemove, max, rotulo = 'Anexar foto' }) => {
   );
 };
 
-export const LaudoForm = ({ obra, obraQuadros, laudo, quadroFixoId, onSalvo, onCancelar }) => {
+export const LaudoForm = ({ obra, obraQuadros, laudo, quadroFixoId, onSalvo, onCancelar, onNavigate }) => {
   const { saveLaudo } = useData();
   const { users, currentUser } = useAuth();
 
-  const quadroInicial = laudo?.quadroId ?? quadroFixoId ?? '';
+  // Laudos antigos (digitados à mão) são ligados ao quadro de mesmo nome, se existir.
+  const quadroInicial =
+    laudo?.quadroId ??
+    quadroFixoId ??
+    obraQuadros.find((q) => laudo && q.name.trim().toLowerCase() === (laudo.quadroNome || '').trim().toLowerCase())?.id ??
+    '';
   const [quadroId, setQuadroId] = useState(quadroInicial);
-  const [quadroLivre, setQuadroLivre] = useState(
-    laudo && !laudo.quadroId ? laudo.quadroNome : ''
-  );
   const [dataHora, setDataHora] = useState(isoParaInput(laudo?.dataHora));
   const [inspetor, setInspetor] = useState(laudo?.inspetor ?? currentUser?.name ?? '');
   const [itens, setItens] = useState(() => itensIniciais(laudo));
@@ -129,8 +131,7 @@ export const LaudoForm = ({ obra, obraQuadros, laudo, quadroFixoId, onSalvo, onC
     setErro('');
 
     const quadro = obraQuadros.find((q) => q.id === quadroId);
-    const quadroNome = (quadro?.name || quadroLivre).trim();
-    if (!quadroNome) return setErro('Informe o quadro conferido (escolha da obra ou digite o nome).');
+    if (!quadro) return setErro('Selecione o quadro da obra ao qual este checklist pertence.');
     if (!inspetor.trim()) return setErro('Informe o inspetor responsável.');
 
     // Não conformidade exige justificativa e foto.
@@ -169,8 +170,8 @@ export const LaudoForm = ({ obra, obraQuadros, laudo, quadroFixoId, onSalvo, onC
 
     const doc = {
       id: laudo?.id,
-      quadroId: quadro?.id ?? null,
-      quadroNome,
+      quadroId: quadro.id,
+      quadroNome: quadro.name,
       inspetor: inspetor.trim(),
       dataHora: new Date(dataHora).toISOString(),
       itens: itensSalvar,
@@ -193,6 +194,25 @@ export const LaudoForm = ({ obra, obraQuadros, laudo, quadroFixoId, onSalvo, onC
     setSalvando(false);
     if (salvo) onSalvo(salvo);
   };
+
+  if (obraQuadros.length === 0) {
+    return (
+      <div className="ck-wrap">
+        <div className="ck-barra">
+          <button type="button" className="btn btn-secondary" onClick={onCancelar}><ArrowLeft size={15} /> Voltar</button>
+          <h2>Novo checklist de quadro</h2>
+        </div>
+        <div className="ck-vazio">
+          <AlertTriangle size={34} />
+          <h3>Crie um quadro antes</h3>
+          <p>O checklist precisa estar ligado a um quadro da obra. Crie o quadro (ele ganha a própria pasta) e volte aqui.</p>
+          {onNavigate && (
+            <button type="button" className="btn btn-primary" onClick={() => onNavigate('quadros')}>Ir para Quadros</button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form className="ck-wrap" onSubmit={salvar}>
@@ -222,21 +242,20 @@ export const LaudoForm = ({ obra, obraQuadros, laudo, quadroFixoId, onSalvo, onC
           </label>
           <label className="ck-campo">
             <span>Quadro conferido *</span>
-            {obraQuadros.length > 0 ? (
-              <select className="form-control" value={quadroId} onChange={(e) => setQuadroId(e.target.value)} disabled={!!quadroFixoId}>
-                <option value="">Outro / quadro geral (digitar)</option>
-                {obraQuadros.map((q) => <option key={q.id} value={q.id}>{q.name}</option>)}
-              </select>
-            ) : (
-              <span className="ck-dica">Nenhum quadro cadastrado na obra: digite o nome abaixo.</span>
-            )}
+            <select
+              className="form-control"
+              value={quadroId}
+              onChange={(e) => setQuadroId(e.target.value)}
+              disabled={!!quadroFixoId}
+              required
+            >
+              <option value="">Selecione o quadro da obra…</option>
+              {obraQuadros.map((q) => <option key={q.id} value={q.id}>{q.name}</option>)}
+            </select>
+            <span className="ck-dica" style={{ fontWeight: 500 }}>
+              O checklist fica salvo na pasta deste quadro.
+            </span>
           </label>
-          {!quadroId && (
-            <label className="ck-campo">
-              <span>Nome / TAG do quadro</span>
-              <input className="form-control" placeholder="Ex.: QGBT-01, QC-CHILLER" value={quadroLivre} onChange={(e) => setQuadroLivre(e.target.value)} />
-            </label>
-          )}
           <label className="ck-campo">
             <span>Data e hora</span>
             <input className="form-control" type="datetime-local" value={dataHora} onChange={(e) => setDataHora(e.target.value)} />

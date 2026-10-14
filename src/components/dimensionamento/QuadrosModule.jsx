@@ -178,7 +178,7 @@ const QuadroPasta = ({ quadro, doc, obra, obraQuadros, abaInicial, onVoltar, onN
 // ---------------------------------------------------------------------------
 export const QuadrosModule = ({ onOpenObraModal, onNavigate }) => {
   const {
-    activeObra, activeQuadros, dimensionamentos, cards, selectedQuadroId, setSelectedQuadroId,
+    activeObra, activeQuadros, dimensionamentos, cards, laudos, selectedQuadroId, setSelectedQuadroId,
     addQuadro, saveDimensionamento
   } = useData();
 
@@ -303,6 +303,8 @@ export const QuadrosModule = ({ onOpenObraModal, onNavigate }) => {
               const doc = docDoQuadro(q);
               const postits = cards.filter((c) => c.quadroId === q.id);
               const feitos = postits.filter((c) => c.column === 'completed').length;
+              const laudosQ = laudos.filter((l) => l.quadroId === q.id).sort((a, b) => (b.dataHora ?? '').localeCompare(a.dataHora ?? ''));
+              const ultimo = laudosQ[0];
               return (
                 <button key={q.id} type="button" className="dq-card dq-quadro-card" onClick={() => abrirPasta(q, doc)}>
                   <span className={`dq-pill ${doc?.geradoEm ? 'ok' : 'warn'}`}>{doc?.geradoEm ? `${doc.tensao} V` : 'Falta dimensionar'}</span>
@@ -319,6 +321,11 @@ export const QuadrosModule = ({ onOpenObraModal, onNavigate }) => {
                       : 'Lista de materiais ainda não gerada'}
                   </span>
                   <Progresso feitos={feitos} total={postits.length} />
+                  <span className="dq-sub">
+                    {ultimo
+                      ? `Checklist: ${laudosQ.length} laudo(s) · último ${ultimo.estatisticas?.percentualConformidade ?? 0}% conforme${(ultimo.estatisticas?.naoConformes ?? 0) ? ` · ${ultimo.estatisticas.naoConformes} não conf.` : ''}`
+                      : 'Checklist: nenhum laudo ainda'}
+                  </span>
                 </button>
               );
             })}

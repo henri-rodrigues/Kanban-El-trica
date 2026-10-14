@@ -24,6 +24,8 @@ export const InfraKanbanView = ({ categoria = 'todas', onCategoria = () => {} })
   const [novaCategoria, setNovaCategoria] = useState(CATEGORIAS_INFRA[0].id);
   const [novaPrioridade, setNovaPrioridade] = useState('Média');
   const [busca, setBusca] = useState('');
+  const [filtroResp, setFiltroResp] = useState('todos'); // todos | userId
+  const [filtroPrio, setFiltroPrio] = useState('todas'); // todas | alta | outras
   const [arrastando, setArrastando] = useState(null);
 
   const doInfra = useMemo(
@@ -45,8 +47,13 @@ export const InfraKanbanView = ({ categoria = 'todas', onCategoria = () => {} })
   const filtrados = doInfra.filter((c) => {
     if (categoria !== 'todas' && (c.categoryTag || 'Infraestrutura Geral') !== categoria) return false;
     if (termo && !c.title.toLowerCase().includes(termo)) return false;
+    if (filtroResp !== 'todos' && c.assignedUserId !== filtroResp) return false;
+    const alta = c.priority === 'Alta' || c.priority === 'Crítica';
+    if (filtroPrio === 'alta' && !alta) return false;
     return true;
   });
+
+  const responsaveis = [...new Map(doInfra.filter((c) => c.assignedUserId).map((c) => [c.assignedUserId, c.assignedUserName || 'Sem nome'])).entries()];
 
   const contagem = (cat) => doInfra.filter((c) => (c.categoryTag || 'Infraestrutura Geral') === cat).length;
 
@@ -85,6 +92,17 @@ export const InfraKanbanView = ({ categoria = 'todas', onCategoria = () => {} })
           <Search size={14} />
           <input className="form-control" placeholder="Pesquisar tarefas…" value={busca} onChange={(e) => setBusca(e.target.value)} />
         </div>
+        {responsaveis.length > 0 && (
+          <select className="form-control" style={{ width: 'auto' }} value={filtroResp} onChange={(e) => setFiltroResp(e.target.value)} aria-label="Responsável">
+            <option value="todos">Todos os responsáveis</option>
+            {currentUser && responsaveis.some(([id]) => id === currentUser.id) && <option value={currentUser.id}>Minhas tarefas</option>}
+            {responsaveis.filter(([id]) => id !== currentUser?.id).map(([id, nome]) => <option key={id} value={id}>{nome}</option>)}
+          </select>
+        )}
+        <select className="form-control" style={{ width: 'auto' }} value={filtroPrio} onChange={(e) => setFiltroPrio(e.target.value)} aria-label="Prioridade">
+          <option value="todas">Todas as prioridades</option>
+          <option value="alta">Alta / crítica</option>
+        </select>
         <span className="if-espaco" />
         <button type="button" className="btn btn-primary" onClick={() => setNovoAberto(true)}>
           <Plus size={15} /> Nova tarefa

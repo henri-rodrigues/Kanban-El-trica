@@ -261,7 +261,7 @@ export const parsePurchaseOrderPDFText = (fullText = '', fileName = '') => {
         .replace(/R\$\s*[\d\.,]+/g, '')
         .replace(/\b\d{1,3}(?:,\d{2})?%/g, '')
         .replace(/\b(PÇ|PC|UN|UNID|UNIDADE|M|MT|KG|CX|PAR|RL|CJ|LT)\b/gi, '')
-        .replace(/^\d{1,3}\s+/, '')
+        .replace(/^\d{1,3}(?:[.,]\d{1,3})?\s+/, '')
         .trim();
 
       currentItem = {

@@ -162,6 +162,7 @@ export const LoginModal = ({ isOpen, onClose }) => {
               <input 
                 type="password" 
                 required 
+                autoComplete="current-password" 
                 placeholder="••••••••" 
                 className="form-control" 
                 value={loginPassword} 
@@ -181,17 +182,17 @@ export const LoginModal = ({ isOpen, onClose }) => {
           <form onSubmit={handleRegisterSubmit}>
             <div className="form-group">
               <label>Nome Completo *</label>
-              <input type="text" required className="form-control" placeholder="Ex: Roberto Silva" value={newName} onChange={(e) => setNewName(e.target.value)} />
+              <input type="text" required className="form-control" autoComplete="name" placeholder="Ex: Roberto Silva" value={newName} onChange={(e) => setNewName(e.target.value)} />
             </div>
 
             <div className="form-group">
               <label>E-mail *</label>
-              <input type="email" required className="form-control" placeholder="roberto@omnifield.com" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+              <input type="email" required className="form-control" autoComplete="email" placeholder="nome@empresa.com.br" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
             </div>
 
             <div className="form-group">
               <label>Senha *</label>
-              <input type="password" required className="form-control" placeholder="Crie uma senha..." value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+              <input type="password" required autoComplete="new-password" className="form-control" placeholder="Crie uma senha..." value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>

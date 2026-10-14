@@ -220,12 +220,12 @@ export const LoginScreenView = () => {
 
             <div className="form-group">
               <label>Nome Completo *</label>
-              <input type="text" required className="form-control" placeholder="Ex: Roberto Silva" value={regName} onChange={(e) => setRegName(e.target.value)} />
+              <input type="text" required className="form-control" autoComplete="name" placeholder="Ex: Roberto Silva" value={regName} onChange={(e) => setRegName(e.target.value)} />
             </div>
 
             <div className="form-group">
               <label>E-mail *</label>
-              <input type="email" required className="form-control" placeholder="roberto@omnifield.com" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} />
+              <input type="email" required className="form-control" autoComplete="email" placeholder="nome@empresa.com.br" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} />
             </div>
 
             <div className="form-group">

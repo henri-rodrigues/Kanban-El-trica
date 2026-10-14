@@ -12,6 +12,8 @@ import './materiais/materiais.css';
 
 const brl = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0);
 const ehInfra = (po) => po.destination === 'infraestrutura';
+// Pedidos importados antes da correção do leitor trazem a quantidade colada no início da descrição.
+const descricaoLimpa = (d) => String(d || '').replace(/^\d{1,3}[.,]\d{1,3}\s+(?=\d{4,})/, '');
 const chegou = (i) => i.status === 'Já Chegou';
 
 const resumoPedido = (po) => {
@@ -400,7 +402,7 @@ export const MaterialsModule = () => {
                       <tbody>
                         {r.itens.map((i) => (
                           <tr key={i.id} className={chegou(i) ? 'chegou' : ''}>
-                            <td style={{ fontWeight: 600 }}>{i.description}</td>
+                            <td style={{ fontWeight: 600 }}>{descricaoLimpa(i.description)}</td>
                             <td className="num">{i.quantityOrdered}</td>
                             <td className="oculta-mobile">{i.unit}</td>
                             <td className="num oculta-mobile">{brl(i.unitPrice)}</td>

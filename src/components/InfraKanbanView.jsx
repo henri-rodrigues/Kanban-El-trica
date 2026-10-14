@@ -1,286 +1,209 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { Plus, Search, AlertCircle, Calculator } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { CardDetailModal } from './CardDetailModal';
-import { 
-  Layers, 
-  Plus, 
-  Search, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle, 
-  HelpCircle, 
-  Building2,
-  Trash2,
-  Edit3,
-  Wrench
-} from 'lucide-react';
-import { POSTIT_GRADIENTS, getGradientById } from '../constants/gradients';
+import { ModalShell } from './dimensionamento/ModalShell';
+import { getGradientById } from '../constants/gradients';
+import {
+  CATEGORIAS_INFRA, COLUNAS_INFRA, ehCardInfra, rotuloCategoria, subtarefasPadrao
+} from '../constants/infraestrutura';
+import './infra/infra.css';
 
-const KANBAN_COLUMNS = [
-  { id: 'todo', title: '📋 A Fazer', color: 'var(--accent-blue)', bg: 'var(--wash-blue)' },
-  { id: 'in_progress', title: '⚡ Em Andamento', color: 'var(--accent-amber)', bg: 'rgba(245, 158, 11, 0.08)' },
-  { id: 'on_hold', title: '⏳ Aguardo', color: 'var(--accent-purple)', bg: 'rgba(147, 51, 234, 0.08)' },
-  { id: 'completed', title: '✅ Concluído', color: 'var(--accent-emerald)', bg: 'rgba(16, 185, 129, 0.08)' }
-];
-
-export const InfraKanbanView = () => {
-  const { currentUser, users, isAdmin } = useAuth();
-  const { 
-    activeObra, 
-    cards, 
-    addCard, 
-    updateCardStatus, 
-    deleteCard 
-  } = useData();
+/**
+ * Kanban de infraestrutura da obra.
+ * `categoria` / `onCategoria`: filtro controlado pelo módulo (a visão geral filtra por aqui).
+ */
+export const InfraKanbanView = ({ categoria = 'todas', onCategoria = () => {} }) => {
+  const { currentUser } = useAuth();
+  const { activeObra, cards, addCard, updateCardStatus } = useData();
 
   const [selectedCard, setSelectedCard] = useState(null);
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newCardTitle, setNewCardTitle] = useState('');
-  const [newCardCategory, setNewCardCategory] = useState('Passagem de Cabos');
-  const [newCardGradient, setNewCardGradient] = useState('cyan');
-  const [searchFilter, setSearchFilter] = useState('');
+  const [novoAberto, setNovoAberto] = useState(false);
+  const [novoTitulo, setNovoTitulo] = useState('');
+  const [novaCategoria, setNovaCategoria] = useState(CATEGORIAS_INFRA[0].id);
+  const [novaPrioridade, setNovaPrioridade] = useState('Média');
+  const [busca, setBusca] = useState('');
+  const [arrastando, setArrastando] = useState(null);
+
+  const doInfra = useMemo(
+    () => cards.filter((c) => c.obraId === activeObra?.id && ehCardInfra(c)),
+    [cards, activeObra]
+  );
 
   if (!activeObra) {
     return (
-      <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
-        <AlertCircle size={48} className="text-amber" style={{ marginBottom: '1rem' }} />
-        <h3>Nenhuma Obra Selecionada</h3>
-        <p style={{ color: 'var(--text-muted)' }}>Selecione uma obra na vitrine para acessar o Kanban de Infraestrutura.</p>
+      <div className="if-vazio">
+        <AlertCircle size={36} />
+        <h3>Nenhuma obra selecionada</h3>
+        <p>Selecione uma obra na Vitrine para acessar o Kanban de infraestrutura.</p>
       </div>
     );
   }
 
-  // Filter cards for Infrastructure (level === 'infra' OR categoryTag containing Infra)
-  const infraCards = cards.filter(c => 
-    c.obraId === activeObra.id && 
-    (c.level === 'infra' || c.categoryTag === 'INFRA' || c.categoryTag === 'Passagem de Cabos' || c.categoryTag === 'Tubulação')
-  );
-
-  const filteredCards = infraCards.filter(c => {
-    if (!searchFilter) return true;
-    return c.title.toLowerCase().includes(searchFilter.toLowerCase());
+  const termo = busca.trim().toLowerCase();
+  const filtrados = doInfra.filter((c) => {
+    if (categoria !== 'todas' && (c.categoryTag || 'Infraestrutura Geral') !== categoria) return false;
+    if (termo && !c.title.toLowerCase().includes(termo)) return false;
+    return true;
   });
 
-  const handleDragStart = (e, cardId) => {
-    e.dataTransfer.setData('text/plain', cardId);
-  };
+  const contagem = (cat) => doInfra.filter((c) => (c.categoryTag || 'Infraestrutura Geral') === cat).length;
 
-  const handleDragOver = (e) => {
+  const criar = (e) => {
     e.preventDefault();
-  };
-
-  const handleDrop = (e, targetColumn) => {
-    e.preventDefault();
-    const cardId = e.dataTransfer.getData('text/plain');
-    if (cardId) {
-      updateCardStatus(cardId, targetColumn);
-    }
-  };
-
-  const handleCreateInfraCard = (e) => {
-    e.preventDefault();
-    if (!newCardTitle.trim()) return;
-
+    if (!novoTitulo.trim()) return;
     addCard({
-      title: newCardTitle,
+      title: novoTitulo.trim(),
+      description: '',
       obraId: activeObra.id,
       quadroId: null,
       level: 'infra',
-      categoryTag: newCardCategory,
-      gradientId: newCardGradient,
-      priority: 'Média',
-      assignedUserId: currentUser.id,
-      assignedUserName: currentUser.name,
-      subtasks: [
-        { id: `st-1`, title: 'Passagem e fixação', completed: false },
-        { id: `st-2`, title: 'Identificação e anilhamento', completed: false },
-        { id: `st-3`, title: 'Teste de continuidade / Isolação', completed: false }
-      ]
+      categoryTag: novaCategoria,
+      gradientId: 'amber',
+      priority: novaPrioridade,
+      column: 'todo',
+      assignedUserId: currentUser?.id,
+      assignedUserName: currentUser?.name,
+      subtasks: subtarefasPadrao(novaCategoria)
     });
+    setNovoTitulo('');
+    setNovoAberto(false);
+  };
 
-    setNewCardTitle('');
-    setIsAddModalOpen(false);
+  const soltar = (e, coluna) => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData('text/plain') || arrastando;
+    if (id) updateCardStatus(id, coluna);
+    setArrastando(null);
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%' }}>
-      {/* Top Banner */}
-      <div className="glass-panel" style={{
-        padding: '0.85rem 1rem',
-        borderRadius: 'var(--radius-md)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '0.65rem'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', minWidth: 0 }}>
-          <span style={{ fontWeight: 800, fontSize: '1rem', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>🛠️ Infra</span>
-          <span className="badge badge-amber" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '140px' }}>{activeObra.name}</span>
+    <div className="if-wrap">
+      <div className="if-barra">
+        <div className="if-busca">
+          <Search size={14} />
+          <input className="form-control" placeholder="Pesquisar tarefas…" value={busca} onChange={(e) => setBusca(e.target.value)} />
         </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', width: '140px' }}>
-            <Search size={14} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input
-              type="text"
-              placeholder="Pesquisar..."
-              className="form-control"
-              style={{ paddingLeft: '28px', fontSize: '0.75rem', padding: '0.35rem 0.6rem 0.35rem 28px' }}
-              value={searchFilter}
-              onChange={(e) => setSearchFilter(e.target.value)}
-            />
-          </div>
-
-          <button onClick={() => setIsAddModalOpen(true)} className="btn btn-primary btn-sm" style={{ fontWeight: 700 }}>
-            <Plus size={14} /> <span className="mobile-hide">Novo Post-it</span><span className="mobile-show" style={{ display: 'none' }}>+</span>
-          </button>
-        </div>
+        <span className="if-espaco" />
+        <button type="button" className="btn btn-primary" onClick={() => setNovoAberto(true)}>
+          <Plus size={15} /> Nova tarefa
+        </button>
       </div>
 
-      {/* 4 Kanban Columns — Horizontal scroll on mobile */}
-      <div className="kanban-scroll-container" style={{
-        gridTemplateColumns: 'repeat(4, 1fr)'
-      }}>
-        {KANBAN_COLUMNS.map(col => {
-          const colCards = filteredCards.filter(c => c.column === col.id);
+      <div className="if-chips" role="group" aria-label="Filtrar por categoria">
+        <button type="button" className={`if-chip ${categoria === 'todas' ? 'ativo' : ''}`} onClick={() => onCategoria('todas')}>
+          Todas <b>{doInfra.length}</b>
+        </button>
+        {CATEGORIAS_INFRA.map((c) => {
+          const n = contagem(c.id);
+          if (n === 0 && categoria !== c.id) return null;
+          return (
+            <button key={c.id} type="button" className={`if-chip ${categoria === c.id ? 'ativo' : ''}`} onClick={() => onCategoria(c.id)}>
+              {c.rotulo} <b>{n}</b>
+            </button>
+          );
+        })}
+      </div>
 
+      <div className="kanban-scroll-container" style={{ gridTemplateColumns: 'repeat(4, minmax(220px, 1fr))' }}>
+        {COLUNAS_INFRA.map((col) => {
+          const colCards = filtrados.filter((c) => c.column === col.id);
           return (
             <div
               key={col.id}
-              onDragOver={handleDragOver}
-              onDrop={(e) => handleDrop(e, col.id)}
-              className="glass-panel"
-              style={{
-                borderRadius: 'var(--radius-md)',
-                padding: '0.75rem',
-                background: 'var(--bg-card)',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.65rem',
-                borderTop: `4px solid ${col.color}`
-              }}
+              className="if-coluna"
+              style={{ borderTopColor: col.cor }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => soltar(e, col.id)}
             >
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h3 style={{ fontSize: '0.825rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-                  {col.title}
-                </h3>
-                <span className="badge" style={{ background: col.color, color: '#fff', fontSize: '0.7rem' }}>
-                  {colCards.length}
-                </span>
+              <div className="if-coluna-topo">
+                <h3>{col.titulo}</h3>
+                <span className="if-contador" style={{ background: col.cor }}>{colCards.length}</span>
               </div>
 
-              {/* Cards List */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', flex: 1 }}>
-                {colCards.map(card => {
-                  const cardGradient = getGradientById(card.gradientId || 'cyan');
-
+              <div className="if-cards">
+                {colCards.map((card) => {
+                  const grad = getGradientById(card.gradientId || 'amber');
+                  const subs = card.subtasks || [];
+                  const feitas = subs.filter((s) => s.completed).length;
+                  const pct = subs.length ? Math.round((feitas / subs.length) * 100) : 0;
+                  const alta = card.priority === 'Alta' || card.priority === 'Crítica';
                   return (
                     <div
                       key={card.id}
+                      className="if-card"
+                      style={{ borderLeftColor: grad.border }}
                       draggable
-                      onDragStart={(e) => handleDragStart(e, card.id)}
-                      onClick={() => setSelectedCard(card)}
-                      style={{
-                        padding: '0.75rem',
-                        borderRadius: 'var(--radius-sm)',
-                        background: 'var(--bg-main)',
-                        borderLeft: `4px solid ${cardGradient.border}`,
-                        border: '1px solid var(--border-color)',
-                        cursor: 'grab',
-                        transition: 'transform 0.1s ease, box-shadow 0.1s ease'
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData('text/plain', card.id);
+                        setArrastando(card.id);
                       }}
+                      onClick={() => setSelectedCard(card)}
                     >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
-                        <span className="badge badge-amber" style={{ fontSize: '0.65rem' }}>
-                          {card.categoryTag || 'INFRA'}
-                        </span>
-                        <span className={`badge ${
-                          card.priority === 'Crítica' || card.priority === 'Alta' ? 'badge-danger' : 'badge-emerald'
-                        }`} style={{ fontSize: '0.65rem' }}>
-                          {card.priority || 'Média'}
-                        </span>
+                      <div className="if-card-tags">
+                        <span className="badge badge-amber">{rotuloCategoria(card.categoryTag)}</span>
+                        <span className={`badge ${alta ? 'badge-danger' : 'badge-emerald'}`}>{card.priority || 'Média'}</span>
+                        {card.origem?.tipo === 'calculo' && (
+                          <span className="badge badge-blue" title="Criada a partir de um cálculo"><Calculator size={10} /> cálculo</span>
+                        )}
                       </div>
-
-                      <h4 style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.35rem' }}>
-                        {card.title}
-                      </h4>
-
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
-                        <span>👤 {card.assignedUserName || 'Equipe Infra'}</span>
-                        <span>{(card.subtasks || []).filter(s => s.completed).length}/{(card.subtasks || []).length} subs</span>
-                      </div>
+                      <h4>{card.title}</h4>
+                      {subs.length > 0 && (
+                        <div className="if-prog">
+                          <div className="if-prog-barra"><i style={{ width: `${pct}%` }} /></div>
+                          <span>{feitas}/{subs.length}</span>
+                        </div>
+                      )}
+                      <span className="if-resp">👤 {card.assignedUserName || 'Equipe de infra'}</span>
                     </div>
                   );
                 })}
 
-                {colCards.length === 0 && (
-                  <div style={{ padding: '2rem 0.5rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-sm)' }}>
-                    Arraste para cá
-                  </div>
-                )}
+                {colCards.length === 0 && <div className="if-soltar">Arraste para cá</div>}
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* Add Infra Card Modal */}
-      {isAddModalOpen && (
-        <div className="mobile-modal-overlay" style={{
-          position: 'fixed',
-          inset: 0,
-          background: 'rgba(0,0,0,0.8)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1100,
-          padding: '1rem'
-        }}>
-          <div className="glass-panel mobile-modal-content" style={{ width: '100%', maxWidth: '460px', padding: '1.5rem', borderRadius: 'var(--radius-lg)' }}>
-            <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem' }}>Criar Post-it de Infraestrutura</h3>
-            
-            <form onSubmit={handleCreateInfraCard} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              <div className="form-group">
-                <label>Título da Atividade de Infra *</label>
-                <input 
-                  type="text" 
-                  required 
-                  className="form-control" 
-                  placeholder="Ex: Lançamento de cabo PP 4x2.5mm² para QTA" 
-                  value={newCardTitle} 
-                  onChange={(e) => setNewCardTitle(e.target.value)} 
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Categoria de Infraestrutura</label>
-                <select className="form-control" value={newCardCategory} onChange={(e) => setNewCardCategory(e.target.value)}>
-                  <option value="Passagem de Cabos">Passagem de Cabos & Fiação</option>
-                  <option value="Leitos & Eletrocalhas">Leitos & Eletrocalhas</option>
-                  <option value="Tubulação & Perfilados">Tubulação & Perfilados</option>
-                  <option value="Caixas de Passagem">Caixas de Passagem & Conexão</option>
-                  <option value="Infraestrutura Geral">Infraestrutura Geral</option>
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <button type="button" onClick={() => setIsAddModalOpen(false)} className="btn btn-secondary">
-                  Cancelar
-                </button>
-                <button type="submit" className="btn btn-primary" style={{ fontWeight: 700 }}>
-                  Criar Post-it
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+      {novoAberto && (
+        <ModalShell title="Nova tarefa de infraestrutura" onClose={() => setNovoAberto(false)} maxWidth={480}>
+          <form onSubmit={criar} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Título da atividade *</label>
+              <input
+                className="form-control"
+                required
+                autoFocus
+                placeholder="Ex.: Lançamento de cabo PP 4×2,5 mm² para o QTA"
+                value={novoTitulo}
+                onChange={(e) => setNovoTitulo(e.target.value)}
+              />
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Categoria</label>
+              <select className="form-control" value={novaCategoria} onChange={(e) => setNovaCategoria(e.target.value)}>
+                {CATEGORIAS_INFRA.map((c) => <option key={c.id} value={c.id}>{c.rotulo}</option>)}
+              </select>
+              <span className="if-dica">As subtarefas padrão desta categoria são criadas automaticamente.</span>
+            </div>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Prioridade</label>
+              <select className="form-control" value={novaPrioridade} onChange={(e) => setNovaPrioridade(e.target.value)}>
+                {['Baixa', 'Média', 'Alta', 'Crítica'].map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button type="button" className="btn btn-secondary" onClick={() => setNovoAberto(false)}>Cancelar</button>
+              <button type="submit" className="btn btn-primary">Criar tarefa</button>
+            </div>
+          </form>
+        </ModalShell>
       )}
 
-      {/* Card Detail Modal */}
       <CardDetailModal
-        card={cards.find(c => c.id === selectedCard?.id) || selectedCard}
+        card={cards.find((c) => c.id === selectedCard?.id) || selectedCard}
         isOpen={!!selectedCard}
         onClose={() => setSelectedCard(null)}
       />

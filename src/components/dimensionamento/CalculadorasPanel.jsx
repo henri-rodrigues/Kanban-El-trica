@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Printer, Save, Trash2 } from 'lucide-react';
+import { Printer, Save, Trash2, ListPlus } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import { CALCULADORAS, calcular } from '../../services/quadros/calc';
@@ -94,7 +94,7 @@ function htmlCalculo({ titulo, norma, entradas, resultados, alertas, passos, mem
     <script>window.addEventListener('load',function(){setTimeout(function(){window.print()},300)})<\/script></body></html>`;
 }
 
-export const CalculadorasPanel = ({ obra, dimensionamentos, ids = null, tituloHistorico = 'Histórico de cálculos da obra' }) => {
+export const CalculadorasPanel = ({ obra, dimensionamentos, ids = null, tituloHistorico = 'Histórico de cálculos da obra', onCriarTarefa = null }) => {
   const { calculosQuadros, addCalculoQuadro, deleteCalculoQuadro } = useData();
   const { currentUser } = useAuth();
 
@@ -143,6 +143,17 @@ export const CalculadorasPanel = ({ obra, dimensionamentos, ids = null, tituloHi
     setDescricao('');
     setAviso('Cálculo salvo no histórico da obra.');
     setTimeout(() => setAviso(''), 3500);
+  };
+
+  // Gera uma tarefa (ex.: no Kanban de infraestrutura) com o resultado do cálculo na descrição.
+  const criarTarefa = () => {
+    if (!r.linhas.length) return setAviso('Não há resultado para criar a tarefa.');
+    const resumo = r.linhas.map(([k, v]) => `${k}: ${v}`).join('\n');
+    onCriarTarefa({
+      calcId: calc.id,
+      titulo: titulo(),
+      descricao: `Resultado do cálculo (${calc.nome}):\n${resumo}\n\nReferência: ${calc.norma}`
+    });
   };
 
   const imprimirAtual = () => {
@@ -248,6 +259,11 @@ export const CalculadorasPanel = ({ obra, dimensionamentos, ids = null, tituloHi
                 </select>
               </label>
               <div className="dq-bar">
+                {onCriarTarefa && (
+                  <button type="button" className="btn btn-secondary" onClick={criarTarefa} title="Cria uma tarefa no Kanban com este resultado">
+                    <ListPlus size={14} /> Criar tarefa
+                  </button>
+                )}
                 <button type="button" className="btn btn-secondary" onClick={imprimirAtual}><Printer size={14} /> PDF</button>
                 <button type="button" className="btn btn-primary" onClick={salvar}><Save size={14} /> Salvar no histórico</button>
               </div>

@@ -1,16 +1,29 @@
-import React, { useState } from 'react';
-import { Wrench, Calculator, Kanban } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Wrench, Calculator, Kanban, LayoutDashboard, CheckCircle2 } from 'lucide-react';
 import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
 import { CalculadorasPanel } from './CalculadorasPanel';
 import { InfraKanbanView } from '../InfraKanbanView';
+import { InfraResumo } from '../infra/InfraResumo';
+import {
+  IDS_CALC_INFRA, CATEGORIA_DA_CALCULADORA, ehCardInfra, subtarefasPadrao
+} from '../../constants/infraestrutura';
 import './dimensionamento.css';
 
-// Calculadoras de infraestrutura: cabos, eletrodutos e queda de tensão dos circuitos de campo.
-export const IDS_CALC_INFRA = ['cabo', 'eletroduto', 'queda'];
+export { IDS_CALC_INFRA };
 
-export const InfraestruturaModule = () => {
-  const { activeObra, dimensionamentos, cards } = useData();
-  const [aba, setAba] = useState('calculos');
+export const InfraestruturaModule = ({ onNavigate }) => {
+  const { currentUser } = useAuth();
+  const { activeObra, dimensionamentos, cards, addCard } = useData();
+
+  const [aba, setAba] = useState('geral');
+  const [categoria, setCategoria] = useState('todas');
+  const [aviso, setAviso] = useState('');
+
+  const cardsInfra = useMemo(
+    () => cards.filter((c) => c.obraId === activeObra?.id && ehCardInfra(c)),
+    [cards, activeObra]
+  );
 
   if (!activeObra) {
     return (
@@ -25,11 +38,40 @@ export const InfraestruturaModule = () => {
   }
 
   const quadrosDaObra = dimensionamentos.filter((d) => d.obraId === activeObra.id);
-  const qtdInfra = cards.filter(
-    (c) =>
-      c.obraId === activeObra.id &&
-      (c.level === 'infra' || c.categoryTag === 'INFRA' || c.categoryTag === 'Passagem de Cabos' || c.categoryTag === 'Tubulação')
-  ).length;
+
+  const abrirKanban = (cat = 'todas') => {
+    setCategoria(cat);
+    setAba('kanban');
+  };
+
+  // Transforma um cálculo em tarefa do Kanban, já com as subtarefas da categoria.
+  const criarTarefaDoCalculo = ({ calcId, titulo, descricao }) => {
+    const categoriaTarefa = CATEGORIA_DA_CALCULADORA[calcId] || 'Infraestrutura Geral';
+    addCard({
+      title: titulo,
+      description: descricao,
+      fieldNotes: '',
+      obraId: activeObra.id,
+      quadroId: null,
+      level: 'infra',
+      categoryTag: categoriaTarefa,
+      gradientId: 'amber',
+      priority: 'Média',
+      column: 'todo',
+      assignedUserId: currentUser?.id,
+      assignedUserName: currentUser?.name,
+      subtasks: subtarefasPadrao(categoriaTarefa),
+      origem: { tipo: 'calculo', calcId }
+    });
+    setAviso(`Tarefa criada no Kanban: ${titulo}`);
+    setTimeout(() => setAviso(''), 5000);
+  };
+
+  const abas = [
+    ['geral', 'Visão geral', LayoutDashboard],
+    ['calculos', 'Calculadoras', Calculator],
+    ['kanban', `Kanban (${cardsInfra.length})`, Kanban]
+  ];
 
   return (
     <div className="dq-scope">
@@ -43,13 +85,29 @@ export const InfraestruturaModule = () => {
       </div>
 
       <div className="dq-tabs" role="tablist">
-        <button type="button" role="tab" aria-selected={aba === 'calculos'} className={aba === 'calculos' ? 'active' : ''} onClick={() => setAba('calculos')}>
-          <Calculator size={13} style={{ verticalAlign: '-2px', marginRight: 5 }} /> Calculadoras de infraestrutura
-        </button>
-        <button type="button" role="tab" aria-selected={aba === 'kanban'} className={aba === 'kanban' ? 'active' : ''} onClick={() => setAba('kanban')}>
-          <Kanban size={13} style={{ verticalAlign: '-2px', marginRight: 5 }} /> Kanban da infraestrutura ({qtdInfra})
-        </button>
+        {abas.map(([id, rotulo, Icone]) => (
+          <button key={id} type="button" role="tab" aria-selected={aba === id} className={aba === id ? 'active' : ''} onClick={() => setAba(id)}>
+            <Icone size={13} style={{ verticalAlign: '-2px', marginRight: 5 }} /> {rotulo}
+          </button>
+        ))}
       </div>
+
+      {aviso && (
+        <div className="dq-alert" role="status" style={{ background: 'var(--wash-emerald)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+          <CheckCircle2 size={15} /> {aviso}
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => abrirKanban('todas')}>Ver no Kanban</button>
+        </div>
+      )}
+
+      {aba === 'geral' && (
+        <InfraResumo
+          obra={activeObra}
+          cardsInfra={cardsInfra}
+          onAbrirKanban={abrirKanban}
+          onAbrirCalculadoras={() => setAba('calculos')}
+          onNavigate={onNavigate}
+        />
+      )}
 
       {aba === 'calculos' && (
         <CalculadorasPanel
@@ -57,9 +115,11 @@ export const InfraestruturaModule = () => {
           dimensionamentos={quadrosDaObra}
           ids={IDS_CALC_INFRA}
           tituloHistorico="Histórico de cálculos de infraestrutura"
+          onCriarTarefa={criarTarefaDoCalculo}
         />
       )}
-      {aba === 'kanban' && <InfraKanbanView />}
+
+      {aba === 'kanban' && <InfraKanbanView categoria={categoria} onCategoria={setCategoria} />}
     </div>
   );
 };

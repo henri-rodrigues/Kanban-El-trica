@@ -188,7 +188,7 @@ function MainLayout() {
             )}
 
             {activeTab === 'infra' && (
-              <InfraestruturaModule />
+              <InfraestruturaModule onNavigate={setActiveTab} />
             )}
 
             {activeTab === 'field_reports' && (

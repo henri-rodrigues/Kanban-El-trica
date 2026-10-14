@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { ClipboardCheck, Plus, Search, AlertCircle, ShieldCheck } from 'lucide-react';
+import { ClipboardCheck, Plus, Search, AlertCircle, ShieldCheck, Download } from 'lucide-react';
 import { useData } from '../context/DataContext';
-import { dataHora } from './dimensionamento/helpers';
+import { dataHora, baixar, nomeArquivo } from './dimensionamento/helpers';
 import { LaudoForm } from './checklist/LaudoForm';
 import { LaudoDetalhe } from './checklist/LaudoDetalhe';
 import './checklist/checklist.css';
@@ -16,6 +16,7 @@ export const ChecklistModule = ({ quadroFixoId = null, onNavigate }) => {
   const [tela, setTela] = useState({ nome: 'lista' }); // lista | novo | detalhe | editar
   const [busca, setBusca] = useState('');
   const [filtroQuadro, setFiltroQuadro] = useState('todos');
+  const [filtroSituacao, setFiltroSituacao] = useState('todos'); // todos | nok | ok
 
   const doEscopo = useMemo(
     () =>
@@ -46,6 +47,7 @@ export const ChecklistModule = ({ quadroFixoId = null, onNavigate }) => {
         obraQuadros={activeQuadros}
         laudo={tela.nome === 'editar' ? laudoAtual : null}
         quadroFixoId={quadroFixoId}
+        quadroSugeridoId={tela.quadroId}
         onNavigate={onNavigate}
         onCancelar={() => (laudoAtual ? setTela({ nome: 'detalhe', id: laudoAtual.id }) : voltar())}
         onSalvo={(l) => setTela({ nome: 'detalhe', id: l.id })}
@@ -74,6 +76,9 @@ export const ChecklistModule = ({ quadroFixoId = null, onNavigate }) => {
   const termo = busca.trim().toLowerCase();
   const lista = doEscopo.filter((l) => {
     if (filtroQuadro !== 'todos' && (l.quadroId ?? l.quadroNome) !== filtroQuadro) return false;
+    const nc = l.estatisticas?.naoConformes ?? 0;
+    if (filtroSituacao === 'nok' && nc === 0) return false;
+    if (filtroSituacao === 'ok' && nc > 0) return false;
     if (!termo) return true;
     return (
       String(l.numero).includes(termo) ||
@@ -87,6 +92,21 @@ export const ChecklistModule = ({ quadroFixoId = null, onNavigate }) => {
   const comNaoConforme = doEscopo.filter((l) => (l.estatisticas?.naoConformes ?? 0) > 0).length;
   const mediaConf = total ? Math.round(doEscopo.reduce((s, l) => s + (l.estatisticas?.percentualConformidade ?? 0), 0) / total) : 0;
 
+  // Quadros da obra que ainda não têm nenhum laudo.
+  const pendentes = quadroFixoId
+    ? []
+    : activeQuadros.filter((q) => !laudos.some((l) => l.obraId === activeObra.id && (l.quadroId === q.id)));
+
+  const exportarCsv = () => {
+    const cab = ['Nº', 'Quadro', 'Data', 'Inspetor', 'Itens', 'Conformes', 'Não conformes', 'Conformidade (%)'];
+    const linhas = lista.map((l) => {
+      const e = l.estatisticas || {};
+      return [l.numero, l.quadroNome, dataHora(l.dataHora), l.inspetor, e.totalItens ?? '', e.conformes ?? '', e.naoConformes ?? 0, e.percentualConformidade ?? 0];
+    });
+    const csv = [cab, ...linhas].map((r) => r.map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
+    baixar(`checklists-${nomeArquivo(activeObra.name)}.csv`, '\uFEFF' + csv);
+  };
+
   return (
     <div className="ck-wrap">
       <div className="ck-barra">
@@ -95,6 +115,11 @@ export const ChecklistModule = ({ quadroFixoId = null, onNavigate }) => {
           <span className="ck-dica">{activeObra.name} · conferência e liberação com critérios de aceite, fotos e assinatura</span>
         </div>
         <span className="ck-espaco" />
+        {total > 0 && (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={exportarCsv} disabled={lista.length === 0}>
+            <Download size={13} /> CSV
+          </button>
+        )}
         <button type="button" className="btn btn-primary" onClick={() => setTela({ nome: 'novo' })}>
           <Plus size={15} /> Novo checklist
         </button>
@@ -117,6 +142,17 @@ export const ChecklistModule = ({ quadroFixoId = null, onNavigate }) => {
         <div className="ck-kpi ck-kpi-ok"><span>Conformidade média</span><strong>{mediaConf}%</strong></div>
       </div>
 
+      {pendentes.length > 0 && (
+        <div className="ck-pendentes">
+          <span><strong>Sem checklist:</strong></span>
+          {pendentes.map((q) => (
+            <button key={q.id} type="button" className="ck-chip-pend" onClick={() => setTela({ nome: 'novo', quadroId: q.id })}>
+              <Plus size={11} /> {q.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {total > 0 && (
         <div className="ck-filtros">
           <label className="ck-busca">
@@ -129,6 +165,11 @@ export const ChecklistModule = ({ quadroFixoId = null, onNavigate }) => {
               {quadrosComLaudo.map(([chave, nome]) => <option key={chave} value={chave}>{nome}</option>)}
             </select>
           )}
+          <div className="ck-chips" role="group" aria-label="Situação">
+            {[['todos', 'Todos'], ['nok', 'Com não conformidade'], ['ok', 'Conformes']].map(([id, rot]) => (
+              <button key={id} type="button" className={`ck-chip ${filtroSituacao === id ? 'ativo' : ''}`} onClick={() => setFiltroSituacao(id)}>{rot}</button>
+            ))}
+          </div>
         </div>
       )}
 

@@ -107,3 +107,11 @@
   .ck-opcoes { width: 100%; }
   .ck-opcao { flex: 1; }
 }
+
+.ck-pendentes { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; background: var(--wash-amber); border-radius: var(--radius-md); padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+.ck-chip-pend { border: 1px solid var(--accent-amber); background: var(--bg-card); color: var(--text-primary); border-radius: var(--radius-pill); padding: 0.2rem 0.65rem; font-family: inherit; font-size: 0.76rem; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; gap: 0.25rem; }
+.ck-chip-pend:hover { background: var(--accent-amber); color: #fff; }
+.ck-chips { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.ck-chip { border: 1px solid var(--border-color); background: var(--bg-card); color: var(--text-secondary); border-radius: var(--radius-pill); padding: 0.28rem 0.75rem; font-family: inherit; font-size: 0.75rem; font-weight: 600; cursor: pointer; }
+.ck-chip:hover { border-color: var(--accent-blue); color: var(--accent-blue); }
+.ck-chip.ativo { background: var(--accent-blue); border-color: var(--accent-blue); color: #fff; }

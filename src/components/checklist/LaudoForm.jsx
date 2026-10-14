@@ -84,7 +84,7 @@ const Anexos = ({ fotos, onAdd, onRemove, max, rotulo = 'Anexar foto' }) => {
   );
 };
 
-export const LaudoForm = ({ obra, obraQuadros, laudo, quadroFixoId, onSalvo, onCancelar, onNavigate }) => {
+export const LaudoForm = ({ obra, obraQuadros, laudo, quadroFixoId, quadroSugeridoId, onSalvo, onCancelar, onNavigate }) => {
   const { saveLaudo } = useData();
   const { users, currentUser } = useAuth();
 
@@ -92,6 +92,7 @@ export const LaudoForm = ({ obra, obraQuadros, laudo, quadroFixoId, onSalvo, onC
   const quadroInicial =
     laudo?.quadroId ??
     quadroFixoId ??
+    quadroSugeridoId ??
     obraQuadros.find((q) => laudo && q.name.trim().toLowerCase() === (laudo.quadroNome || '').trim().toLowerCase())?.id ??
     '';
   const [quadroId, setQuadroId] = useState(quadroInicial);

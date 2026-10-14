@@ -14,8 +14,7 @@ import {
   Wrench,
   FileText,
   Grid,
-  UserCheck,
-  Zap
+  UserCheck
 } from 'lucide-react';
 
 export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
@@ -24,6 +23,12 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
 
   const irPara = (aba) => {
     setActiveTab(aba);
+  };
+
+  // "Quadros" abre a lista de pastas (sem nenhum quadro selecionado).
+  const irParaQuadros = () => {
+    setSelectedQuadroId(null);
+    setActiveTab('quadros');
   };
 
   // A Visão Geral é o quadro geral da obra (sem quadro específico selecionado).
@@ -43,15 +48,20 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
           Icone: Kanban,
           ativo: activeTab === 'kanban' && selectedQuadroId === null,
           aoClicar: irParaVisaoGeral
-        },
-        { id: 'quadros', rotulo: 'Quadros & Subníveis', Icone: Layers },
-        { id: 'infra', rotulo: 'Kanban de Infraestrutura', Icone: Wrench }
+        }
       ]
     },
     {
-      titulo: 'Engenharia',
+      titulo: 'Execução',
       itens: [
-        { id: 'dimensionamento', rotulo: 'Dimensionamento de Quadros', Icone: Zap },
+        {
+          id: 'quadros',
+          rotulo: 'Quadros',
+          Icone: Layers,
+          ativo: activeTab === 'quadros' && selectedQuadroId === null,
+          aoClicar: irParaQuadros
+        },
+        { id: 'infra', rotulo: 'Infraestrutura', Icone: Wrench },
         { id: 'checklist', rotulo: 'Checklist HVAC', Icone: CheckSquare }
       ]
     },
@@ -189,8 +199,8 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
               <span>Quadros ({activeQuadros.length})</span>
               <button
                 type="button"
-                onClick={() => onOpenObraModal('quadro')}
-                title="Novo quadro"
+                onClick={irParaQuadros}
+                title="Ver e criar quadros"
                 style={{ background: 'none', border: 'none', color: 'var(--accent-blue)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
               >
                 <Plus size={14} />
@@ -199,19 +209,19 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
 
             {activeQuadros.length === 0 && (
               <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', padding: '0.2rem 0.7rem' }}>
-                Nenhum quadro ainda. Use o + para criar.
+                Nenhum quadro ainda. Crie em Quadros.
               </p>
             )}
 
             {activeQuadros.map((quadro) => {
-              const ativo = selectedQuadroId === quadro.id && activeTab === 'kanban';
+              const ativo = selectedQuadroId === quadro.id && (activeTab === 'quadros' || activeTab === 'kanban');
               return (
                 <button
                   key={quadro.id}
                   type="button"
                   onClick={() => {
                     setSelectedQuadroId(quadro.id);
-                    setActiveTab('kanban');
+                    setActiveTab('quadros');
                   }}
                   className={`nav-item nav-quadro ${ativo ? 'active' : ''}`}
                 >

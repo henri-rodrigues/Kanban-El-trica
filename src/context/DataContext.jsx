@@ -470,11 +470,12 @@ export const DataProvider = ({ children }) => {
   ];
 
   const addQuadro = (quadroData) => {
-    if (!selectedObraId) return;
+    const obraAlvo = selectedObraId || activeObra?.id;
+    if (!obraAlvo) return null;
     const newQuadroId = `qd-${Date.now()}`;
     const newQuadro = {
       id: newQuadroId,
-      obraId: selectedObraId,
+      obraId: obraAlvo,
       status: 'Em Teste',
       ...quadroData
     };
@@ -498,7 +499,7 @@ export const DataProvider = ({ children }) => {
 
       return {
         id: cardId,
-        obraId: selectedObraId,
+        obraId: obraAlvo,
         quadroId: newQuadroId,
         level: 'quadro',
         column: 'todo',
@@ -518,6 +519,16 @@ export const DataProvider = ({ children }) => {
     if (isFirebaseActive()) {
       autoCards.forEach(c => saveFirestoreDoc('cards', c.id, c));
     }
+    return newQuadroId;
+  };
+
+  const updateQuadro = (quadroId, fields) => {
+    setQuadros(prev => prev.map(q => {
+      if (q.id !== quadroId) return q;
+      const updated = { ...q, ...fields };
+      if (isFirebaseActive()) saveFirestoreDoc('quadros', quadroId, updated);
+      return updated;
+    }));
   };
 
   const addCard = (cardData) => {
@@ -860,6 +871,7 @@ export const DataProvider = ({ children }) => {
         deleteObra,
         updateObraFinancials,
         addQuadro,
+        updateQuadro,
         deleteQuadro,
         addCard,
         updateCardStatus,

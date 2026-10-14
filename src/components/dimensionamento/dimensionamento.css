@@ -85,6 +85,8 @@
 .dq-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 0.75rem 1rem; }
 .dq-grid .wide { grid-column: span 2; }
 .dq-grid.one { grid-template-columns: 1fr; }
+.dq-grid .dq-quebra { grid-column-start: 1; }
+.dq-grid .wide.dq-quebra { grid-column: 1 / span 2; }
 .dq-field { display: flex; flex-direction: column; gap: 0.3rem; }
 .dq-field > span { font-size: 0.75rem; font-weight: 600; color: var(--text-secondary); }
 .dq-field em { font-style: normal; color: var(--text-muted); font-weight: 500; }

@@ -40,8 +40,8 @@ const descExtras = (e) => {
   return x.join(' · ');
 };
 
-export const QuadroEditor = ({ initial, obra, obraQuadros, onBack }) => {
-  const { saveDimensionamento, deleteDimensionamento } = useData();
+export const QuadroEditor = ({ initial, obra, obraQuadros = [], onBack, modoPasta = false, onSalvo, onGerado }) => {
+  const { saveDimensionamento, deleteDimensionamento, addQuadro, updateQuadro, deleteQuadro } = useData();
   const { currentUser, isAdmin } = useAuth();
 
   const [q, setQ] = useState(() => ({ ...clone(PADRAO_QUADRO), ...(initial ? clone(initial) : {}) }));
@@ -74,6 +74,25 @@ export const QuadroEditor = ({ initial, obra, obraQuadros, onBack }) => {
     return '';
   };
 
+  // Cada quadro dimensionado tem uma "pasta" (o quadro da obra, com os post-its padrão).
+  const garantirPasta = (doc) => {
+    if (!doc.quadroObraId) {
+      return addQuadro({ name: doc.nome.trim() });
+    }
+    const alvo = obraQuadros.find((x) => x.id === doc.quadroObraId);
+    if (alvo && alvo.name !== doc.nome.trim()) updateQuadro(doc.quadroObraId, { name: doc.nome.trim() });
+    return doc.quadroObraId;
+  };
+
+  // Grava o dimensionamento, cria/atualiza a pasta e liga os dois.
+  const gravar = (doc) => {
+    const quadroObraId = garantirPasta(doc);
+    const salvo = saveDimensionamento(obra.id, { ...doc, quadroObraId: quadroObraId || null });
+    if (salvo && quadroObraId) updateQuadro(quadroObraId, { dimensionamentoId: salvo.id });
+    if (salvo) setQ((prev) => ({ ...prev, ...salvo }));
+    return salvo;
+  };
+
   const persistir = (res) => {
     const doc = { ...q };
     if (res) {
@@ -81,15 +100,14 @@ export const QuadroEditor = ({ initial, obra, obraQuadros, onBack }) => {
       doc.resumo = res.resumo;
       doc.memorial = res.memorial.map((m) => ({ ...m, entradas: pares(m.entradas), resultados: pares(m.resultados) }));
     }
-    const salvo = saveDimensionamento(obra.id, doc);
-    if (salvo) setQ((prev) => ({ ...prev, ...salvo }));
-    return salvo;
+    return gravar(doc);
   };
 
   const salvarRascunho = () => {
     if (!q.nome?.trim()) return notificar('Informe o nome / TAG do quadro.', 'erro');
-    persistir(null);
+    const salvo = persistir(null);
     notificar('Rascunho salvo.');
+    if (salvo) onSalvo?.(salvo);
   };
 
   const abrirLinhas = () => {
@@ -116,11 +134,15 @@ export const QuadroEditor = ({ initial, obra, obraQuadros, onBack }) => {
         resumo: res.resumo,
         memorial: res.memorial.map((m) => ({ ...m, entradas: pares(m.entradas), resultados: pares(m.resultados) }))
       };
-      const salvo = saveDimensionamento(obra.id, doc);
-      setQ(salvo ? { ...novo, ...salvo } : novo);
+      const salvo = gravar(doc);
+      if (!salvo) setQ(novo);
       setResultado(res);
       setObsoleto(false);
-      notificar('Lista de materiais gerada e salva na obra.');
+      notificar('Lista de materiais gerada e salva na pasta do quadro.');
+      if (salvo) {
+        onSalvo?.(salvo);
+        onGerado?.(salvo);
+      }
     } catch (e) {
       notificar(`Não foi possível dimensionar: ${e.message}`, 'erro');
     }
@@ -143,8 +165,9 @@ export const QuadroEditor = ({ initial, obra, obraQuadros, onBack }) => {
 
   const excluirQuadro = () => {
     if (!window.confirm(`Excluir o quadro "${q.nome}" desta obra? Esta ação não pode ser desfeita.`)) return;
+    if (q.quadroObraId) deleteQuadro(q.quadroObraId);
     deleteDimensionamento(q.id);
-    onBack();
+    onBack?.();
   };
 
   const exportarCsv = () => baixar(`${nomeArquivo(q.nome)}-lista-de-materiais.csv`, bomParaCSV(resultado));
@@ -154,19 +177,17 @@ export const QuadroEditor = ({ initial, obra, obraQuadros, onBack }) => {
     if (!ok) notificar('O navegador bloqueou a janela de impressão. Permita pop-ups para este site.', 'erro');
   };
 
-  const vincularQuadroObra = (id) => {
-    const alvo = obraQuadros.find((x) => x.id === id);
-    setQ((prev) => ({ ...prev, quadroObraId: id || null, nome: prev.nome || alvo?.name || '' }));
-    if (resultado) setObsoleto(true);
-  };
-
   return (
     <div className="dq-scope">
       <div className="dq-bar">
-        <button type="button" className="btn btn-secondary" onClick={onBack}><ArrowLeft size={15} /> Quadros</button>
-        <h2 style={{ fontSize: '1.15rem', fontWeight: 800 }}>{q.id ? q.nome || 'Quadro' : 'Novo quadro'}</h2>
+        {!modoPasta && (
+          <>
+            <button type="button" className="btn btn-secondary" onClick={onBack}><ArrowLeft size={15} /> Quadros</button>
+            <h2 style={{ fontSize: '1.15rem', fontWeight: 800 }}>{q.id ? q.nome || 'Quadro' : 'Novo quadro'}</h2>
+          </>
+        )}
         <span className="dq-spacer" />
-        {podeExcluir && (
+        {podeExcluir && !modoPasta && (
           <button type="button" className="btn btn-danger" onClick={excluirQuadro}><Trash2 size={14} /> Excluir</button>
         )}
         <button type="button" className="btn btn-secondary" onClick={salvarRascunho}><Save size={14} /> Salvar rascunho</button>
@@ -214,14 +235,6 @@ export const QuadroEditor = ({ initial, obra, obraQuadros, onBack }) => {
           {cfg.potencia && (
             <Field label="Distância do alimentador até o quadro (m)">
               <input className="form-control" type="number" min="0" step="any" value={q.distanciaAlimentador} onChange={alterarNum('distanciaAlimentador')} />
-            </Field>
-          )}
-          {obraQuadros.length > 0 && (
-            <Field label="Vincular a um quadro da obra (opcional)">
-              <select className="form-control" value={q.quadroObraId ?? ''} onChange={(e) => vincularQuadroObra(e.target.value)}>
-                <option value="">Sem vínculo</option>
-                {obraQuadros.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
-              </select>
             </Field>
           )}
         </div>
@@ -336,13 +349,13 @@ export const QuadroEditor = ({ initial, obra, obraQuadros, onBack }) => {
         </div>
       )}
 
-      {resultado && obsoleto && (
+      {resultado && obsoleto && !modoPasta && (
         <div className="dq-alert">
           Os dados foram alterados depois da última geração. Clique em <strong>Gerar lista de materiais</strong> para atualizar o resultado abaixo.
         </div>
       )}
 
-      {resultado && (
+      {resultado && !modoPasta && (
         <QuadroResultado
           quadro={q}
           resultado={resultado}

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { CardDetailModal } from './CardDetailModal';
+import { ObraResumo } from './ObraResumo';
 import { getGradientById } from '../constants/gradients';
 import { 
   Plus, 
@@ -23,7 +24,7 @@ const COLUMNS = [
   { id: 'completed', title: 'Concluído', badge: 'tag-phone' }
 ];
 
-export const KanbanBoard = ({ onOpenObraModal }) => {
+export const KanbanBoard = ({ onOpenObraModal, onNavigate, modoPasta = false }) => {
   const { currentUser, users, isAdmin } = useAuth();
   const { 
     activeObra, 
@@ -42,6 +43,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
   const [searchFilter, setSearchFilter] = useState('');
   const [dragOverColId, setDragOverColId] = useState(null);
   const [permissionErrorMsg, setPermissionErrorMsg] = useState('');
+  const [filtro, setFiltro] = useState('todos'); // todos | meus | bloqueados | prioridade | sem_responsavel
 
   if (!activeObra) {
     return (
@@ -53,12 +55,35 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
     );
   }
 
-  const filteredCards = cards.filter(c => {
-    if (c.obraId !== activeObra.id) return false;
-    if (selectedQuadroId && c.quadroId !== selectedQuadroId) return false;
+  // Post-its do escopo atual (obra inteira ou o quadro selecionado), sem busca nem filtros.
+  const cardsDoEscopo = cards.filter(c =>
+    c.obraId === activeObra.id && (!selectedQuadroId || c.quadroId === selectedQuadroId)
+  );
+  const cardsDaObra = cards.filter(c => c.obraId === activeObra.id);
+
+  const casaFiltro = (c, f) => {
+    switch (f) {
+      case 'meus': return c.assignedUserId === currentUser?.id;
+      case 'bloqueados': return c.column === 'on_hold';
+      case 'prioridade': return (c.priority === 'Alta' || c.priority === 'Crítica') && c.column !== 'completed';
+      case 'sem_responsavel': return !c.assignedUserId && c.column !== 'completed';
+      default: return true;
+    }
+  };
+
+  const filteredCards = cardsDoEscopo.filter(c => {
+    if (!casaFiltro(c, filtro)) return false;
     if (searchFilter && !c.title.toLowerCase().includes(searchFilter.toLowerCase())) return false;
     return true;
   });
+
+  const FILTROS = [
+    { id: 'todos', rotulo: 'Todos' },
+    { id: 'meus', rotulo: 'Meus post-its' },
+    { id: 'bloqueados', rotulo: 'Em espera' },
+    { id: 'prioridade', rotulo: 'Prioridade alta' },
+    { id: 'sem_responsavel', rotulo: 'Sem responsável' }
+  ];
 
   const handleCreateQuickCard = (columnId) => {
     if (!newCardTitle.trim()) return;
@@ -189,13 +214,16 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
               />
             </div>
 
-            <button onClick={() => onOpenObraModal('quadro')} className="btn btn-secondary btn-sm">
-              <Plus size={14} /> <span className="mobile-hide">Quadro</span>
-            </button>
+            {!modoPasta && (
+              <button onClick={() => onNavigate?.('quadros')} className="btn btn-secondary btn-sm" title="Criar e ver os quadros da obra">
+                <Plus size={14} /> <span className="mobile-hide">Novo quadro</span>
+              </button>
+            )}
           </div>
         </div>
 
         {/* Second row: Scope Pills — horizontal scroll on mobile */}
+        {!modoPasta && (
         <div style={{ display: 'flex', overflowX: 'auto', WebkitOverflowScrolling: 'touch', gap: '2px', background: 'var(--bg-main)', borderRadius: 'var(--radius-md)', padding: '2px', border: '1px solid var(--border-color)' }}>
           <button
             onClick={() => setSelectedQuadroId(null)}
@@ -212,7 +240,7 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
               flexShrink: 0
             }}
           >
-            🌐 Obra Geral
+            🌐 Obra Geral <span style={{ opacity: 0.75, fontWeight: 500 }}>{cardsDaObra.filter(c => c.column === 'completed').length}/{cardsDaObra.length}</span>
           </button>
 
           {activeQuadros.map(q => (
@@ -232,25 +260,43 @@ export const KanbanBoard = ({ onOpenObraModal }) => {
                 flexShrink: 0
               }}
             >
-              ⚡ {q.name}
+              ⚡ {q.name} <span style={{ opacity: 0.75, fontWeight: 500 }}>{cardsDaObra.filter(c => c.quadroId === q.id && c.column === 'completed').length}/{cardsDaObra.filter(c => c.quadroId === q.id).length}</span>
             </button>
           ))}
         </div>
+        )}
       </div>
 
-      {/* User Legend — hidden on mobile */}
-      <div className="mobile-hide" style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.75rem', color: 'var(--text-muted)', padding: '0 0.25rem' }}>
-        <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>Operadores:</span>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-          {users.map(u => (
-            <span key={u.id} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: u.userColorTag }} />
-              {u.name.split(' ')[0]} {isAdmin && <strong style={{ color: 'var(--accent-emerald)' }}>(R$ {u.dailyRate}/dia)</strong>}
-            </span>
-          ))}
-        </div>
-        <span style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--accent-blue)' }}>
-          🔒 Você pode mover e editar apenas os seus próprios post-its
+      {/* Resumo da obra / do quadro */}
+      <ObraResumo
+        obra={activeObra}
+        cards={cardsDoEscopo}
+        quadroNome={selectedQuadroId ? activeQuadro?.name : null}
+        filtroAtivo={filtro}
+        onFiltrar={setFiltro}
+        onNavigate={onNavigate}
+      />
+
+      {/* Filtros do quadro */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+        {FILTROS.map(f => {
+          const qtd = f.id === 'todos' ? cardsDoEscopo.length : cardsDoEscopo.filter(c => casaFiltro(c, f.id)).length;
+          const ativo = filtro === f.id;
+          return (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFiltro(f.id)}
+              className={`btn btn-sm ${ativo ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ gap: '0.35rem' }}
+            >
+              {f.rotulo}
+              <span style={{ opacity: ativo ? 0.9 : 0.6, fontWeight: 700 }}>{qtd}</span>
+            </button>
+          );
+        })}
+        <span className="mobile-hide" style={{ marginLeft: 'auto', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+          🔒 Você move e edita apenas os seus post-its{isAdmin ? ' (administrador: todos)' : ''}
         </span>
       </div>
 

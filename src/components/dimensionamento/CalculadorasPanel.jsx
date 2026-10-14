@@ -8,7 +8,7 @@ import { fmt, h, dataHora, imprimirHtml, pares } from './helpers';
 
 const entradasDe = (c, valores) =>
   c.campos
-    .filter((f) => !f.se || f.se(valores))
+    .filter((f) => (!f.se || f.se(valores)) && (!f.relatorio || f.relatorio(valores)))
     .map((f) => {
       const v = valores[f.id];
       const texto =
@@ -94,18 +94,19 @@ function htmlCalculo({ titulo, norma, entradas, resultados, alertas, passos, mem
     <script>window.addEventListener('load',function(){setTimeout(function(){window.print()},300)})<\/script></body></html>`;
 }
 
-export const CalculadorasPanel = ({ obra, dimensionamentos }) => {
+export const CalculadorasPanel = ({ obra, dimensionamentos, ids = null, tituloHistorico = 'Histórico de cálculos da obra' }) => {
   const { calculosQuadros, addCalculoQuadro, deleteCalculoQuadro } = useData();
   const { currentUser } = useAuth();
 
-  const [calcId, setCalcId] = useState(CALCULADORAS[0].id);
+  const lista = ids ? CALCULADORAS.filter((x) => ids.includes(x.id)) : CALCULADORAS;
+  const [calcId, setCalcId] = useState(lista[0].id);
   const [valores, setValores] = useState({});
   const [descricao, setDescricao] = useState('');
   const [vinculo, setVinculo] = useState('');
   const [filtro, setFiltro] = useState('todos');
   const [aviso, setAviso] = useState('');
 
-  const calc = CALCULADORAS.find((x) => x.id === calcId);
+  const calc = lista.find((x) => x.id === calcId) || lista[0];
   const atuais = valores[calcId] ?? Object.fromEntries(calc.campos.map((f) => [f.id, f.padrao]));
 
   const r = useMemo(() => {
@@ -118,6 +119,7 @@ export const CalculadorasPanel = ({ obra, dimensionamentos }) => {
 
   const historico = calculosQuadros
     .filter((c) => c.obraId === obra.id)
+    .filter((c) => !ids || ids.includes(c.tipo))
     .filter((c) => filtro === 'todos' || (filtro === 'avulsos' ? !c.dimensionamentoId : c.dimensionamentoId === filtro))
     .sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''));
 
@@ -179,7 +181,7 @@ export const CalculadorasPanel = ({ obra, dimensionamentos }) => {
     <div className="dq-scope">
       <div className="dq-calc-layout">
         <nav className="dq-calc-menu" aria-label="Calculadoras">
-          {CALCULADORAS.map((x) => (
+          {lista.map((x) => (
             <button key={x.id} type="button" className={x.id === calcId ? 'active' : ''} onClick={() => setCalcId(x.id)}>
               {x.nome}
             </button>
@@ -192,7 +194,7 @@ export const CalculadorasPanel = ({ obra, dimensionamentos }) => {
             <p className="dq-muted" style={{ marginBottom: '0.9rem' }}>{calc.descricao}</p>
             <div className="dq-grid">
               {calc.campos.filter((f) => !f.se || f.se(atuais)).map((f) => (
-                <label key={f.id} className={`dq-field${f.largo ? ' wide' : ''}`}>
+                <label key={f.id} className={`dq-field${f.largo ? ' wide' : ''}${f.quebra ? ' dq-quebra' : ''}`}>
                   <span>{f.rotulo}{f.unidade ? <em> ({f.unidade})</em> : null}</span>
                   {f.tipo === 'sel' ? (
                     <select
@@ -255,7 +257,7 @@ export const CalculadorasPanel = ({ obra, dimensionamentos }) => {
 
           <div className="dq-card">
             <div className="dq-bar" style={{ marginBottom: '0.6rem' }}>
-              <h3 style={{ margin: 0 }}>Histórico de cálculos da obra</h3>
+              <h3 style={{ margin: 0 }}>{tituloHistorico}</h3>
               <span className="dq-spacer" />
               <select className="form-control" style={{ width: 'auto' }} aria-label="Filtrar histórico" value={filtro} onChange={(e) => setFiltro(e.target.value)}>
                 <option value="todos">Todos</option>

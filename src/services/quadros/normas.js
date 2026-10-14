@@ -165,11 +165,31 @@ export function taxaOcupacaoMax(nCabos) {
   return 40;
 }
 
-// Diâmetros internos típicos (mm) — confirmar com o fabricante do eletroduto.
+// Eletrodutos rígidos de aço — [tamanho, diâmetro externo (mm), espessura da parede (mm)].
+// Valores típicos das normas de fabricação; confirmar com o catálogo do fabricante.
 export const ELETRODUTOS = {
-  "PVC rígido roscável (NBR 15465)": [["1/2\"", 16.4], ["3/4\"", 21.3], ["1\"", 27.5], ["1.1/4\"", 36.1], ["1.1/2\"", 41.4], ["2\"", 52.8], ["2.1/2\"", 67.1], ["3\"", 79.6], ["4\"", 103.1]],
-  "Aço galvanizado (NBR 5597/5598)": [["1/2\"", 15.8], ["3/4\"", 20.9], ["1\"", 26.6], ["1.1/4\"", 35.1], ["1.1/2\"", 40.9], ["2\"", 52.5], ["2.1/2\"", 62.7], ["3\"", 77.9], ["4\"", 102.3]]
+  pesado: {
+    nome: "Pesado — aço galvanizado a fogo",
+    ref: "Dimensões típicas NBR 5598 (galvanizado a fogo, rosca BSP)",
+    tamanhos: [["1/2\"", 21.3, 2.25], ["3/4\"", 26.9, 2.25], ["1\"", 33.7, 2.65], ["1.1/4\"", 42.4, 2.65], ["1.1/2\"", 48.3, 3.0], ["2\"", 60.3, 3.0], ["2.1/2\"", 76.1, 3.35], ["3\"", 88.9, 3.35], ["4\"", 114.3, 3.75]]
+  },
+  leve: {
+    nome: "Leve — aço zincado",
+    ref: "Dimensões típicas NBR 13057 (zincado eletrolítico)",
+    tamanhos: [["1/2\"", 20.0, 1.5], ["3/4\"", 25.2, 1.5], ["1\"", 31.5, 1.5], ["1.1/4\"", 40.5, 2.0], ["1.1/2\"", 46.6, 2.25], ["2\"", 58.3, 2.25], ["2.1/2\"", 74.0, 2.65], ["3\"", 86.6, 2.65], ["4\"", 111.6, 2.65]]
+  }
 };
+
+// Fator de reunião das veias de um cabo multipolar (diâmetro do feixe ÷ diâmetro da veia).
+const FATOR_VIAS = { 2: 2.0, 3: 2.16, 4: 2.42, 5: 2.7, 6: 3.0, 7: 3.0, 8: 3.3, 10: 4.0, 12: 4.16 };
+export const VIAS_MULTIPOLAR = Object.keys(FATOR_VIAS).map(Number);
+
+// Diâmetro externo estimado de um cabo multipolar 0,6/1 kV: feixe das veias + cobertura.
+export function diametroMultipolar(vias, secao) {
+  const veia = DIAMETRO_CABO["Isolado 450/750 V (PVC)"][SECOES.indexOf(secao)];
+  const capa = secao <= 16 ? 1.8 : secao <= 70 ? 2.2 : 2.8;
+  return (FATOR_VIAS[vias] ?? 1.2 * Math.sqrt(vias) + 0.4) * veia + 2 * capa;
+}
 
 // Diâmetro externo típico de cabos unipolares flexíveis (mm), por seção.
 export const DIAMETRO_CABO = {

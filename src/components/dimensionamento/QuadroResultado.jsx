@@ -18,7 +18,9 @@ const Pares = ({ dados }) => (
   </table>
 );
 
-export const QuadroResultado = ({ quadro, resultado: r, onLinhas, onCsv, onPrint }) => {
+// `mostrar`: lista com as seções a exibir (resumo, cargas, bom, protecoes, layout, memorial). Vazio = todas.
+export const QuadroResultado = ({ quadro, resultado: r, onLinhas, onCsv, onPrint, mostrar = null }) => {
+  const ver = (id) => !mostrar || mostrar.includes(id);
   const s = r.resumo;
   const kpis = [
     ['Tensão', `${s.tensao} V`],
@@ -34,6 +36,8 @@ export const QuadroResultado = ({ quadro, resultado: r, onLinhas, onCsv, onPrint
 
   return (
     <div className="dq-scope">
+      {ver('resumo') && (
+        <>
       <div className="dq-card">
         <div className="dq-bar">
           <h3 style={{ margin: 0 }}>Resumo geral — {s.nome}</h3>
@@ -57,6 +61,11 @@ export const QuadroResultado = ({ quadro, resultado: r, onLinhas, onCsv, onPrint
         )}
       </div>
 
+        </>
+      )}
+
+      {ver('cargas') && (
+        <>
       {r.cargas.length > 0 && (
         <div className="dq-card">
           <h3>Tabela de cargas</h3>
@@ -91,6 +100,11 @@ export const QuadroResultado = ({ quadro, resultado: r, onLinhas, onCsv, onPrint
         </div>
       )}
 
+        </>
+      )}
+
+      {ver('bom') && (
+        <>
       <div className="dq-card">
         <h3>Lista de materiais</h3>
         <div className="dq-table-wrap">
@@ -121,6 +135,11 @@ export const QuadroResultado = ({ quadro, resultado: r, onLinhas, onCsv, onPrint
         </div>
       </div>
 
+        </>
+      )}
+
+      {ver('protecoes') && (
+        <>
       <div className="dq-card">
         <h3>Proteções e automação</h3>
         <dl className="dq-defs">
@@ -130,6 +149,11 @@ export const QuadroResultado = ({ quadro, resultado: r, onLinhas, onCsv, onPrint
         </dl>
       </div>
 
+        </>
+      )}
+
+      {ver('layout') && (
+        <>
       <div className="dq-card">
         <h3>Layout do quadro montado</h3>
         <p className="dq-sub" style={{ marginBottom: '0.6rem' }}>
@@ -143,6 +167,11 @@ export const QuadroResultado = ({ quadro, resultado: r, onLinhas, onCsv, onPrint
         </ul>
       </div>
 
+        </>
+      )}
+
+      {ver('memorial') && (
+        <>
       <div className="dq-card">
         <h3>Memorial de cálculo</h3>
         <p className="dq-sub" style={{ marginBottom: '0.6rem' }}>Cada passo abaixo documenta como o dimensionamento foi obtido.</p>
@@ -159,6 +188,9 @@ export const QuadroResultado = ({ quadro, resultado: r, onLinhas, onCsv, onPrint
           </details>
         ))}
       </div>
+
+        </>
+      )}
 
       <p className="dq-sub">
         Resultado de pré-dimensionamento. A especificação final deve ser conferida e validada pelo responsável técnico, com as normas vigentes e os catálogos atualizados dos fabricantes.

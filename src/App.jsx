@@ -6,14 +6,13 @@ import { Sidebar } from './components/Sidebar';
 import { Breadcrumb } from './components/Breadcrumb';
 import { ObraHubView } from './components/ObraHubView';
 import { KanbanBoard } from './components/KanbanBoard';
-import { QuadrosView } from './components/QuadrosView';
 import { ChecklistModule } from './components/ChecklistModule';
 import { MaterialsModule } from './components/MaterialsModule';
 import { ReportsModule } from './components/ReportsModule';
 import { ScheduleModule } from './components/ScheduleModule';
-import { InfraKanbanView } from './components/InfraKanbanView';
+import { InfraestruturaModule } from './components/dimensionamento/InfraestruturaModule';
 import { FieldReportsModule } from './components/FieldReportsModule';
-import { DimensionamentoModule } from './components/dimensionamento/DimensionamentoModule';
+import { QuadrosModule } from './components/dimensionamento/QuadrosModule';
 import { LoginScreenView } from './components/LoginScreenView';
 import { UserManagementModal } from './components/UserManagementModal';
 import { ObraModal } from './components/ObraModal';
@@ -100,13 +99,12 @@ function MainLayout() {
     switch (tab) {
       case 'hub': return 'Vitrine de Obras';
       case 'kanban': return 'Visão Geral da Obra';
-      case 'quadros': return 'Subníveis & Quadros';
+      case 'quadros': return 'Quadros';
       case 'checklist': return 'Checklist HVAC';
-      case 'dimensionamento': return 'Dimensionamento de Quadros';
       case 'materials': return 'Controle de Materiais & PDF';
       case 'agenda': return 'Escala de Viagens';
       case 'personal_agenda': return 'Minha Agenda Pessoal';
-      case 'infra': return 'Kanban de Infraestrutura';
+      case 'infra': return 'Infraestrutura';
       case 'field_reports': return 'Diário de Campo & Mídias';
       case 'reports': return 'Relatórios Financeiros';
       default: return 'Visão Geral';
@@ -116,9 +114,9 @@ function MainLayout() {
   // Which tabs are shown in the "More" menu
   const moreMenuTabs = [
     { id: 'checklist', icon: <CheckSquare size={16} />, label: 'Checklist HVAC' },
-    { id: 'dimensionamento', icon: <Zap size={16} />, label: 'Dimensionamento de Quadros' },
+    { id: 'quadros', icon: <Zap size={16} />, label: 'Quadros' },
     { id: 'agenda', icon: <Calendar size={16} />, label: 'Escala de Viagens' },
-    { id: 'infra', icon: <Wrench size={16} />, label: 'Kanban de Infraestrutura' },
+    { id: 'infra', icon: <Wrench size={16} />, label: 'Infraestrutura' },
     { id: 'field_reports', icon: <FileText size={16} />, label: 'Diário de Campo' },
   ];
 
@@ -170,19 +168,15 @@ function MainLayout() {
             )}
 
             {activeTab === 'kanban' && (
-              <KanbanBoard onOpenObraModal={handleOpenObraModal} />
+              <KanbanBoard onOpenObraModal={handleOpenObraModal} onNavigate={setActiveTab} />
             )}
 
             {activeTab === 'quadros' && (
-              <QuadrosView onOpenObraModal={handleOpenObraModal} setActiveTab={setActiveTab} />
+              <QuadrosModule onOpenObraModal={handleOpenObraModal} onNavigate={setActiveTab} />
             )}
 
             {activeTab === 'checklist' && (
               <ChecklistModule />
-            )}
-
-            {activeTab === 'dimensionamento' && (
-              <DimensionamentoModule />
             )}
 
             {activeTab === 'agenda' && (
@@ -194,7 +188,7 @@ function MainLayout() {
             )}
 
             {activeTab === 'infra' && (
-              <InfraKanbanView />
+              <InfraestruturaModule />
             )}
 
             {activeTab === 'field_reports' && (

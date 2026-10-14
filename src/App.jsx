@@ -9,6 +9,7 @@ import { ChecklistModule } from './components/ChecklistModule';
 import { MaterialsModule } from './components/MaterialsModule';
 import { ReportsModule } from './components/ReportsModule';
 import { ScheduleModule } from './components/ScheduleModule';
+import { MinhaAgenda } from './components/MinhaAgenda';
 import { InfraestruturaModule } from './components/dimensionamento/InfraestruturaModule';
 import { FieldReportsModule } from './components/FieldReportsModule';
 import { QuadrosModule } from './components/dimensionamento/QuadrosModule';
@@ -181,7 +182,7 @@ function MainLayout() {
             )}
 
             {activeTab === 'personal_agenda' && (
-              <ScheduleModule defaultViewMode="personal" />
+              <MinhaAgenda onNavigate={setActiveTab} />
             )}
 
             {activeTab === 'infra' && (

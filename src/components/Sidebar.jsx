@@ -1,12 +1,12 @@
 import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
-import { 
-  Kanban, 
-  Layers, 
-  CheckSquare, 
-  BarChart3, 
-  Plus, 
+import {
+  Kanban,
+  Layers,
+  CheckSquare,
+  BarChart3,
+  Plus,
   Package,
   ChevronRight,
   Edit3,
@@ -22,23 +22,92 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
   const { isAdmin } = useAuth();
   const { activeObra, activeQuadros, selectedQuadroId, setSelectedQuadroId } = useData();
 
+  const irPara = (aba) => {
+    setActiveTab(aba);
+  };
+
+  // A Visão Geral é o quadro geral da obra (sem quadro específico selecionado).
+  const irParaVisaoGeral = () => {
+    setSelectedQuadroId(null);
+    setActiveTab('kanban');
+  };
+
+  // Menu agrupado pela ordem em que o trabalho acontece.
+  const secoes = [
+    {
+      titulo: 'Acompanhamento',
+      itens: [
+        {
+          id: 'kanban',
+          rotulo: 'Visão Geral da Obra',
+          Icone: Kanban,
+          ativo: activeTab === 'kanban' && selectedQuadroId === null,
+          aoClicar: irParaVisaoGeral
+        },
+        { id: 'quadros', rotulo: 'Quadros & Subníveis', Icone: Layers },
+        { id: 'infra', rotulo: 'Kanban de Infraestrutura', Icone: Wrench }
+      ]
+    },
+    {
+      titulo: 'Engenharia',
+      itens: [
+        { id: 'dimensionamento', rotulo: 'Dimensionamento de Quadros', Icone: Zap },
+        { id: 'checklist', rotulo: 'Checklist HVAC', Icone: CheckSquare }
+      ]
+    },
+    {
+      titulo: 'Campo e equipe',
+      itens: [
+        { id: 'field_reports', rotulo: 'Diário de Campo & Mídia', Icone: FileText },
+        { id: 'agenda', rotulo: 'Escala de Viagens', Icone: Calendar }
+      ]
+    }
+  ];
+
+  if (isAdmin) {
+    secoes.push({
+      titulo: 'Gestão',
+      itens: [
+        { id: 'materials', rotulo: 'Controle de Materiais', Icone: Package, badge: 'Admin' },
+        { id: 'reports', rotulo: 'Relatórios', Icone: BarChart3, badge: 'Admin', roxo: true }
+      ]
+    });
+  }
+
   return (
     <aside className="glass-panel" style={{
-      width: '240px',
+      width: '248px',
       height: 'calc(100vh - 56px)',
       display: 'flex',
       flexDirection: 'column',
       borderRight: '1px solid var(--border-color)',
       padding: '0.85rem 0.65rem',
-      flexShrink: 0
+      flexShrink: 0,
+      overflowY: 'auto'
     }}>
-      {/* Obra Summary Header */}
+      {/* Atalho global: a agenda reúne as viagens de todas as obras */}
+      <button
+        type="button"
+        onClick={() => irPara('personal_agenda')}
+        className={`nav-item nav-global ${activeTab === 'personal_agenda' ? 'active' : ''}`}
+        title="Suas viagens e escalas em todas as obras"
+      >
+        <span className="nav-label">
+          <UserCheck size={16} />
+          <span className="nav-texto">
+            <strong>Minha Agenda</strong>
+            <small>Todas as obras</small>
+          </span>
+        </span>
+      </button>
+
+      {/* Obra ativa */}
       <div style={{
         padding: '0.75rem',
         borderRadius: 'var(--radius-md)',
         background: 'var(--bg-main)',
         border: '1px solid var(--border-color)',
-        marginBottom: '1rem'
+        marginTop: '0.75rem'
       }}>
         <div style={{ fontSize: '0.675rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.15rem' }}>
           Obra Ativa
@@ -66,7 +135,7 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
               <span className="badge badge-emerald">{activeObra?.progress || 0}%</span>
             </div>
             <div style={{ width: '100%', height: '4px', background: 'var(--border-color)', borderRadius: '2px', marginTop: '0.35rem', overflow: 'hidden' }}>
-              <div style={{ width: `${activeObra?.progress || 0}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent-emerald), var(--accent-blue))' }} />
+              <div style={{ width: `${activeObra?.progress || 0}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent-emerald), var(--accent-blue))', transition: 'width 0.4s var(--ease)' }} />
             </div>
           </>
         ) : (
@@ -78,324 +147,84 @@ export const Sidebar = ({ activeTab, setActiveTab, onOpenObraModal }) => {
         )}
       </div>
 
-      {/* Primary Nav Links */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', marginBottom: '1.25rem' }}>
-        <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '0 0.4rem 0.2rem' }}>
-          Navegação
+      {!activeObra ? (
+        <div style={{ padding: '1.25rem 0.5rem', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+          <p style={{ marginBottom: '0.6rem' }}>Escolha uma obra na vitrine para ver o menu dela.</p>
+          <button type="button" onClick={() => irPara('hub')} className="btn btn-secondary btn-sm">
+            <Grid size={13} /> Ir para a Vitrine de Obras
+          </button>
         </div>
+      ) : (
+        <>
+          {/* Menu da obra, agrupado por etapa */}
+          <nav aria-label="Menu da obra">
+            {secoes.map((secao) => (
+              <div key={secao.titulo}>
+                <div className="nav-secao">{secao.titulo}</div>
+                {secao.itens.map(({ id, rotulo, Icone, badge, roxo, ativo, aoClicar }) => {
+                  const ehAtivo = ativo !== undefined ? ativo : activeTab === id;
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={aoClicar || (() => irPara(id))}
+                      className={`nav-item ${ehAtivo ? 'active' : ''} ${roxo ? 'nav-roxo' : ''}`}
+                      aria-current={ehAtivo ? 'page' : undefined}
+                    >
+                      <span className="nav-label">
+                        <Icone size={16} />
+                        <span>{rotulo}</span>
+                      </span>
+                      {badge && <span className={`badge ${roxo ? 'badge-purple' : 'badge-blue'}`} style={{ fontSize: '0.6rem' }}>{badge}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </nav>
 
-        <button
-          onClick={() => setActiveTab('hub')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.65rem',
-            padding: '0.55rem 0.75rem',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '0.8rem',
-            fontWeight: activeTab === 'hub' ? 600 : 400,
-            background: activeTab === 'hub' ? 'var(--wash-blue-strong)' : 'transparent',
-            color: activeTab === 'hub' ? 'var(--accent-blue)' : 'var(--text-secondary)',
-            textAlign: 'left'
-          }}
-        >
-          <Grid size={16} />
-          <span>Vitrine de Obras</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('personal_agenda')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.65rem',
-            padding: '0.55rem 0.75rem',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '0.8rem',
-            fontWeight: activeTab === 'personal_agenda' ? 600 : 400,
-            background: activeTab === 'personal_agenda' ? 'var(--wash-purple)' : 'transparent',
-            color: activeTab === 'personal_agenda' ? 'var(--accent-purple)' : 'var(--text-secondary)',
-            textAlign: 'left'
-          }}
-        >
-          <UserCheck size={16} />
-          <span>Minha Agenda Pessoal</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('kanban')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.65rem',
-            padding: '0.55rem 0.75rem',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '0.8rem',
-            fontWeight: activeTab === 'kanban' ? 600 : 400,
-            background: activeTab === 'kanban' ? 'var(--wash-blue-strong)' : 'transparent',
-            color: activeTab === 'kanban' ? 'var(--accent-blue)' : 'var(--text-secondary)',
-            textAlign: 'left'
-          }}
-        >
-          <Kanban size={16} />
-          <span>Kanban & Post-its</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('quadros')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.65rem',
-            padding: '0.55rem 0.75rem',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '0.8rem',
-            fontWeight: activeTab === 'quadros' ? 600 : 400,
-            background: activeTab === 'quadros' ? 'var(--wash-blue-strong)' : 'transparent',
-            color: activeTab === 'quadros' ? 'var(--accent-blue)' : 'var(--text-secondary)',
-            textAlign: 'left'
-          }}
-        >
-          <Layers size={16} />
-          <span>Quadros & Subníveis</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('checklist')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.65rem',
-            padding: '0.55rem 0.75rem',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '0.8rem',
-            fontWeight: activeTab === 'checklist' ? 600 : 400,
-            background: activeTab === 'checklist' ? 'var(--wash-blue-strong)' : 'transparent',
-            color: activeTab === 'checklist' ? 'var(--accent-blue)' : 'var(--text-secondary)',
-            textAlign: 'left'
-          }}
-        >
-          <CheckSquare size={16} />
-          <span>Checklist HVAC</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('dimensionamento')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.65rem',
-            padding: '0.55rem 0.75rem',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '0.8rem',
-            fontWeight: activeTab === 'dimensionamento' ? 600 : 400,
-            background: activeTab === 'dimensionamento' ? 'var(--wash-blue-strong)' : 'transparent',
-            color: activeTab === 'dimensionamento' ? 'var(--accent-blue)' : 'var(--text-secondary)',
-            textAlign: 'left'
-          }}
-        >
-          <Zap size={16} />
-          <span>Dimensionamento de Quadros</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('agenda')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.65rem',
-            padding: '0.55rem 0.75rem',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '0.8rem',
-            fontWeight: activeTab === 'agenda' ? 600 : 400,
-            background: activeTab === 'agenda' ? 'var(--wash-blue-strong)' : 'transparent',
-            color: activeTab === 'agenda' ? 'var(--accent-blue)' : 'var(--text-secondary)',
-            textAlign: 'left'
-          }}
-        >
-          <Calendar size={16} />
-          <span>Agenda & Escala Viagens</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('infra')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.65rem',
-            padding: '0.55rem 0.75rem',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '0.8rem',
-            fontWeight: activeTab === 'infra' ? 600 : 400,
-            background: activeTab === 'infra' ? 'var(--wash-blue-strong)' : 'transparent',
-            color: activeTab === 'infra' ? 'var(--accent-blue)' : 'var(--text-secondary)',
-            textAlign: 'left'
-          }}
-        >
-          <Wrench size={16} />
-          <span>Kanban de Infraestrutura</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('field_reports')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.65rem',
-            padding: '0.55rem 0.75rem',
-            borderRadius: 'var(--radius-md)',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '0.8rem',
-            fontWeight: activeTab === 'field_reports' ? 600 : 400,
-            background: activeTab === 'field_reports' ? 'var(--wash-blue-strong)' : 'transparent',
-            color: activeTab === 'field_reports' ? 'var(--accent-blue)' : 'var(--text-secondary)',
-            textAlign: 'left'
-          }}
-        >
-          <FileText size={16} />
-          <span>Diário de Campo & Mídia</span>
-        </button>
-
-        {/* Materials Control Tab ONLY for Admin */}
-        {isAdmin && (
-          <button
-            onClick={() => setActiveTab('materials')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0.55rem 0.75rem',
-              borderRadius: 'var(--radius-md)',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '0.8rem',
-              fontWeight: activeTab === 'materials' ? 600 : 400,
-              background: activeTab === 'materials' ? 'var(--wash-blue-strong)' : 'transparent',
-              color: activeTab === 'materials' ? 'var(--accent-blue)' : 'var(--text-secondary)',
-              textAlign: 'left'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-              <Package size={16} />
-              <span>Controle Materiais</span>
+          {/* Quadros da obra: filtram o Kanban por equipamento */}
+          <div style={{ marginTop: '0.35rem' }}>
+            <div className="nav-secao" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span>Quadros ({activeQuadros.length})</span>
+              <button
+                type="button"
+                onClick={() => onOpenObraModal('quadro')}
+                title="Novo quadro"
+                style={{ background: 'none', border: 'none', color: 'var(--accent-blue)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+              >
+                <Plus size={14} />
+              </button>
             </div>
-            <span className="badge badge-blue" style={{ fontSize: '0.6rem' }}>Admin</span>
-          </button>
-        )}
 
-        {/* Reports Tab ONLY for Admin */}
-        {isAdmin && (
-          <button
-            onClick={() => setActiveTab('reports')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0.55rem 0.75rem',
-              borderRadius: 'var(--radius-md)',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '0.8rem',
-              fontWeight: activeTab === 'reports' ? 600 : 400,
-              background: activeTab === 'reports' ? 'var(--wash-purple)' : 'transparent',
-              color: activeTab === 'reports' ? 'var(--accent-purple)' : 'var(--text-secondary)',
-              textAlign: 'left'
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-              <BarChart3 size={16} />
-              <span>Relatórios</span>
-            </div>
-            <span className="badge badge-purple" style={{ fontSize: '0.6rem' }}>Admin</span>
-          </button>
-        )}
-      </div>
+            {activeQuadros.length === 0 && (
+              <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', padding: '0.2rem 0.7rem' }}>
+                Nenhum quadro ainda. Use o + para criar.
+              </p>
+            )}
 
-      {/* Subníveis (Quadros Filter List) */}
-      <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 0.4rem 0.2rem' }}>
-          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-            Quadros ({activeQuadros.length})
-          </span>
-          {activeObra && (
-            <button 
-              onClick={() => onOpenObraModal('quadro')} 
-              style={{ background: 'none', border: 'none', color: 'var(--accent-blue)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-            >
-              <Plus size={13} />
-            </button>
-          )}
-        </div>
-
-        <button
-          onClick={() => {
-            setSelectedQuadroId(null);
-            if (activeTab !== 'kanban') setActiveTab('kanban');
-          }}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0.45rem 0.65rem',
-            borderRadius: 'var(--radius-sm)',
-            border: 'none',
-            cursor: 'pointer',
-            fontSize: '0.75rem',
-            background: selectedQuadroId === null && activeTab === 'kanban' ? 'var(--wash-blue-strong)' : 'transparent',
-            color: selectedQuadroId === null && activeTab === 'kanban' ? 'var(--accent-blue)' : 'var(--text-primary)',
-            fontWeight: selectedQuadroId === null ? 600 : 400
-          }}
-        >
-          <span>🌐 Visão Geral da Obra</span>
-          {selectedQuadroId === null && <ChevronRight size={13} />}
-        </button>
-
-        {activeQuadros.map(quadro => (
-          <button
-            key={quadro.id}
-            onClick={() => {
-              setSelectedQuadroId(quadro.id);
-              if (activeTab !== 'kanban') setActiveTab('kanban');
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0.45rem 0.65rem',
-              borderRadius: 'var(--radius-sm)',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '0.75rem',
-              textAlign: 'left',
-              background: selectedQuadroId === quadro.id ? 'var(--wash-purple)' : 'transparent',
-              color: selectedQuadroId === quadro.id ? 'var(--accent-indigo)' : 'var(--text-secondary)',
-              fontWeight: selectedQuadroId === quadro.id ? 600 : 400
-            }}
-          >
-            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }}>
-              ⚡ {quadro.name}
-            </span>
-            {selectedQuadroId === quadro.id && <ChevronRight size={13} />}
-          </button>
-        ))}
-      </div>
+            {activeQuadros.map((quadro) => {
+              const ativo = selectedQuadroId === quadro.id && activeTab === 'kanban';
+              return (
+                <button
+                  key={quadro.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedQuadroId(quadro.id);
+                    setActiveTab('kanban');
+                  }}
+                  className={`nav-item nav-quadro ${ativo ? 'active' : ''}`}
+                >
+                  <span className="nav-label" style={{ minWidth: 0 }}>
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>⚡ {quadro.name}</span>
+                  </span>
+                  {ativo && <ChevronRight size={13} />}
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
     </aside>
   );
 };

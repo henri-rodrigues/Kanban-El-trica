@@ -99,12 +99,12 @@ function MainLayout() {
   const getTabLabel = (tab) => {
     switch (tab) {
       case 'hub': return 'Vitrine de Obras';
-      case 'kanban': return 'Kanban & Post-its';
+      case 'kanban': return 'Visão Geral da Obra';
       case 'quadros': return 'Subníveis & Quadros';
       case 'checklist': return 'Checklist HVAC';
       case 'dimensionamento': return 'Dimensionamento de Quadros';
       case 'materials': return 'Controle de Materiais & PDF';
-      case 'agenda': return 'Agenda & Escala de Viagens';
+      case 'agenda': return 'Escala de Viagens';
       case 'personal_agenda': return 'Minha Agenda Pessoal';
       case 'infra': return 'Kanban de Infraestrutura';
       case 'field_reports': return 'Diário de Campo & Mídias';
@@ -117,8 +117,8 @@ function MainLayout() {
   const moreMenuTabs = [
     { id: 'checklist', icon: <CheckSquare size={16} />, label: 'Checklist HVAC' },
     { id: 'dimensionamento', icon: <Zap size={16} />, label: 'Dimensionamento de Quadros' },
-    { id: 'agenda', icon: <Calendar size={16} />, label: 'Agenda & Viagens' },
-    { id: 'infra', icon: <Wrench size={16} />, label: 'Kanban Infraestrutura' },
+    { id: 'agenda', icon: <Calendar size={16} />, label: 'Escala de Viagens' },
+    { id: 'infra', icon: <Wrench size={16} />, label: 'Kanban de Infraestrutura' },
     { id: 'field_reports', icon: <FileText size={16} />, label: 'Diário de Campo' },
   ];
 
@@ -254,7 +254,7 @@ function MainLayout() {
         </button>
         <button onClick={() => handleMobileTabSwitch('kanban')} className={`mobile-nav-item ${activeTab === 'kanban' ? 'active' : ''}`}>
           <Kanban size={18} />
-          <span>Kanban</span>
+          <span>Visão Geral</span>
         </button>
         <button onClick={() => handleMobileTabSwitch('quadros')} className={`mobile-nav-item ${activeTab === 'quadros' ? 'active' : ''}`}>
           <Layers size={18} />

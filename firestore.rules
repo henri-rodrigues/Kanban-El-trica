@@ -77,9 +77,15 @@ service cloud.firestore {
       allow read: if isApproved();
       allow write: if isAdmin();
     }
+    // Sigilo: valores (verbas, custos, pedidos com preço, diárias) só para administradores.
+    match /obras_fin/{docId} {
+      allow read, write: if isAdmin();
+    }
+    match /users_fin/{uid} {
+      allow read, write: if isAdmin();
+    }
     match /purchase_orders/{docId} {
-      allow read: if isApproved();
-      allow write: if isAdmin();
+      allow read, write: if isAdmin();
     }
 
     // Operação de campo: qualquer usuário aprovado.
@@ -95,8 +101,11 @@ service cloud.firestore {
     match /field_reports/{docId} {
       allow read, write: if isApproved();
     }
+    // Avisos: cada pessoa lê e marca como lidos só os próprios; qualquer aprovado pode avisar alguém.
     match /notifications/{docId} {
-      allow read, write: if isApproved();
+      allow read, update, delete: if isApproved()
+        && (resource.data.recipientUserId == request.auth.uid || isAdmin());
+      allow create: if isApproved();
     }
     match /chat_messages/{docId} {
       allow read, write: if isApproved();

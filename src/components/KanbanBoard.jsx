@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useKanbanDrag } from '../hooks/useKanbanDrag';
 import { CardTimer } from './CardTimer';
+import { MoverPara } from './MoverPara';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { CardDetailModal } from './CardDetailModal';
@@ -42,6 +43,7 @@ export const KanbanBoard = ({ onOpenObraModal, onNavigate, modoPasta = false }) 
   const [selectedCard, setSelectedCard] = useState(null);
   const [newCardTitle, setNewCardTitle] = useState('');
   const [activeNewCardCol, setActiveNewCardCol] = useState(null);
+  const [colMobile, setColMobile] = useState('in_progress');
   const [searchFilter, setSearchFilter] = useState('');
   const [permissionErrorMsg, setPermissionErrorMsg] = useState('');
   const [filtro, setFiltro] = useState('todos'); // todos | meus | bloqueados | prioridade | sem_responsavel
@@ -266,42 +268,27 @@ export const KanbanBoard = ({ onOpenObraModal, onNavigate, modoPasta = false }) 
         </span>
       </div>
 
-      {/* Mobile Column Quick Filter Pills */}
-      <div className="mobile-show" style={{ display: 'none', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.2rem', WebkitOverflowScrolling: 'touch' }}>
-        {COLUMNS.map(col => {
-          const count = filteredCards.filter(c => c.column === col.id).length;
+      {/* Celular: uma coluna por vez, escolhida nas abas */}
+      <div className="kb-abas-col" role="tablist" aria-label="Colunas">
+        {COLUMNS.map((col) => {
+          const qtd = filteredCards.filter((c) => c.column === col.id).length;
           return (
             <button
               key={col.id}
-              onClick={() => {
-                const el = document.getElementById(`kanban-col-${col.id}`);
-                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' });
-              }}
-              style={{
-                padding: '0.35rem 0.65rem',
-                borderRadius: '16px',
-                fontSize: '0.7rem',
-                fontWeight: 700,
-                border: '1px solid var(--border-color)',
-                background: 'var(--bg-card)',
-                color: 'var(--text-primary)',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.3rem',
-                flexShrink: 0
-              }}
+              type="button"
+              role="tab"
+              aria-selected={colMobile === col.id}
+              className={colMobile === col.id ? 'ativo' : ''}
+              onClick={() => setColMobile(col.id)}
             >
-              <span>{col.title}</span>
-              <span className="badge badge-blue" style={{ fontSize: '0.65rem', padding: '0 4px' }}>{count}</span>
+              {col.title} <b>{qtd}</b>
             </button>
           );
         })}
       </div>
 
       {/* Kanban Board Columns — Horizontal scroll on mobile */}
-      <div className="kanban-scroll-container" style={{
+      <div className="kanban-scroll-container kb-quadro-mobile" style={{
         gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
         flex: 1,
         alignItems: 'stretch'
@@ -315,7 +302,7 @@ export const KanbanBoard = ({ onOpenObraModal, onNavigate, modoPasta = false }) 
               key={col.id}
               id={`kanban-col-${col.id}`}
               data-col-id={col.id}
-              className={`glass-panel ${isDragOver ? 'kanban-col-dragover' : ''}`}
+              className={`glass-panel kb-col ${colMobile === col.id ? 'kb-col-ativa' : ''} ${isDragOver ? 'kanban-col-dragover' : ''}`}
               style={{
                 borderRadius: 'var(--radius-md)',
                 padding: '0.65rem',
@@ -480,6 +467,12 @@ export const KanbanBoard = ({ onOpenObraModal, onNavigate, modoPasta = false }) 
                         </div>
 
                         <CardTimer card={card} compacto />
+                        <MoverPara
+                          colunas={COLUMNS.map((c) => ({ id: c.id, titulo: c.title }))}
+                          atual={card.column}
+                          desabilitado={!canTouch}
+                          onMover={(colId) => { updateCardStatus(card.id, colId); setColMobile(colId); }}
+                        />
 
                         {/* User Circle Avatar */}
                         <div 

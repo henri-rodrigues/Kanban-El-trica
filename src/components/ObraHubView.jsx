@@ -7,6 +7,7 @@ import { useData } from '../context/DataContext';
 import { hojeIso } from './diario/utils';
 import './obras/hub.css';
 
+import { Valor, useFormatoValor } from './Valor';
 const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const dataBr = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
 const tomVerba = (pct) => (pct > 100 ? 'rose' : pct > 85 ? 'amber' : '');
@@ -88,9 +89,9 @@ export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
           <div className="hb-kpi"><span>Avanço médio</span><strong>{resumo.avanco}%</strong><small>das obras visíveis</small></div>
           {isAdmin && (
             <>
-              <div className="hb-kpi"><span>Verba total</span><strong>{brl(resumo.verba)}</strong><small>soma das obras</small></div>
+              <div className="hb-kpi"><span>Verba total</span><strong><Valor v={resumo.verba} /></strong><small>soma das obras</small></div>
               <div className="hb-kpi">
-                <span>Gasto até agora</span><strong>{brl(resumo.gasto)}</strong>
+                <span>Gasto até agora</span><strong><Valor v={resumo.gasto} /></strong>
                 <small>{resumo.verba ? `${Math.round((resumo.gasto / resumo.verba) * 100)}% da verba` : 'sem verba definida'}</small>
               </div>
             </>
@@ -167,7 +168,7 @@ export const ObraHubView = ({ onSelectObra, onOpenObraModal }) => {
               {isAdmin && verba > 0 && (
                 <div>
                   <div className="hb-prog-linha">
-                    <span>{brl(gasto)} de {brl(verba)}</span>
+                    <span><Valor v={gasto} /> de <Valor v={verba} /></span>
                     <strong className={`hb-${tomVerba(pctVerba) || 'ok'}`}>{pctVerba}%</strong>
                   </div>
                   <div className={`hb-barra ${tomVerba(pctVerba)}`}><i style={{ width: `${Math.min(100, pctVerba)}%` }} /></div>

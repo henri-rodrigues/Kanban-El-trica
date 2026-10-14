@@ -14,7 +14,10 @@ import {
   cloudResetPassword,
   cloudSignOut,
   cloudErrorMessage,
-  fetchFirestoreDoc
+  fetchFirestoreDoc,
+  removerCamposFirestore,
+  separarCampos,
+  CAMPOS_FIN_USUARIO
 } from '../services/firebase';
 import { consumirFlagDeReset } from '../services/resetData';
 
@@ -103,7 +106,6 @@ export const AuthProvider = ({ children }) => {
         email: fbUser.email,
         gradientId: 'cyan',
         userColorTag: '#0284c7',
-        dailyRate: isAdminEmail ? 500 : 250,
         title: isAdminEmail ? 'Administrador' : 'Técnico Operacional',
         role: isAdminEmail ? 'administrador' : 'usuario',
         status: isAdminEmail ? 'approved' : 'pending_approval',
@@ -165,12 +167,34 @@ export const AuthProvider = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Usuários em tempo real (só com sessão aprovada na nuvem)
+  // Usuários em tempo real (só com sessão aprovada na nuvem).
+  // Sigilo: a diária fica em `users_fin`, que só administradores leem.
+  const souAdmin = currentUser?.role === 'administrador';
   useEffect(() => {
     if (!cloudUid || !isFirebaseActive()) return undefined;
+    let fin = {};
+    let ultimos = [];
+    const migrando = new Set();
+    const aplicar = () => setUsers(ultimos.map((u) => ({ ...u, ...(fin[u.uid || u.id] || {}) })));
 
-    return subscribeFirestoreCollection('users', (remote) => {
-      setUsers(remote);
+    const unsubs = [subscribeFirestoreCollection('users', (remoteBruto) => {
+      // Migração única (admin): diárias que ainda estejam no perfil público vão para `users_fin`.
+      if (souAdmin) {
+        remoteBruto.forEach((u) => {
+          const { escolhidos } = separarCampos(u, CAMPOS_FIN_USUARIO);
+          const campos = Object.keys(escolhidos);
+          const uid = u.uid || u.id;
+          if (!campos.length || !uid || migrando.has(uid)) return;
+          migrando.add(uid);
+          saveFirestoreDoc('users_fin', uid, escolhidos).then((ok) => {
+            if (ok) removerCamposFirestore('users', uid, campos);
+            else migrando.delete(uid);
+          });
+        });
+      }
+      const remote = souAdmin ? remoteBruto : remoteBruto.map((u) => separarCampos(u, CAMPOS_FIN_USUARIO).resto);
+      ultimos = remote;
+      aplicar();
 
       setCurrentUser((cur) => {
         if (!cur) return cur;
@@ -182,8 +206,15 @@ export const AuthProvider = ({ children }) => {
           me.dailyRate !== cur.dailyRate || me.title !== cur.title;
         return mudou ? stripSecrets(me) : cur;
       });
-    });
-  }, [cloudUid]);
+    })];
+    if (souAdmin) {
+      unsubs.push(subscribeFirestoreCollection('users_fin', (lista) => {
+        fin = Object.fromEntries(lista.map(({ id, ...dados }) => [id, dados]));
+        aplicar();
+      }));
+    }
+    return () => unsubs.forEach((u) => u());
+  }, [cloudUid, souAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---------------------------------------------------------------------------
   // Login e solicitação de cadastro
@@ -219,7 +250,6 @@ export const AuthProvider = ({ children }) => {
       role: 'usuario',
       gradientId: dados.gradientId || 'cyan',
       userColorTag: '#0284c7',
-      dailyRate: 250,
       title: 'Técnico Operacional',
       createdAt: new Date().toISOString(),
       requestedAt: new Date().toISOString(),
@@ -286,7 +316,10 @@ export const AuthProvider = ({ children }) => {
   // Administração de usuários
   // ---------------------------------------------------------------------------
   const pushUser = (user) => {
-    if (user?.uid && isFirebaseActive()) saveFirestoreDoc('users', user.uid, stripSecrets(user));
+    if (!user?.uid || !isFirebaseActive()) return;
+    const { escolhidos: fin, resto: publico } = separarCampos(stripSecrets(user), CAMPOS_FIN_USUARIO);
+    saveFirestoreDoc('users', user.uid, publico);
+    if (souAdmin && Object.keys(fin).length) saveFirestoreDoc('users_fin', user.uid, fin);
   };
 
   const approveUser = (userId) => {

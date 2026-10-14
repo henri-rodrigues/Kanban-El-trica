@@ -12,6 +12,7 @@ import { ModalShell } from './dimensionamento/ModalShell';
 import { baixar, nomeArquivo } from './dimensionamento/helpers';
 import './materiais/materiais.css';
 
+import { Valor, useFormatoValor } from './Valor';
 const brl = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0);
 const ehInfra = (po) => po.destination === 'infraestrutura';
 // Pedidos importados antes da correção do leitor trazem a quantidade colada no início da descrição.
@@ -40,7 +41,7 @@ const BarraVerba = ({ gasto, verba }) => {
   return (
     <>
       <div className={`mt-barra ${tom}`}><i style={{ width: `${Math.min(100, pct)}%` }} /></div>
-      <small>{pct}% da verba de {brl(verba)}</small>
+      <small>{pct}% da verba de <Valor v={verba} /></small>
     </>
   );
 };
@@ -63,6 +64,7 @@ export const MaterialsModule = () => {
   const [situacao, setSituacao] = useState('todos'); // todos | pendentes | completos
   const [abertos, setAbertos] = useState({}); // id -> bool (sobrescreve o padrão)
   const [nfe, setNfe] = useState(null);
+  const fv = useFormatoValor();
 
   // modal de cadastro manual
   const [modal, setModal] = useState(false);
@@ -148,7 +150,7 @@ export const MaterialsModule = () => {
       } else {
         setAviso({
           tipo: 'success',
-          texto: `PDF lido (${destinoImport === 'infraestrutura' ? 'Infraestrutura' : 'Materiais'}): ${dados.fornecedor} · Req ${dados.orderNumber} · ${brl(dados.totalValue)}`
+          texto: `PDF lido (${destinoImport === 'infraestrutura' ? 'Infraestrutura' : 'Materiais'}): ${dados.fornecedor} · Req ${dados.orderNumber} · ${fv(dados.totalValue)}`
         });
       }
       addPurchaseOrder(activeObra.id, { ...dados, destination: destinoImport });
@@ -192,7 +194,7 @@ export const MaterialsModule = () => {
     if (mValor && !isNaN(parseFloat(mValor))) p.totalValue = parseFloat(mValor);
     p.destination = mDestino;
     addPurchaseOrder(activeObra.id, p);
-    setAviso({ tipo: 'success', texto: `Pedido cadastrado: ${p.fornecedor} · ${brl(p.totalValue)}` });
+    setAviso({ tipo: 'success', texto: `Pedido cadastrado: ${p.fornecedor} · ${fv(p.totalValue)}` });
     fecharModal();
   };
 
@@ -213,9 +215,9 @@ export const MaterialsModule = () => {
     (po.items || []).filter((i) => !chegou(i)).forEach((i) => updatePOItemStatus(po.id, i.id, 'Já Chegou'));
 
   const excluir = (po) => {
-    if (!window.confirm(`Excluir o pedido ${po.orderNumber} (${po.fornecedor})?\nO valor de ${brl(po.totalValue)} será devolvido à verba da obra.`)) return;
+    if (!window.confirm(`Excluir o pedido ${po.orderNumber} (${po.fornecedor})?\nO valor de ${fv(po.totalValue)} será devolvido à verba da obra.`)) return;
     deletePurchaseOrder(po.id);
-    setAviso({ tipo: 'warning', texto: `Pedido ${po.orderNumber} excluído e ${brl(po.totalValue)} devolvido à verba.` });
+    setAviso({ tipo: 'warning', texto: `Pedido ${po.orderNumber} excluído e ${fv(po.totalValue)} devolvido à verba.` });
   };
 
   const exportarCsv = (somentePendentes) => {
@@ -273,12 +275,12 @@ export const MaterialsModule = () => {
       <div className="mt-kpis">
         <div className="mt-kpi mt-kpi-blue">
           <span>Materiais (quadros)</span>
-          <strong>{brl(totais.material)}</strong>
+          <strong><Valor v={totais.material} /></strong>
           <BarraVerba gasto={totais.material} verba={Number(activeObra.materialsBudget) || 0} />
         </div>
         <div className="mt-kpi mt-kpi-purple">
           <span>Infraestrutura</span>
-          <strong>{brl(totais.infra)}</strong>
+          <strong><Valor v={totais.infra} /></strong>
           <BarraVerba gasto={totais.infra} verba={Number(activeObra.infraBudget) || 0} />
         </div>
         <div className="mt-kpi mt-kpi-emerald">
@@ -290,7 +292,7 @@ export const MaterialsModule = () => {
         <div className={`mt-kpi ${totais.pendentes ? 'mt-kpi-amber' : ''}`}>
           <span>A receber</span>
           <strong>{totais.pendentes} itens</strong>
-          <small>{brl(totais.valorPendente)} em aberto · {fornecedores.length} fornecedor(es)</small>
+          <small><Valor v={totais.valorPendente} /> em aberto · {fornecedores.length} fornecedor(es)</small>
         </div>
       </div>
 
@@ -379,7 +381,7 @@ export const MaterialsModule = () => {
                   <strong>{r.recebidos}/{r.total}</strong> itens
                   <div className={`mt-barra ${r.completo ? '' : 'amber'}`}><i style={{ width: `${r.pct}%` }} /></div>
                 </div>
-                <div className="mt-valor">{brl(po.totalValue)}</div>
+                <div className="mt-valor"><Valor v={po.totalValue} /></div>
               </div>
 
               {aberto && (
@@ -404,7 +406,7 @@ export const MaterialsModule = () => {
                   </div>
 
                   <div style={{ overflowX: 'auto' }}>
-                    <table className="mt-tabela">
+                    <table className="mt-tabela tabela-cartoes">
                       <thead>
                         <tr>
                           <th>Produto</th>
@@ -424,8 +426,8 @@ export const MaterialsModule = () => {
                               {!chegou(i) && Number(i.quantityReceived) > 0 && <div className="mt-dica">{i.quantityReceived} recebido(s)</div>}
                             </td>
                             <td className="oculta-mobile">{i.unit}</td>
-                            <td className="num oculta-mobile">{brl(i.unitPrice)}</td>
-                            <td className="num">{brl(i.totalPrice)}</td>
+                            <td className="num oculta-mobile"><Valor v={i.unitPrice} /></td>
+                            <td className="num"><Valor v={i.totalPrice} /></td>
                             <td>
                               <button
                                 type="button"

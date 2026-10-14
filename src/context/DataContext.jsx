@@ -6,7 +6,10 @@ import {
   saveFirestoreDoc, 
   deleteFirestoreDoc,
   subscribeFirestoreCollection, 
-  isFirebaseActive 
+  isFirebaseActive,
+  removerCamposFirestore,
+  separarCampos,
+  CAMPOS_FIN_OBRA
 } from '../services/firebase';
 
 const DataContext = createContext();
@@ -104,6 +107,38 @@ export const DataProvider = ({ children }) => {
     laudos_checklist: laudos
   };
 
+  // ---------------------------------------------------------------------------
+  // Sigilo: verbas e custos da obra ficam em `obras_fin` (só administradores leem).
+  // ---------------------------------------------------------------------------
+  const isAdminRef = useRef(isAdmin);
+  isAdminRef.current = isAdmin;
+  const finObrasRef = useRef({});
+  const comFin = (o) => ({ ...o, ...(finObrasRef.current[o.id] || {}) });
+
+  /** Grava a obra: parte pública em `obras`, valores em `obras_fin` (só admin). */
+  const salvarObra = (obra) => {
+    if (!obra?.id || !isFirebaseActive()) return Promise.resolve(false);
+    const { escolhidos: fin, resto: publico } = separarCampos(obra, CAMPOS_FIN_OBRA);
+    if (isAdminRef.current && Object.keys(fin).length) saveFirestoreDoc('obras_fin', obra.id, fin);
+    return saveFirestoreDoc('obras', obra.id, publico);
+  };
+
+  // Usuário comum: descarta valores que tenham ficado no aparelho de versões anteriores.
+  useEffect(() => {
+    if (!currentUser) return;
+    if (!isAdmin) {
+      setRawObras(prev => (prev.some(o => CAMPOS_FIN_OBRA.some(k => k in o))
+        ? prev.map(o => separarCampos(o, CAMPOS_FIN_OBRA).resto)
+        : prev));
+      setPurchaseOrders(prev => (prev.length ? [] : prev));
+    }
+    if (isFirebaseActive()) {
+      setNotifications(prev => (prev.some(n => n.recipientUserId !== currentUser.id)
+        ? prev.filter(n => n.recipientUserId === currentUser.id)
+        : prev));
+    }
+  }, [currentUser?.id, isAdmin, cloudUid]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Sincronização em tempo real com o Firestore (só com sessão na nuvem).
   // Regra de mesclagem: o que está na nuvem vence; o que existe só neste dispositivo
   // (criado offline ou antes de conectar) é enviado, e não é descartado. Um item que
@@ -111,8 +146,25 @@ export const DataProvider = ({ children }) => {
   useEffect(() => {
     if (!cloudUid || !isFirebaseActive()) return undefined;
 
+    const migrando = new Set();
+    // Migração única (admin): verbas que ainda estejam em `obras` vão para `obras_fin`.
+    const migrarFinanceiro = (lista) => {
+      if (!isAdminRef.current) return;
+      lista.forEach((o) => {
+        const { escolhidos } = separarCampos(o, CAMPOS_FIN_OBRA);
+        const campos = Object.keys(escolhidos);
+        if (!campos.length || migrando.has(o.id)) return;
+        migrando.add(o.id);
+        saveFirestoreDoc('obras_fin', o.id, escolhidos).then((ok) => {
+          if (!ok) { migrando.delete(o.id); return; }
+          removerCamposFirestore('obras', o.id, campos);
+          registrarAuditoria({ autor: currentUser, acao: 'alterou', entidade: 'obra', entidadeId: o.id, nome: o.name, obraId: o.id, detalhe: 'Sigilo: verbas movidas para a área restrita a administradores' });
+        });
+      });
+    };
+
     const colecoes = {
-      obras: setRawObras,
+      obras: (lista) => { migrarFinanceiro(lista); setRawObras(lista.map(comFin)); },
       quadros: setQuadros,
       cards: setCards,
       checklists: setChecklists,
@@ -138,7 +190,7 @@ export const DataProvider = ({ children }) => {
         if (idsRemotos.has(d.id)) return;
         if (sincronizados.has(d.id)) return; // apagado em outro dispositivo
         manter.push(d);
-        saveFirestoreDoc(nome, d.id, d).then((ok) => {
+        (nome === 'obras' ? salvarObra(d) : saveFirestoreDoc(nome, d.id, d)).then((ok) => {
           if (!ok) return;
           const atual = lerSync(nome);
           atual.add(d.id);
@@ -151,11 +203,21 @@ export const DataProvider = ({ children }) => {
       colecoes[nome]([...remoto, ...manter]);
     };
 
+    // Pedidos de compra (valores) só para administradores; avisos, só os da própria pessoa.
+    if (!isAdmin) delete colecoes.purchase_orders;
+    const filtros = { notifications: currentUser ? ['recipientUserId', '==', currentUser.id] : null };
+
     const unsubs = Object.keys(colecoes).map((nome) =>
-      subscribeFirestoreCollection(nome, (remoto) => mesclar(nome, remoto))
+      subscribeFirestoreCollection(nome, (remoto) => mesclar(nome, remoto), filtros[nome] || null)
     );
+    if (isAdmin) {
+      unsubs.push(subscribeFirestoreCollection('obras_fin', (lista) => {
+        finObrasRef.current = Object.fromEntries(lista.map(({ id, ...fin }) => [id, fin]));
+        setRawObras(prev => prev.map(comFin));
+      }));
+    }
     return () => unsubs.forEach((u) => u());
-  }, [cloudUid]);
+  }, [cloudUid, isAdmin, currentUser?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const addFieldReport = (obraId, reportData) => {
     if (!obraId) return;
@@ -343,7 +405,7 @@ export const DataProvider = ({ children }) => {
           const currentMatCost = parseFloat(o.materialCosts) || 0;
           updatedObra = { ...o, materialCosts: currentMatCost + poValue };
         }
-        if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updatedObra);
+        if (isFirebaseActive()) salvarObra(updatedObra);
         return updatedObra;
       }
       return o;
@@ -423,7 +485,7 @@ export const DataProvider = ({ children }) => {
     registrarAuditoria({ autor: currentUser, acao: 'criou', entidade: 'obra', entidadeId: newObra.id, nome: newObra.name, obraId: newObra.id });
     setRawObras(prev => [newObra, ...prev]);
     setSelectedObraId(newObra.id);
-    if (isFirebaseActive()) saveFirestoreDoc('obras', newObra.id, newObra);
+    if (isFirebaseActive()) salvarObra(newObra);
   };
 
   const updateObra = (obraId, updatedFields) => {
@@ -453,7 +515,7 @@ export const DataProvider = ({ children }) => {
           laborBudget: laborB,
           initialBudget: totalSum > 0 ? totalSum : (updatedFields.initialBudget || o.initialBudget)
         };
-        if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updated);
+        if (isFirebaseActive()) salvarObra(updated);
         return updated;
       }
       return o;
@@ -470,7 +532,7 @@ export const DataProvider = ({ children }) => {
     setRawObras(prev => prev.map(o => {
       if (o.id === obraId) {
         const updated = { ...o, ...financialData };
-        if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updated);
+        if (isFirebaseActive()) salvarObra(updated);
         return updated;
       }
       return o;
@@ -503,7 +565,7 @@ export const DataProvider = ({ children }) => {
           ...o,
           scheduledTrips: updatedTrips
         };
-        if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updated);
+        if (isFirebaseActive()) salvarObra(updated);
 
         // Notify all booked users
         targetUserIds.forEach(targetId => {
@@ -534,7 +596,7 @@ export const DataProvider = ({ children }) => {
       if (o.id === obraId) {
         const updatedTrips = (o.scheduledTrips || []).filter(t => t.id !== tripId);
         const updated = { ...o, scheduledTrips: updatedTrips };
-        if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updated);
+        if (isFirebaseActive()) salvarObra(updated);
         return updated;
       }
       return o;
@@ -547,7 +609,7 @@ export const DataProvider = ({ children }) => {
       if (o.id === obraId) {
         const updatedTrips = (o.scheduledTrips || []).map(t => (t.id === tripId ? { ...t, ...patch } : t));
         const updated = { ...o, scheduledTrips: updatedTrips };
-        if (isFirebaseActive()) saveFirestoreDoc('obras', obraId, updated);
+        if (isFirebaseActive()) salvarObra(updated);
         return updated;
       }
       return o;
@@ -705,7 +767,10 @@ export const DataProvider = ({ children }) => {
     if (selectedObraId === obraId) {
       setSelectedObraId(null);
     }
-    if (isFirebaseActive()) deleteFirestoreDoc('obras', obraId);
+    if (isFirebaseActive()) {
+      deleteFirestoreDoc('obras', obraId);
+      deleteFirestoreDoc('obras_fin', obraId);
+    }
 
     // Cascade delete quadros, cards, checklists & purchase orders for this obra
     const obraQuadros = quadros.filter(q => q.obraId === obraId);
@@ -795,7 +860,7 @@ export const DataProvider = ({ children }) => {
             const updatedMatCost = Math.max(0, currentMatCost - poValue);
             updatedObra = { ...o, materialCosts: updatedMatCost };
           }
-          if (isFirebaseActive()) saveFirestoreDoc('obras', o.id, updatedObra);
+          if (isFirebaseActive()) salvarObra(updatedObra);
           return updatedObra;
         }
         return o;
@@ -832,7 +897,7 @@ export const DataProvider = ({ children }) => {
               updatedObra.materialCosts = (parseFloat(updatedObra.materialCosts) || 0) + poValue;
             }
 
-            if (isFirebaseActive()) saveFirestoreDoc('obras', o.id, updatedObra);
+            if (isFirebaseActive()) salvarObra(updatedObra);
             return updatedObra;
           }
           return o;
@@ -920,7 +985,8 @@ export const DataProvider = ({ children }) => {
       createdAt: new Date().toISOString(),
       ...notifData
     };
-    setNotifications(prev => [newNotif, ...prev]);
+    // Na nuvem cada pessoa só recebe os próprios avisos; o de outra pessoa vai direto para o banco.
+    if (!isFirebaseActive() || newNotif.recipientUserId === currentUser?.id) setNotifications(prev => [newNotif, ...prev]);
     if (isFirebaseActive()) saveFirestoreDoc('notifications', newNotif.id, newNotif);
   };
 

@@ -6,6 +6,7 @@ import { ADMIN_EMAIL } from '../services/firebase';
 import { ModalShell } from './dimensionamento/ModalShell';
 import { AuditoriaPainel } from './AuditoriaPainel';
 
+import { Valor, useFormatoValor } from './Valor';
 const FILTROS = [
   ['todos', 'Todos'],
   ['administrador', 'Administradores'],
@@ -168,7 +169,7 @@ export const UserManagementModal = ({ isOpen, onClose }) => {
                       <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', overflowWrap: 'anywhere' }}>{u.email}</div>
                       <div style={{ fontSize: '0.74rem', color: 'var(--text-secondary)', display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginTop: 2 }}>
                         <span>{u.title || 'Técnico'}</span>
-                        <span>Diária <strong style={{ color: 'var(--accent-emerald)' }}>{brl(u.dailyRate)}</strong></span>
+                        <span>Diária <strong style={{ color: 'var(--accent-emerald)' }}><Valor v={u.dailyRate} /></strong></span>
                         <span><Building2 size={11} style={{ verticalAlign: '-1px' }} /> {r.obras} obra(s)</span>
                         <span>{r.horas}h apontadas</span>
                       </div>

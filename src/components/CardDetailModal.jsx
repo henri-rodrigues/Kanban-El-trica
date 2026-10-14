@@ -6,9 +6,11 @@ import { CardTimer } from './CardTimer';
 import { MentionTextarea, extrairMencoes } from './MentionTextarea';
 import { X, Image, Calendar, Clock, Plus, Trash2, Edit3, Save, Paperclip, CheckSquare, Square, Palette, AtSign, Check } from 'lucide-react';
 
+import { Valor, useFormatoValor } from './Valor';
 export const CardDetailModal = ({ card, isOpen, onClose }) => {
   const { currentUser, users, isAdmin } = useAuth();
   const { cards, updateCard, deleteCard, addWorkLogToCard, addNotification } = useData();
+  const fv = useFormatoValor();
 
   // Always derive the fresh card object from DataContext state!
   const activeCard = cards.find(c => c.id === card?.id) || card;
@@ -484,7 +486,7 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
                 }}
               >
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: u.userColorTag, flexShrink: 0 }} />
-                {u.name.split(' ')[0]} {isAdmin && `(${u.dailyRate})`}
+                {u.name.split(' ')[0]} {isAdmin && `(${fv(u.dailyRate || 250, 0)})`}
               </button>
             ))}
           </div>
@@ -544,7 +546,7 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
                 <select className="form-control" style={{ fontSize: '0.775rem' }} value={selectedOperatorId} onChange={(e) => setSelectedOperatorId(e.target.value)}>
                   {users.map(u => (
                     <option key={u.id} value={u.id}>
-                      {u.name} {isAdmin ? `(R$ ${u.dailyRate}/dia)` : ''}
+                      {u.name} {isAdmin ? `(${fv(u.dailyRate || 250, 0)}/dia)` : ''}
                     </option>
                   ))}
                 </select>
@@ -587,7 +589,7 @@ export const CardDetailModal = ({ card, isOpen, onClose }) => {
                     <span className="badge badge-amber">{log.hours}h</span>
                     {log.notes && <span style={{ color: 'var(--text-secondary)', fontSize: '0.7rem' }}>{log.notes}</span>}
                     {isAdmin && (
-                      <span style={{ color: 'var(--accent-emerald)', fontWeight: 600, marginLeft: 'auto' }}>R$ {costCalculated.toFixed(2)}</span>
+                      <span style={{ color: 'var(--accent-emerald)', fontWeight: 600, marginLeft: 'auto' }}><Valor v={costCalculated} /></span>
                     )}
                   </div>
                 </div>

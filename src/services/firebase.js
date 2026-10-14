@@ -14,7 +14,10 @@ import {
   getDocs,
   orderBy,
   limit,
-  arrayUnion
+  arrayUnion,
+  where,
+  updateDoc,
+  deleteField
 } from 'firebase/firestore';
 import { getMessaging, getToken, isSupported as pushSuportado } from 'firebase/messaging';
 import {
@@ -194,6 +197,35 @@ export const listarColecaoRecente = async (collectionName, campoData, limite = 5
   }
 };
 
+/** Remove campos de um documento (usado para tirar dados sigilosos de coleções públicas). */
+export const removerCamposFirestore = async (collectionName, docId, campos) => {
+  if (!isFirebaseActive() || !campos.length) return false;
+  try {
+    return await acompanhar(updateDoc(doc(db, collectionName, docId), Object.fromEntries(campos.map((c) => [c, deleteField()]))));
+  } catch (err) {
+    console.error(`Erro ao remover campos [${collectionName}/${docId}]:`, err);
+    return false;
+  }
+};
+
+/** Separa um objeto em { escolhidos, resto } pelos nomes de campo. */
+export const separarCampos = (obj, campos) => {
+  const escolhidos = {};
+  const resto = {};
+  Object.entries(obj || {}).forEach(([k, v]) => {
+    if (campos.includes(k)) escolhidos[k] = v;
+    else resto[k] = v;
+  });
+  return { escolhidos, resto };
+};
+
+// Dados sigilosos: ficam em coleções que só o administrador lê (firestore.rules).
+export const CAMPOS_FIN_OBRA = [
+  'materialsBudget', 'indirectsBudget', 'infraBudget', 'laborBudget', 'addedBudget',
+  'initialBudget', 'materialCosts', 'infraSpentCost'
+];
+export const CAMPOS_FIN_USUARIO = ['dailyRate'];
+
 // Delete a document from Firestore collection
 export const deleteFirestoreDoc = async (collectionName, docId) => {
   if (!isFirebaseActive()) return false;
@@ -207,11 +239,12 @@ export const deleteFirestoreDoc = async (collectionName, docId) => {
 };
 
 // Real-time listener for Firestore collection
-export const subscribeFirestoreCollection = (collectionName, onDataChange) => {
+export const subscribeFirestoreCollection = (collectionName, onDataChange, filtro = null) => {
   if (!isFirebaseActive()) return () => {};
 
   try {
-    const q = query(collection(db, collectionName));
+    // filtro opcional: [campo, operador, valor] (ex.: só os avisos da própria pessoa)
+    const q = filtro ? query(collection(db, collectionName), where(...filtro)) : query(collection(db, collectionName));
     return onSnapshot(q, (snapshot) => {
       const items = [];
       snapshot.forEach((d) => {

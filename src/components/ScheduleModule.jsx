@@ -10,6 +10,7 @@ import { hojeIso } from './diario/utils';
 import { baixar, nomeArquivo, imprimirHtml, h } from './dimensionamento/helpers';
 import './escala/escala.css';
 
+import { Valor, useFormatoValor } from './Valor';
 const MESES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 const SEMANA = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 const VALOR_KM = 1.5;
@@ -130,7 +131,7 @@ const ViagemForm = ({ obra, viagem, modelo, dataInicial, todasViagens, onFechar 
 
         <div className="es-custo">
           <span><Car size={13} /> {duplo ? '2 carros (mais de 4 pessoas)' : '1 carro'}</span>
-          <span>{km} km × {brl(VALOR_KM)}/km{duplo ? ' × 2' : ''} = <strong>{brl(custo)}</strong></span>
+          <span>{km} km × {brl(VALOR_KM)}/km{duplo ? ' × 2' : ''} = <strong><Valor v={custo} /></strong></span>
         </div>
 
         {conflitos.length > 0 && (
@@ -327,7 +328,7 @@ export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
         {!pessoal && isAdmin && (
           <div className="es-kpi amber">
             <span>Custo de viagens</span>
-            <strong>{brl(custoTotal)}</strong>
+            <strong><Valor v={custoTotal} /></strong>
             <small>debitado dos indiretos da obra</small>
           </div>
         )}
@@ -410,7 +411,7 @@ export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
                       <strong>{dataBr(t.startDate)}{t.endDate !== t.startDate ? ` → ${dataBr(t.endDate)}` : ''}</strong>
                       <small>{pessoal ? `${t.obraName} · ` : ''}{nomesDe(t).join(', ')}</small>
                       <span className={`es-selo ${t.isDoubleCar ? 'duplo' : situacao(t, hoje) === 'andamento' ? 'andamento' : ''}`}>
-                        {t.isDoubleCar ? '2 carros' : '1 carro'}{!pessoal && isAdmin ? ` · ${brl(t.cost)}` : ''}
+                        {t.isDoubleCar ? '2 carros' : '1 carro'}{!pessoal && isAdmin ? <> · <Valor v={t.cost} /></> : ''}
                       </span>
                     </button>
                   ))}
@@ -439,7 +440,7 @@ export const ScheduleModule = ({ defaultViewMode = 'obra' }) => {
           <dl className="es-detalhe">
             <div><dt>Período</dt><dd>{dataBr(detalhe.startDate)} até {dataBr(detalhe.endDate)}</dd></div>
             <div><dt>Equipe</dt><dd>{nomesDe(detalhe).join(', ')}</dd></div>
-            <div><dt><Car size={11} /> Transporte</dt><dd>{detalhe.isDoubleCar ? '2 carros (mais de 4 pessoas)' : '1 carro'}{isAdmin ? ` · ${brl(detalhe.cost)}` : ''}</dd></div>
+            <div><dt><Car size={11} /> Transporte</dt><dd>{detalhe.isDoubleCar ? '2 carros (mais de 4 pessoas)' : '1 carro'}{isAdmin ? <> · <Valor v={detalhe.cost} /></> : ''}</dd></div>
             {detalhe.distanceKm > 0 && <div><dt><MapPin size={11} /> Distância</dt><dd>{detalhe.distanceKm} km</dd></div>}
             {detalhe.notes && <div><dt>Objetivo</dt><dd>{detalhe.notes}</dd></div>}
           </dl>

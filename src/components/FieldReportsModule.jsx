@@ -165,7 +165,7 @@ export const FieldReportsModule = () => {
         <button type="button" className="btn btn-secondary btn-sm" onClick={exportar} disabled={filtrados.length === 0}>
           <Printer size={14} /> Exportar PDF
         </button>
-        <button type="button" className="btn btn-primary" onClick={() => setForm({})}>
+        <button type="button" className="btn btn-primary btn-fab-mobile" onClick={() => setForm({})}>
           <Plus size={15} /> Novo registro
         </button>
       </div>

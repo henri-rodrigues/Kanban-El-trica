@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { X, Building2, Layers, Check, Users, Edit3, DollarSign, MapPin } from 'lucide-react';
 
+import { Valor, useFormatoValor } from './Valor';
 export const ObraModal = ({ isOpen, type, editingObra, onClose }) => {
   const { isAdmin, users } = useAuth();
   const { addObra, updateObra, addQuadro } = useData();
@@ -210,7 +211,7 @@ export const ObraModal = ({ isOpen, type, editingObra, onClose }) => {
                 <div style={{ background: 'var(--bg-card)', padding: '0.5rem', borderRadius: '6px', border: '1px solid var(--border-color)', textAlign: 'center' }}>
                   <div style={{ fontSize: '0.675rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Custo Viagem / Deslocamento</div>
                   <div style={{ fontSize: '0.95rem', fontWeight: 800, color: 'var(--accent-amber)' }}>
-                    R$ {estimatedTravelCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    <Valor v={estimatedTravelCost} />
                   </div>
                 </div>
               </div>
@@ -224,7 +225,7 @@ export const ObraModal = ({ isOpen, type, editingObra, onClose }) => {
                     <DollarSign size={16} /> Divisão das 4 Verbas da Obra
                   </label>
                   <div style={{ fontSize: '0.8rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>
-                    Verba Geral: R$ {totalGeneralBudget.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    Verba Geral: <Valor v={totalGeneralBudget} />
                   </div>
                 </div>
 

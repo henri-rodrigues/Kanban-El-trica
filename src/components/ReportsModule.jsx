@@ -9,6 +9,7 @@ import { baixar, h, imprimirHtml, nomeArquivo } from './dimensionamento/helpers'
 import { montarResumoSemanal, resumoHtml } from '../services/resumoSemanal';
 import './relatorios/relatorios.css';
 
+import { Valor, useFormatoValor } from './Valor';
 const brl = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0);
 const horasDoCard = (c) => (c.workedDays || []).reduce((s, w) => s + (Number(w.hours) || 0), 0);
 const ROTULO_COLUNA = { todo: 'A fazer', in_progress: 'Em andamento', on_hold: 'Em espera', completed: 'Concluído' };
@@ -204,7 +205,7 @@ export const ReportsModule = () => {
             <strong>{p}%</strong>
           </div>
           <div style={{ overflowX: 'auto' }}>
-            <table className="rl-tabela">
+            <table className="rl-tabela tabela-cartoes">
               <thead><tr><th>Atividade</th><th>Situação</th><th className="num">Evolução</th><th className="num">Horas</th></tr></thead>
               <tbody>
                 {g.cards.map((c) => (
@@ -252,13 +253,13 @@ export const ReportsModule = () => {
       </div>
 
       <div className="rl-kpis">
-        <div className="rl-kpi blue"><span>Verba geral</span><strong>{brl(verbaGeral)}</strong><small>soma das 4 verbas</small></div>
+        <div className="rl-kpi blue"><span>Verba geral</span><strong><Valor v={verbaGeral} /></strong><small>soma das 4 verbas</small></div>
         <div className="rl-kpi">
-          <span>Gasto</span><strong>{brl(gastoGeral)}</strong>
+          <span>Gasto</span><strong><Valor v={gastoGeral} /></strong>
           <Barra pct={consumo} tom={tomBarra(consumo)} />
           <small>{consumo}% da verba</small>
         </div>
-        <div className={`rl-kpi ${saldoGeral < 0 ? 'rose' : 'emerald'}`}><span>Saldo</span><strong>{brl(saldoGeral)}</strong><small>{saldoGeral < 0 ? 'verba estourada' : 'disponível'}</small></div>
+        <div className={`rl-kpi ${saldoGeral < 0 ? 'rose' : 'emerald'}`}><span>Saldo</span><strong><Valor v={saldoGeral} /></strong><small>{saldoGeral < 0 ? 'verba estourada' : 'disponível'}</small></div>
         <div className="rl-kpi emerald">
           <span>Avanço da execução</span><strong>{progresso}%</strong>
           <Barra pct={progresso} />
@@ -279,7 +280,7 @@ export const ReportsModule = () => {
           <div className="rl-card">
             <h3>Balanço das verbas</h3>
             <div style={{ overflowX: 'auto' }}>
-              <table className="rl-tabela">
+              <table className="rl-tabela tabela-cartoes">
                 <thead><tr><th>Categoria</th><th className="num">Verba</th><th className="num">Gasto</th><th className="num">Saldo</th><th>Consumo</th></tr></thead>
                 <tbody>
                   {verbas.map((v) => {
@@ -287,9 +288,9 @@ export const ReportsModule = () => {
                     return (
                       <tr key={v.id}>
                         <td style={{ fontWeight: 700 }}>{v.nome}</td>
-                        <td className="num">{brl(v.verba)}</td>
-                        <td className="num">{brl(v.gasto)}</td>
-                        <td className={`num ${v.verba - v.gasto < 0 ? 'rl-neg' : ''}`}>{brl(v.verba - v.gasto)}</td>
+                        <td className="num"><Valor v={v.verba} /></td>
+                        <td className="num"><Valor v={v.gasto} /></td>
+                        <td className={`num ${v.verba - v.gasto < 0 ? 'rl-neg' : ''}`}><Valor v={v.verba - v.gasto} /></td>
                         <td style={{ minWidth: 130 }}>
                           {v.verba > 0 ? <><Barra pct={p} tom={tomBarra(p)} /><span className="rl-dica">{p}%</span></> : <span className="rl-dica">sem verba definida</span>}
                         </td>
@@ -298,7 +299,7 @@ export const ReportsModule = () => {
                   })}
                 </tbody>
                 <tfoot>
-                  <tr><td>Total</td><td className="num">{brl(verbaGeral)}</td><td className="num">{brl(gastoGeral)}</td><td className={`num ${saldoGeral < 0 ? 'rl-neg' : ''}`}>{brl(saldoGeral)}</td><td>{consumo}%</td></tr>
+                  <tr><td>Total</td><td className="num"><Valor v={verbaGeral} /></td><td className="num"><Valor v={gastoGeral} /></td><td className={`num ${saldoGeral < 0 ? 'rl-neg' : ''}`}><Valor v={saldoGeral} /></td><td>{consumo}%</td></tr>
                 </tfoot>
               </table>
             </div>
@@ -313,7 +314,7 @@ export const ReportsModule = () => {
               <span className="rl-dica">Nenhum pedido lançado nesta obra.</span>
             ) : (
               <div style={{ overflowX: 'auto' }}>
-                <table className="rl-tabela">
+                <table className="rl-tabela tabela-cartoes">
                   <thead><tr><th>Pedido</th><th>Fornecedor</th><th>Verba</th><th>Recebimento</th><th className="num">Valor</th></tr></thead>
                   <tbody>
                     {obraPOs.map((p) => {
@@ -325,7 +326,7 @@ export const ReportsModule = () => {
                           <td style={{ fontWeight: 600 }}>{p.fornecedor}</td>
                           <td><span className={`rl-selo ${p.destination === 'infraestrutura' ? 'par' : ''}`}>{p.destination === 'infraestrutura' ? 'Infraestrutura' : 'Quadros'}</span></td>
                           <td>{it.length ? `${ok}/${it.length} itens` : '—'}</td>
-                          <td className="num">{brl(p.totalValue)}</td>
+                          <td className="num"><Valor v={p.totalValue} /></td>
                         </tr>
                       );
                     })}
@@ -344,7 +345,7 @@ export const ReportsModule = () => {
             <span className="rl-dica">Nenhuma hora apontada nos post-its desta obra ainda.</span>
           ) : (
             <div style={{ overflowX: 'auto' }}>
-              <table className="rl-tabela">
+              <table className="rl-tabela tabela-cartoes">
                 <thead><tr><th>Operador</th><th className="num">Horas</th><th className="num">Dias (8h)</th><th className="num">Diária</th><th className="num">Custo</th><th>Participação</th></tr></thead>
                 <tbody>
                   {equipe.map((e) => (
@@ -352,14 +353,14 @@ export const ReportsModule = () => {
                       <td style={{ fontWeight: 700 }}>{e.user.name}</td>
                       <td className="num">{e.horas}h</td>
                       <td className="num">{e.dias}</td>
-                      <td className="num">{brl(e.diaria)}</td>
-                      <td className="num">{brl(e.custo)}</td>
+                      <td className="num"><Valor v={e.diaria} /></td>
+                      <td className="num"><Valor v={e.custo} /></td>
                       <td style={{ minWidth: 120 }}><Barra pct={e.share} tom="blue" /><span className="rl-dica">{e.share}%</span></td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot>
-                  <tr><td>Total</td><td className="num">{totalHours}h</td><td className="num">{Math.round((totalHours / 8) * 10) / 10}</td><td /><td className="num">{brl(totalLaborCost)}</td><td /></tr>
+                  <tr><td>Total</td><td className="num">{totalHours}h</td><td className="num">{Math.round((totalHours / 8) * 10) / 10}</td><td /><td className="num"><Valor v={totalLaborCost} /></td><td /></tr>
                 </tfoot>
               </table>
             </div>
@@ -380,7 +381,7 @@ export const ReportsModule = () => {
             </select>
           </div>
           <div style={{ overflowX: 'auto' }}>
-            <table className="rl-tabela">
+            <table className="rl-tabela tabela-cartoes">
               <thead><tr><th>Atividade</th><th>Tipo</th><th>Situação</th><th className="num">Evolução</th><th className="num">Horas</th><th>Responsável</th></tr></thead>
               <tbody>
                 {atividades.map((c) => (

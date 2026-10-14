@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import './ObraResumo.css';
 
+import { Valor, useFormatoValor } from './Valor';
 const brl = (v) =>
   Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
@@ -190,7 +191,7 @@ export const ObraResumo = ({ obra, cards, quadroNome, filtroAtivo, onFiltrar, on
             {r.fin && (
               <div className={`ov-kpi ${avisoFin ? 'ov-risco' : ''}`}>
                 <div className="ov-kpi-topo"><Wallet size={15} /> Orçamento</div>
-                <strong>{brl(r.fin.gasto)} <span>de {brl(r.fin.orcado)}</span></strong>
+                <strong><Valor v={r.fin.gasto} /> <span>de <Valor v={r.fin.orcado} /></span></strong>
                 <div className="ov-barra"><i className={r.fin.pct > 100 ? 'ov-barra-estouro' : 'ov-barra-fin'} style={{ width: `${Math.min(100, r.fin.pct)}%` }} /></div>
                 <small>{r.fin.pct}% consumido{avisoFin ? ' · gasto acima do progresso' : ''}</small>
               </div>

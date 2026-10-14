@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
+import { usePrivacy } from '../context/PrivacyContext';
 import { Logo3DCrystal } from './Logo';
 import { 
   Building2, 
@@ -17,8 +18,7 @@ import {
   Check,
   Trash2,
   Menu,
-  Calendar
-} from 'lucide-react';
+  Calendar, Eye, EyeOff } from 'lucide-react';
 
 export const Navbar = ({ 
   onOpenObraModal, 
@@ -30,6 +30,7 @@ export const Navbar = ({
   onToggleMobileDrawer
 }) => {
   const { currentUser, logout, theme, toggleTheme, isAdmin, users } = useAuth();
+  const { mostrarValores, alternarValores } = usePrivacy();
   const { 
     obras, 
     selectedObraId, 
@@ -61,14 +62,6 @@ export const Navbar = ({
       {/* Left: Hamburger (Mobile) + Brand Logo & Hub Selector */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}>
         {/* Hamburger Menu Toggle (Mobile Only) */}
-        <button
-          onClick={onToggleMobileDrawer}
-          className="btn btn-secondary btn-sm mobile-show"
-          style={{ padding: '0.35rem', display: 'none' }}
-          title="Abrir Menu de Navegação"
-        >
-          <Menu size={18} style={{ color: 'var(--accent-blue)' }} />
-        </button>
 
         <button 
           onClick={onGoToHub}
@@ -174,7 +167,7 @@ export const Navbar = ({
         {currentUser && (
           <button
             onClick={onOpenPersonalAgenda}
-            className="btn btn-secondary btn-sm"
+            className="btn btn-secondary btn-sm mobile-hide"
             title="Abrir Minha Agenda Pessoal de Viagens"
             style={{ gap: '0.3rem', borderColor: 'var(--accent-purple)', padding: '0.35rem 0.5rem' }}
           >
@@ -187,12 +180,12 @@ export const Navbar = ({
         {activeObra && (
           <button
             onClick={onOpenChatModal}
-            className="btn btn-secondary btn-sm mobile-hide"
+            className="btn btn-secondary btn-sm"
             title={`Abrir Chat da Obra (${activeObra.name})`}
             style={{ gap: '0.3rem', borderColor: 'var(--accent-blue)', padding: '0.35rem 0.5rem' }}
           >
             <MessageSquare size={14} className="text-blue" />
-            <span>Chat Obra</span>
+            <span className="mobile-hide">Chat Obra</span>
           </button>
         )}
 
@@ -319,7 +312,7 @@ export const Navbar = ({
         {isAdmin && (
           <button
             onClick={onOpenUserManagementModal}
-            className="btn btn-secondary btn-sm"
+            className="btn btn-secondary btn-sm mobile-hide"
             style={{ position: 'relative', padding: '0.35rem 0.5rem' }}
             title="Aprovação e Gestão de Usuários (Admin)"
           >
@@ -344,13 +337,26 @@ export const Navbar = ({
         </button>
 
         {/* Theme Toggle */}
-        <button onClick={toggleTheme} className="btn btn-secondary btn-sm" style={{ padding: '0.35rem' }}>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={alternarValores}
+            className={`btn btn-secondary btn-sm ${mostrarValores ? 'olho-aberto' : ''}`}
+            style={{ padding: '0.35rem' }}
+            title={mostrarValores ? 'Ocultar valores' : 'Mostrar valores'}
+            aria-label={mostrarValores ? 'Ocultar valores' : 'Mostrar valores'}
+            aria-pressed={mostrarValores}
+          >
+            {mostrarValores ? <Eye size={15} className="text-amber" /> : <EyeOff size={15} />}
+          </button>
+        )}
+        <button onClick={toggleTheme} className="btn btn-secondary btn-sm mobile-hide" style={{ padding: '0.35rem' }}>
           {theme === 'dark' ? <Sun size={15} className="text-amber" /> : <Moon size={15} />}
         </button>
 
         {/* Current User & Logout */}
         {currentUser && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <div className="mobile-hide" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
             <div 
               style={{
                 width: '26px',

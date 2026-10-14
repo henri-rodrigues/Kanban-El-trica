@@ -8,6 +8,7 @@ import { CATEGORIAS_INFRA, rotuloCategoria, IDS_CALC_INFRA } from '../../constan
 import { dataHora } from '../dimensionamento/helpers';
 import './infra.css';
 
+import { Valor, useFormatoValor } from '../Valor';
 const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 
 /** Visão geral da infraestrutura: andamento, verba, pendências e materiais. */
@@ -82,7 +83,7 @@ export const InfraResumo = ({ obra, cardsInfra, onAbrirKanban, onAbrirCalculador
         {isAdmin && (
           <div className={`if-kpi ${estouro ? 'if-risco' : ''}`}>
             <div className="if-kpi-topo"><Wallet size={15} /> Verba de infraestrutura</div>
-            <strong>{brl(r.gasto)} <span>de {brl(r.orcado)}</span></strong>
+            <strong><Valor v={r.gasto} /> <span>de <Valor v={r.orcado} /></span></strong>
             <div className="if-prog-barra if-grossa"><i className={estouro ? 'if-estouro' : ''} style={{ width: `${Math.min(100, pctVerba)}%` }} /></div>
             <small>{r.orcado ? `${pctVerba}% consumido${estouro ? ' · acima da verba' : ''}` : 'Verba não definida na obra'}</small>
           </div>

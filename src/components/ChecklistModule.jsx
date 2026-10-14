@@ -120,7 +120,7 @@ export const ChecklistModule = ({ quadroFixoId = null, onNavigate }) => {
             <Download size={13} /> CSV
           </button>
         )}
-        <button type="button" className="btn btn-primary" onClick={() => setTela({ nome: 'novo' })}>
+        <button type="button" className="btn btn-primary btn-fab-mobile" onClick={() => setTela({ nome: 'novo' })}>
           <Plus size={15} /> Novo checklist
         </button>
       </div>

@@ -12,6 +12,7 @@ import { ScheduleModule } from './components/ScheduleModule';
 import { MinhaAgenda } from './components/MinhaAgenda';
 import { lerLink, limparLink } from './services/deeplink';
 import { ConnectionBanner } from './components/ConnectionBanner';
+import { PrivacyProvider } from './context/PrivacyContext';
 import { InfraestruturaModule } from './components/dimensionamento/InfraestruturaModule';
 import { FieldReportsModule } from './components/FieldReportsModule';
 import { QuadrosModule } from './components/dimensionamento/QuadrosModule';
@@ -23,12 +24,13 @@ import { PwaInstallModal } from './components/PwaInstallModal';
 import { ObraChatModal } from './components/ObraChatModal';
 import { 
   Kanban, Layers, CheckSquare, BarChart3, Grid, Smartphone, Package, 
-  Calendar, Wrench, FileText, MoreHorizontal, X, Menu, MessageSquare, Zap
+  Calendar, Wrench, FileText, MoreHorizontal, X, Menu, MessageSquare, Zap, BookOpen, CalendarCheck,
+  ShieldCheck, Sun, Moon, LogOut
 } from 'lucide-react';
 
 function MainLayout() {
-  const { currentUser, isAdmin, authReady } = useAuth();
-  const { obras, quadros, selectedObraId, setSelectedObraId, setSelectedQuadroId, activeObra } = useData();
+  const { currentUser, isAdmin, authReady, theme, toggleTheme, logout, users } = useAuth();
+  const { obras, quadros, selectedObraId, setSelectedObraId, setSelectedQuadroId, activeObra, unreadNotifsCount } = useData();
   const [avisoLink, setAvisoLink] = useState('');
   const [activeTab, setActiveTab] = useState('hub');
   const [isFirebaseModalOpen, setIsFirebaseModalOpen] = useState(false);
@@ -252,6 +254,10 @@ function MainLayout() {
               </button>
             </div>
 
+            <button type="button" className="drawer-item" onClick={() => handleMobileTabSwitch('hub')}>
+              <Grid size={16} /> Todas as obras
+            </button>
+
             <div style={{ flex: 1, overflowY: 'auto' }}>
               <Sidebar 
                 activeTab={activeTab} 
@@ -265,31 +271,53 @@ function MainLayout() {
                 }} 
               />
             </div>
+
+            <div className="drawer-conta">
+              {isAdmin && (
+                <button type="button" className="drawer-item" onClick={() => { setIsMobileDrawerOpen(false); setIsUserManagementModalOpen(true); }}>
+                  <ShieldCheck size={16} /> Gestão de usuários
+                  {users.filter((u) => u.status === 'pending_approval').length > 0 && (
+                    <b className="mobile-nav-badge static">{users.filter((u) => u.status === 'pending_approval').length}</b>
+                  )}
+                </button>
+              )}
+              <button type="button" className="drawer-item" onClick={() => { setIsMobileDrawerOpen(false); setIsPwaModalOpen(true); }}>
+                <Smartphone size={16} /> Instalar na tela inicial
+              </button>
+              <button type="button" className="drawer-item" onClick={toggleTheme}>
+                {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />} Tema {theme === 'dark' ? 'claro' : 'escuro'}
+              </button>
+              <button type="button" className="drawer-item perigo" onClick={logout}>
+                <LogOut size={16} /> Sair ({currentUser?.name?.split(' ')[0]})
+              </button>
+            </div>
           </div>
         </div>
       )}
 
       {/* Mobile Bottom Navigation Bar */}
-      <nav className="mobile-bottom-nav">
-        <button onClick={() => handleMobileTabSwitch('hub')} className={`mobile-nav-item ${activeTab === 'hub' ? 'active' : ''}`}>
-          <Grid size={18} />
-          <span>Obras</span>
-        </button>
-        <button onClick={() => setIsMobileDrawerOpen(true)} className={`mobile-nav-item ${isMobileDrawerOpen ? 'active' : ''}`}>
-          <Menu size={18} />
+      <nav className="mobile-bottom-nav" aria-label="Navegação principal">
+        {[
+          ['kanban', Kanban, 'Visão geral', true],
+          ['quadros', Layers, 'Quadros', true],
+          ['field_reports', BookOpen, 'Diário', true],
+          ['personal_agenda', CalendarCheck, 'Agenda', false]
+        ].map(([id, Icone, rotulo, precisaObra]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => handleMobileTabSwitch(precisaObra && !selectedObraId ? 'hub' : id)}
+            className={`mobile-nav-item ${activeTab === id ? 'active' : ''}`}
+            aria-current={activeTab === id ? 'page' : undefined}
+          >
+            <Icone size={20} />
+            <span>{rotulo}</span>
+            {id === 'personal_agenda' && unreadNotifsCount > 0 && <b className="mobile-nav-badge">{unreadNotifsCount > 9 ? '9+' : unreadNotifsCount}</b>}
+          </button>
+        ))}
+        <button type="button" onClick={() => setIsMobileDrawerOpen(true)} className={`mobile-nav-item ${isMobileDrawerOpen ? 'active' : ''}`}>
+          <Menu size={20} />
           <span>Menu</span>
-        </button>
-        <button onClick={() => handleMobileTabSwitch('kanban')} className={`mobile-nav-item ${activeTab === 'kanban' ? 'active' : ''}`}>
-          <Kanban size={18} />
-          <span>Visão Geral</span>
-        </button>
-        <button onClick={() => handleMobileTabSwitch('quadros')} className={`mobile-nav-item ${activeTab === 'quadros' ? 'active' : ''}`}>
-          <Layers size={18} />
-          <span>Quadros</span>
-        </button>
-        <button onClick={() => setIsChatModalOpen(true)} className="mobile-nav-item">
-          <MessageSquare size={18} />
-          <span>Chat</span>
         </button>
       </nav>
 
@@ -353,7 +381,9 @@ export default function App() {
   return (
     <AuthProvider>
       <DataProvider>
-        <MainLayout />
+        <PrivacyProvider>
+          <MainLayout />
+        </PrivacyProvider>
       </DataProvider>
     </AuthProvider>
   );

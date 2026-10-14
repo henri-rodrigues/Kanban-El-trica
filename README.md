@@ -90,3 +90,9 @@ No iPhone, o push só funciona com o sistema **instalado na tela inicial** (Comp
 ## 📴 Modo offline
 
 Com a sessão aberta, o sistema funciona sem internet: diário, checklist, post-its e apontamentos ficam guardados no aparelho e são enviados quando o sinal volta (a faixa no topo mostra o estado). Entrar com uma conta nova exige internet.
+
+## 🔒 Sigilo dos valores
+
+Verbas e custos das obras (`obras_fin`), diárias (`users_fin`) e pedidos de compra (`purchase_orders`) ficam em áreas do banco que **só administradores leem**; usuários comuns não recebem esses dados no aparelho. Na tela, os valores aparecem como `R$ •••••` até o admin tocar no **olho** do topo (ou no próprio valor, por 5 s) e voltam a ficar ocultos ao sair do app ou após 5 min parado.
+
+Ao atualizar: **o administrador deve abrir o sistema uma vez com a versão nova** (isso move os valores antigos para as áreas restritas) e **só depois** publicar as regras (`firebase deploy --only firestore:rules` ou colar `firestore.rules` no console).

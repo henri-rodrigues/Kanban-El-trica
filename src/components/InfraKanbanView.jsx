@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Plus, Search, AlertCircle, Calculator, GripVertical } from 'lucide-react';
 import { useKanbanDrag } from '../hooks/useKanbanDrag';
 import { CardTimer } from './CardTimer';
+import { MoverPara } from './MoverPara';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { CardDetailModal } from './CardDetailModal';
@@ -28,6 +29,7 @@ export const InfraKanbanView = ({ categoria = 'todas', onCategoria = () => {} })
   const [busca, setBusca] = useState('');
   const [filtroResp, setFiltroResp] = useState('todos'); // todos | userId
   const [filtroPrio, setFiltroPrio] = useState('todas'); // todas | alta | outras
+  const [colMobile, setColMobile] = useState('in_progress');
 
   const doInfra = useMemo(
     () => cards.filter((c) => c.obraId === activeObra?.id && ehCardInfra(c)),
@@ -123,14 +125,32 @@ export const InfraKanbanView = ({ categoria = 'todas', onCategoria = () => {} })
         })}
       </div>
 
-      <div className="kanban-scroll-container" style={{ gridTemplateColumns: 'repeat(4, minmax(220px, 1fr))' }}>
+      <div className="kb-abas-col" role="tablist" aria-label="Colunas">
+        {COLUNAS_INFRA.map((col) => {
+          const qtd = filtrados.filter((c) => c.column === col.id).length;
+          return (
+            <button
+              key={col.id}
+              type="button"
+              role="tab"
+              aria-selected={colMobile === col.id}
+              className={colMobile === col.id ? 'ativo' : ''}
+              onClick={() => setColMobile(col.id)}
+            >
+              {col.titulo} <b>{qtd}</b>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="kanban-scroll-container kb-quadro-mobile" style={{ gridTemplateColumns: 'repeat(4, minmax(220px, 1fr))' }}>
         {COLUNAS_INFRA.map((col) => {
           const colCards = filtrados.filter((c) => c.column === col.id);
           return (
             <div
               key={col.id}
               data-col-id={col.id}
-              className={`if-coluna ${drag.overCol === col.id ? 'kanban-col-dragover' : ''}`}
+              className={`if-coluna kb-col ${colMobile === col.id ? 'kb-col-ativa' : ''} ${drag.overCol === col.id ? 'kanban-col-dragover' : ''}`}
               style={{ borderTopColor: col.cor }}
             >
               <div className="if-coluna-topo">
@@ -172,6 +192,11 @@ export const InfraKanbanView = ({ categoria = 'todas', onCategoria = () => {} })
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.4rem' }}>
                         <span className="if-resp">👤 {card.assignedUserName || 'Equipe de infra'}</span>
                         <CardTimer card={card} compacto />
+                        <MoverPara
+                          colunas={COLUNAS_INFRA}
+                          atual={card.column}
+                          onMover={(colId) => { updateCardStatus(card.id, colId); setColMobile(colId); }}
+                        />
                       </div>
                     </div>
                   );

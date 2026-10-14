@@ -4,12 +4,14 @@ import { useData } from '../../context/DataContext';
 import { ModalShell } from '../dimensionamento/ModalShell';
 import { pedidoProvavel, conciliar } from '../../services/nfeParser';
 
+import { Valor, useFormatoValor } from '../Valor';
 const brl = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0);
 const NOVO = '__novo__';
 
 /** Conciliação da NF-e (XML) com um pedido de compra da obra e baixa do recebimento. */
 export const NFeImportModal = ({ nfe, obra, pedidos, onFechar, onConcluido }) => {
   const { receberItensNFe, addPurchaseOrder } = useData();
+  const fv = useFormatoValor();
   const sugerido = useMemo(() => pedidoProvavel(nfe, pedidos), [nfe, pedidos]);
   const [pedidoId, setPedidoId] = useState(sugerido?.id ?? NOVO);
   const [destino, setDestino] = useState('quadros');
@@ -49,7 +51,7 @@ export const NFeImportModal = ({ nfe, obra, pedidos, onFechar, onConcluido }) =>
           totalPrice: i.valorTotal
         }))
       });
-      onConcluido(`Pedido criado a partir da NF ${nfe.numero} (${brl(nfe.valorTotal)}) com ${nfe.itens.length} item(ns) recebidos.`);
+      onConcluido(`Pedido criado a partir da NF ${nfe.numero} (${fv(nfe.valorTotal)}) com ${nfe.itens.length} item(ns) recebidos.`);
       return;
     }
     const recebimentos = linhas
@@ -63,7 +65,7 @@ export const NFeImportModal = ({ nfe, obra, pedidos, onFechar, onConcluido }) =>
   return (
     <ModalShell
       title={`NF-e ${nfe.numero}${nfe.serie ? `/${nfe.serie}` : ''}`}
-      subtitle={`${nfe.fornecedor}${nfe.cnpj ? ` · CNPJ ${nfe.cnpj}` : ''} · ${nfe.emissao ? nfe.emissao.split('-').reverse().join('/') : ''} · ${brl(nfe.valorTotal)} · ${nfe.itens.length} item(ns)`}
+      subtitle={`${nfe.fornecedor}${nfe.cnpj ? ` · CNPJ ${nfe.cnpj}` : ''} · ${nfe.emissao ? nfe.emissao.split('-').reverse().join('/') : ''} · ${fv(nfe.valorTotal)} · ${nfe.itens.length} item(ns)`}
       onClose={onFechar}
       maxWidth={860}
     >
@@ -73,7 +75,7 @@ export const NFeImportModal = ({ nfe, obra, pedidos, onFechar, onConcluido }) =>
           <select className="form-control" value={pedidoId} onChange={(e) => { setPedidoId(e.target.value); setMarcados({}); setQtds({}); }}>
             {pedidos.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.id === sugerido?.id ? '★ ' : ''}{p.orderNumber || 'Sem nº'} · {p.fornecedor} · {brl(p.totalValue)}
+                {p.id === sugerido?.id ? '★ ' : ''}{p.orderNumber || 'Sem nº'} · {p.fornecedor} · {fv(p.totalValue)}
               </option>
             ))}
             <option value={NOVO}>➕ Não há pedido — criar um a partir desta nota</option>
@@ -90,7 +92,7 @@ export const NFeImportModal = ({ nfe, obra, pedidos, onFechar, onConcluido }) =>
                 <button type="button" className={`infra ${destino === 'infraestrutura' ? 'ativo' : ''}`} onClick={() => setDestino('infraestrutura')}>Infraestrutura</button>
               </div>
             </div>
-            <div className="mt-aviso warning"><PackagePlus size={16} /><span>Será criado um pedido com os {nfe.itens.length} itens da nota, já marcados como recebidos, e o valor de {brl(nfe.valorTotal)} será descontado da verba escolhida.</span></div>
+            <div className="mt-aviso warning"><PackagePlus size={16} /><span>Será criado um pedido com os {nfe.itens.length} itens da nota, já marcados como recebidos, e o valor de <Valor v={nfe.valorTotal} /> será descontado da verba escolhida.</span></div>
           </>
         ) : (
           <>
@@ -100,7 +102,7 @@ export const NFeImportModal = ({ nfe, obra, pedidos, onFechar, onConcluido }) =>
               {contagem.semPedido > 0 && <span className="mt-selo infra">{contagem.semPedido} fora do pedido</span>}
             </div>
             <div style={{ overflowX: 'auto' }}>
-              <table className="mt-tabela">
+              <table className="mt-tabela tabela-cartoes">
                 <thead>
                   <tr><th /><th>Item da nota</th><th>Item do pedido</th><th className="num">Qtd. NF</th><th className="num">Dar baixa</th><th>Situação</th></tr>
                 </thead>
@@ -131,7 +133,7 @@ export const NFeImportModal = ({ nfe, obra, pedidos, onFechar, onConcluido }) =>
               </table>
             </div>
             {Math.abs((pedido?.totalValue || 0) - nfe.valorTotal) > 0.01 && (
-              <span className="mt-dica">Valor da nota {brl(nfe.valorTotal)} × valor do pedido {brl(pedido?.totalValue)} (pode ser entrega parcial).</span>
+              <span className="mt-dica">Valor da nota <Valor v={nfe.valorTotal} /> × valor do pedido <Valor v={pedido?.totalValue} /> (pode ser entrega parcial).</span>
             )}
           </>
         )}

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Plus, Zap, ArrowLeft, Trash2, Printer, Download, FolderOpen, Kanban, ListChecks, FileText, SlidersHorizontal
+  Plus, Zap, ArrowLeft, Trash2, Printer, Download, FolderOpen, Kanban, ListChecks, FileText, SlidersHorizontal,
+  ClipboardCheck
 } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
@@ -10,6 +11,7 @@ import { QuadroResultado } from './QuadroResultado';
 import { CalculadorasPanel } from './CalculadorasPanel';
 import { NormasBase } from './NormasBase';
 import { KanbanBoard } from '../KanbanBoard';
+import { ChecklistModule } from '../ChecklistModule';
 import { baixar, nomeArquivo, relatorioQuadroHtml, imprimirHtml, fmt, dataHora } from './helpers';
 import './dimensionamento.css';
 
@@ -49,12 +51,13 @@ const Progresso = ({ feitos, total }) => {
 // ---------------------------------------------------------------------------
 const QuadroPasta = ({ quadro, doc, obra, obraQuadros, abaInicial, onVoltar, onNavigate, onOpenObraModal }) => {
   const { isAdmin } = useAuth();
-  const { cards, deleteQuadro, deleteDimensionamento } = useData();
+  const { cards, laudos, deleteQuadro, deleteDimensionamento } = useData();
   const [aba, setAba] = useState(abaInicial || (doc?.geradoEm ? 'kanban' : 'dimensionamento'));
 
   const resultado = useMemo(() => calcular(doc), [doc]);
   const postits = cards.filter((c) => c.quadroId === quadro.id);
   const feitos = postits.filter((c) => c.column === 'completed').length;
+  const qtdLaudos = laudos.filter((l) => l.quadroId === quadro.id).length;
 
   const exportarCsv = () =>
     resultado && baixar(`${nomeArquivo(doc.nome)}-lista-de-materiais.csv`, bomParaCSV(resultado));
@@ -75,6 +78,7 @@ const QuadroPasta = ({ quadro, doc, obra, obraQuadros, abaInicial, onVoltar, onN
     ['kanban', 'Kanban', Kanban, postits.length],
     ['materiais', 'Lista de materiais', ListChecks, resultado ? resultado.resumo.itens : null],
     ['entregaveis', 'Entregáveis', FileText, null],
+    ['checklist', 'Checklist', ClipboardCheck, qtdLaudos],
     ['dimensionamento', 'Dimensionamento', SlidersHorizontal, null]
   ];
 
@@ -152,6 +156,8 @@ const QuadroPasta = ({ quadro, doc, obra, obraQuadros, abaInicial, onVoltar, onN
           onPrint={imprimir}
         />
       ) : semResultado)}
+
+      {aba === 'checklist' && <ChecklistModule quadroFixoId={quadro.id} />}
 
       {aba === 'dimensionamento' && (
         <QuadroEditor

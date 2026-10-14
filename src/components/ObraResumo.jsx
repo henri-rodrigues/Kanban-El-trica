@@ -30,7 +30,7 @@ const CHAVE_OCULTO = 'omnifield_resumo_oculto';
 /** Resumo da obra (ou do quadro) mostrado acima do Kanban. */
 export const ObraResumo = ({ obra, cards, quadroNome, filtroAtivo, onFiltrar, onNavigate }) => {
   const { isAdmin, users, currentUser } = useAuth();
-  const { purchaseOrders, checklists, getObraLaborCostsAndDays, getCardEvolutionPct } = useData();
+  const { purchaseOrders, laudos, getObraLaborCostsAndDays, getCardEvolutionPct } = useData();
 
   const [oculto, setOculto] = useState(() => {
     try {
@@ -89,8 +89,16 @@ export const ObraResumo = ({ obra, cards, quadroNome, filtroAtivo, onFiltrar, on
     const itensPendentes = pos.reduce(
       (s, p) => s + (p.items || []).filter((i) => i.status !== 'Já Chegou').length, 0
     );
-    const checks = checklists.filter((c) => c.obraId === obra.id);
-    const checksPendentes = checks.filter((c) => c.status !== 'approved').length;
+    // Não conformidades abertas = as do laudo mais recente de cada quadro.
+    const ultimoPorQuadro = new Map();
+    laudos
+      .filter((l) => l.obraId === obra.id)
+      .sort((a, b) => (b.dataHora ?? '').localeCompare(a.dataHora ?? ''))
+      .forEach((l) => {
+        const chave = l.quadroId ?? l.quadroNome;
+        if (!ultimoPorQuadro.has(chave)) ultimoPorQuadro.set(chave, l);
+      });
+    const checksPendentes = [...ultimoPorQuadro.values()].reduce((n, l) => n + (l.estatisticas?.naoConformes ?? 0), 0);
 
     const hoje = hojeZerado();
     const proximaViagem = (obra.scheduledTrips || [])
@@ -119,7 +127,7 @@ export const ObraResumo = ({ obra, cards, quadroNome, filtroAtivo, onFiltrar, on
       total, porColuna, progresso, diasDecorridos, prazo, prazoPct, fin, pend,
       itensPendentes, checksPendentes, proximaViagem, equipe: [...membros.values()]
     };
-  }, [cards, obra, purchaseOrders, checklists, users, isAdmin, noEscopoDaObra, getObraLaborCostsAndDays, getCardEvolutionPct]);
+  }, [cards, obra, purchaseOrders, laudos, users, isAdmin, noEscopoDaObra, getObraLaborCostsAndDays, getCardEvolutionPct]);
 
   const alertas = [];
   if (r.pend.bloqueados > 0) alertas.push({ id: 'bloqueados', Icone: PauseCircle, rotulo: 'Em espera / bloqueados', valor: r.pend.bloqueados, tom: 'amber', filtro: 'bloqueados' });
@@ -129,7 +137,7 @@ export const ObraResumo = ({ obra, cards, quadroNome, filtroAtivo, onFiltrar, on
     alertas.push({ id: 'materiais', Icone: Package, rotulo: 'Materiais ainda não chegaram', valor: r.itensPendentes, tom: 'amber', aba: 'materials' });
   }
   if (noEscopoDaObra && r.checksPendentes > 0) {
-    alertas.push({ id: 'checklists', Icone: ClipboardCheck, rotulo: 'Itens de checklist pendentes', valor: r.checksPendentes, tom: 'blue', aba: 'checklist' });
+    alertas.push({ id: 'checklists', Icone: ClipboardCheck, rotulo: 'Não conformidades no checklist', valor: r.checksPendentes, tom: 'blue', aba: 'checklist' });
   }
 
   const avisoPrazo =

@@ -37,6 +37,8 @@ export const DataProvider = ({ children }) => {
   // Dimensionamento de quadros elétricos (por obra) e histórico das calculadoras avulsas
   const [dimensionamentos, setDimensionamentos] = useState(() => safeParseJSON('omnifield_dimensionamentos_v1', []));
   const [calculosQuadros, setCalculosQuadros] = useState(() => safeParseJSON('omnifield_calculos_quadros_v1', []));
+  // Laudos do checklist de conferência de quadros (por obra)
+  const [laudos, setLaudos] = useState(() => safeParseJSON('omnifield_laudos_v1', []));
 
   const getCardEvolutionPct = (column) => {
     switch (column) {
@@ -82,6 +84,7 @@ export const DataProvider = ({ children }) => {
   useEffect(() => { localStorage.setItem('gestao_eletrica_field_reports_v1', JSON.stringify(fieldReports)); }, [fieldReports]);
   useEffect(() => { localStorage.setItem('omnifield_dimensionamentos_v1', JSON.stringify(dimensionamentos)); }, [dimensionamentos]);
   useEffect(() => { localStorage.setItem('omnifield_calculos_quadros_v1', JSON.stringify(calculosQuadros)); }, [calculosQuadros]);
+  useEffect(() => { localStorage.setItem('omnifield_laudos_v1', JSON.stringify(laudos)); }, [laudos]);
 
   // Dados mais recentes, lidos pelos listeners da nuvem (evita closures desatualizadas)
   const latest = useRef({});
@@ -95,7 +98,8 @@ export const DataProvider = ({ children }) => {
     chat_messages: chatMessages,
     field_reports: fieldReports,
     dimensionamentos,
-    calculos_quadros: calculosQuadros
+    calculos_quadros: calculosQuadros,
+    laudos_checklist: laudos
   };
 
   // Sincronização em tempo real com o Firestore (só com sessão na nuvem).
@@ -115,7 +119,8 @@ export const DataProvider = ({ children }) => {
       chat_messages: setChatMessages,
       field_reports: setFieldReports,
       dimensionamentos: setDimensionamentos,
-      calculos_quadros: setCalculosQuadros
+      calculos_quadros: setCalculosQuadros,
+      laudos_checklist: setLaudos
     };
 
     const chaveSync = (nome) => `omnifield_synced_${nome}`;
@@ -220,6 +225,36 @@ export const DataProvider = ({ children }) => {
     setCalculosQuadros(prev => [doc, ...prev]);
     if (isFirebaseActive()) saveFirestoreDoc('calculos_quadros', doc.id, semUndefined(doc));
     return doc;
+  };
+
+  // Laudo de conferência de um quadro. O número é sequencial dentro da obra.
+  const saveLaudo = (obraId, dados) => {
+    if (!obraId || !dados) return null;
+    const agora = new Date().toISOString();
+    const existente = dados.id ? laudos.find(l => l.id === dados.id) : null;
+    const id = existente?.id || `laudo-${Date.now()}`;
+    const maior = Math.max(0, ...laudos.filter(l => l.obraId === obraId).map(l => Number(l.numero) || 0));
+    const doc = {
+      ...existente,
+      ...dados,
+      id,
+      obraId,
+      numero: existente?.numero || maior + 1,
+      criadoEm: existente?.criadoEm || agora,
+      criadoPor: existente?.criadoPor || currentUser?.name || 'Operador',
+      atualizadoEm: agora
+    };
+    setLaudos(prev => (existente ? prev.map(l => (l.id === id ? doc : l)) : [doc, ...prev]));
+    if (isFirebaseActive()) saveFirestoreDoc('laudos_checklist', id, semUndefined(doc));
+    return doc;
+  };
+
+  const deleteLaudo = (id) => {
+    const alvo = laudos.find(l => l.id === id);
+    if (!alvo) return;
+    if (!isAdmin && alvo.criadoPor !== currentUser?.name) return;
+    setLaudos(prev => prev.filter(l => l.id !== id));
+    if (isFirebaseActive()) deleteFirestoreDoc('laudos_checklist', id);
   };
 
   const deleteCalculoQuadro = (id) => {
@@ -620,6 +655,11 @@ export const DataProvider = ({ children }) => {
       if (isFirebaseActive()) deleteFirestoreDoc('calculos_quadros', c.id);
     });
     setCalculosQuadros(prev => prev.filter(c => c.obraId !== obraId));
+
+    laudos.filter(l => l.obraId === obraId).forEach(l => {
+      if (isFirebaseActive()) deleteFirestoreDoc('laudos_checklist', l.id);
+    });
+    setLaudos(prev => prev.filter(l => l.obraId !== obraId));
   };
 
   const deleteQuadro = (quadroId) => {
@@ -891,7 +931,10 @@ export const DataProvider = ({ children }) => {
         deleteDimensionamento,
         calculosQuadros,
         addCalculoQuadro,
-        deleteCalculoQuadro
+        deleteCalculoQuadro,
+        laudos,
+        saveLaudo,
+        deleteLaudo
       }}
     >
       {children}

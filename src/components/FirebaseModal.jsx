@@ -4,7 +4,7 @@ import { getStoredFirebaseConfig, initFirebase } from '../services/firebase';
 import { X, Download, Upload, Database, Globe, Check, Sparkles, Flame } from 'lucide-react';
 
 export const FirebaseModal = ({ isOpen, onClose }) => {
-  const { obras, quadros, cards, checklists, purchaseOrders, fieldReports, dimensionamentos, calculosQuadros } = useData();
+  const { obras, quadros, cards, checklists, purchaseOrders, fieldReports, dimensionamentos, calculosQuadros, laudos } = useData();
 
   const [apiKey, setApiKey] = useState('');
   const [authDomain, setAuthDomain] = useState('');
@@ -39,7 +39,8 @@ export const FirebaseModal = ({ isOpen, onClose }) => {
       purchaseOrders,
       fieldReports,
       dimensionamentos,
-      calculosQuadros
+      calculosQuadros,
+      laudos
     };
 
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(fullBackup, null, 2));
@@ -66,6 +67,7 @@ export const FirebaseModal = ({ isOpen, onClose }) => {
           if (parsed.fieldReports) localStorage.setItem('gestao_eletrica_field_reports_v1', JSON.stringify(parsed.fieldReports));
           if (parsed.dimensionamentos) localStorage.setItem('omnifield_dimensionamentos_v1', JSON.stringify(parsed.dimensionamentos));
           if (parsed.calculosQuadros) localStorage.setItem('omnifield_calculos_quadros_v1', JSON.stringify(parsed.calculosQuadros));
+          if (parsed.laudos) localStorage.setItem('omnifield_laudos_v1', JSON.stringify(parsed.laudos));
           alert('Backup importado com sucesso! Recarregando a página...');
           window.location.reload();
         } catch (err) {

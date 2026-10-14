@@ -1,669 +1,469 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import {
+  Package, Upload, CheckCircle2, AlertCircle, X, Check, Clock, ClipboardList, Trash2,
+  Search, ChevronRight, Download, FileUp, ListChecks
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useData } from '../context/DataContext';
 import { extractTextFromPDFFile, parsePurchaseOrderPDFText } from '../services/pdfParser';
-import { 
-  Package, 
-  Upload, 
-  FileText, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle, 
-  Building2, 
-  DollarSign, 
-  Plus, 
-  Check, 
-  X,
-  Truck,
-  TrendingUp,
-  FileCheck,
-  FileUp,
-  ClipboardList,
-  Trash2
-} from 'lucide-react';
+import { ModalShell } from './dimensionamento/ModalShell';
+import { baixar, nomeArquivo } from './dimensionamento/helpers';
+import './materiais/materiais.css';
+
+const brl = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0);
+const ehInfra = (po) => po.destination === 'infraestrutura';
+const chegou = (i) => i.status === 'Já Chegou';
+
+const resumoPedido = (po) => {
+  const itens = po.items || [];
+  const recebidos = itens.filter(chegou).length;
+  const valorPendente = itens.filter((i) => !chegou(i)).reduce((s, i) => s + (Number(i.totalPrice) || 0), 0);
+  return {
+    itens,
+    recebidos,
+    total: itens.length,
+    pendentes: itens.length - recebidos,
+    pct: itens.length ? Math.round((recebidos / itens.length) * 100) : 0,
+    completo: itens.length > 0 && recebidos === itens.length,
+    valorPendente
+  };
+};
+
+const BarraVerba = ({ gasto, verba }) => {
+  if (!verba || verba <= 0) return null;
+  const pct = Math.round((gasto / verba) * 100);
+  const tom = pct > 100 ? 'rose' : pct > 85 ? 'amber' : '';
+  return (
+    <>
+      <div className={`mt-barra ${tom}`}><i style={{ width: `${Math.min(100, pct)}%` }} /></div>
+      <small>{pct}% da verba de {brl(verba)}</small>
+    </>
+  );
+};
 
 export const MaterialsModule = () => {
   const { isAdmin } = useAuth();
-  const { activeObra, purchaseOrders, addPurchaseOrder, updatePurchaseOrderCategory, updatePOItemStatus, deletePurchaseOrder } = useData();
+  const {
+    activeObra, purchaseOrders, addPurchaseOrder, updatePurchaseOrderCategory,
+    updatePOItemStatus, deletePurchaseOrder
+  } = useData();
 
-  const [isLoadingPdf, setIsLoadingPdf] = useState(false);
-  const [isDragOverPdf, setIsDragOverPdf] = useState(false);
-  const [selectedSupplierFilter, setSelectedSupplierFilter] = useState('ALL');
-  const [pdfStatus, setPdfStatus] = useState(null);
-  const [pdfImportCategory, setPdfImportCategory] = useState('material'); // 'material' | 'infraestrutura'
+  const [carregando, setCarregando] = useState(false);
+  const [arrastando, setArrastando] = useState(false);
+  const [aviso, setAviso] = useState(null);
+  const [destinoImport, setDestinoImport] = useState('quadros'); // 'quadros' | 'infraestrutura'
 
-  // Manual / Paste Modal State
-  const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
-  const [pastedText, setPastedText] = useState('');
-  const [manualSupplier, setManualSupplier] = useState('');
-  const [manualReqNum, setManualReqNum] = useState('');
-  const [manualTotalValue, setManualTotalValue] = useState('');
-  const [materialCategory, setMaterialCategory] = useState('quadros');
+  const [busca, setBusca] = useState('');
+  const [fornecedor, setFornecedor] = useState('ALL');
+  const [destino, setDestino] = useState('todos'); // todos | quadros | infraestrutura
+  const [situacao, setSituacao] = useState('todos'); // todos | pendentes | completos
+  const [abertos, setAbertos] = useState({}); // id -> bool (sobrescreve o padrão)
+
+  // modal de cadastro manual
+  const [modal, setModal] = useState(false);
+  const [texto, setTexto] = useState('');
+  const [mFornecedor, setMFornecedor] = useState('');
+  const [mNumero, setMNumero] = useState('');
+  const [mValor, setMValor] = useState('');
+  const [mDestino, setMDestino] = useState('quadros');
+
+  const obraPOs = useMemo(
+    () => purchaseOrders.filter((po) => po.obraId === activeObra?.id),
+    [purchaseOrders, activeObra]
+  );
+
+  const totais = useMemo(() => {
+    let material = 0, infra = 0, itens = 0, recebidos = 0, valorPendente = 0;
+    obraPOs.forEach((po) => {
+      const v = parseFloat(po.totalValue) || 0;
+      if (ehInfra(po)) infra += v; else material += v;
+      const r = resumoPedido(po);
+      itens += r.total;
+      recebidos += r.recebidos;
+      valorPendente += r.valorPendente;
+    });
+    return {
+      material, infra, itens, recebidos, valorPendente,
+      pendentes: itens - recebidos,
+      pct: itens ? Math.round((recebidos / itens) * 100) : 0
+    };
+  }, [obraPOs]);
+
+  const fornecedores = useMemo(
+    () => [...new Set(obraPOs.map((po) => po.fornecedor).filter(Boolean))].sort(),
+    [obraPOs]
+  );
+
+  const termo = busca.trim().toLowerCase();
+  const filtrados = obraPOs.filter((po) => {
+    if (fornecedor !== 'ALL' && po.fornecedor !== fornecedor) return false;
+    if (destino === 'quadros' && ehInfra(po)) return false;
+    if (destino === 'infraestrutura' && !ehInfra(po)) return false;
+    const r = resumoPedido(po);
+    if (situacao === 'pendentes' && r.pendentes === 0) return false;
+    if (situacao === 'completos' && !r.completo) return false;
+    if (!termo) return true;
+    return (
+      po.fornecedor?.toLowerCase().includes(termo) ||
+      String(po.orderNumber || '').toLowerCase().includes(termo) ||
+      String(po.nfNumber || '').toLowerCase().includes(termo) ||
+      (po.items || []).some((i) => i.description?.toLowerCase().includes(termo) || String(i.code || '').includes(termo))
+    );
+  });
 
   if (!isAdmin) {
     return (
-      <div className="glass-panel" style={{ padding: '3rem', textAlign: 'center', borderRadius: 'var(--radius-lg)' }}>
-        <AlertCircle size={48} className="text-rose" style={{ marginBottom: '1rem' }} />
-        <h3>Acesso Restrito ao Administrador</h3>
-        <p style={{ color: 'var(--text-muted)' }}>Você não possui permissão para acessar o Controle de Materiais.</p>
+      <div className="mt-vazio">
+        <AlertCircle size={36} />
+        <h3>Acesso restrito ao administrador</h3>
+        <p>Você não possui permissão para acessar o Controle de Materiais.</p>
       </div>
     );
   }
 
-  const obraPOs = purchaseOrders.filter(po => po.obraId === activeObra?.id);
+  if (!activeObra) {
+    return (
+      <div className="mt-vazio">
+        <AlertCircle size={36} />
+        <h3>Nenhuma obra selecionada</h3>
+        <p>Selecione uma obra na Vitrine para controlar os pedidos de compra.</p>
+      </div>
+    );
+  }
 
-  // Calculate totals and delivery percentage
-  let totalMaterialsValue = 0;
-  let totalInfraValue = 0;
-  let totalItemsOrderedCount = 0;
-  let totalItemsArrivedCount = 0;
-
-  obraPOs.forEach(po => {
-    const val = parseFloat(po.totalValue) || 0;
-    if (po.destination === 'infraestrutura') {
-      totalInfraValue += val;
-    } else {
-      totalMaterialsValue += val;
-    }
-
-    (po.items || []).forEach(itm => {
-      totalItemsOrderedCount++;
-      if (itm.status === 'Já Chegou') {
-        totalItemsArrivedCount++;
-      }
-    });
-  });
-
-  const totalDeliveryPct = totalItemsOrderedCount > 0 
-    ? Math.round((totalItemsArrivedCount / totalItemsOrderedCount) * 100) 
-    : 0;
-
-  // Filter POs by supplier
-  const suppliersList = Array.from(new Set(obraPOs.map(po => po.fornecedor).filter(Boolean)));
-  const filteredPOs = selectedSupplierFilter === 'ALL' 
-    ? obraPOs 
-    : obraPOs.filter(po => po.fornecedor === selectedSupplierFilter);
-
-  const formatBRL = (val) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
-
-  // Process File (via input or drag & drop)
-  const processPdfFile = async (file) => {
-    if (!file || !activeObra) return;
-    setIsLoadingPdf(true);
-    setPdfStatus(null);
+  // ---------------------------------------------------------------- importação
+  const processarPdf = async (arquivo) => {
+    if (!arquivo) return;
+    setCarregando(true);
+    setAviso(null);
     try {
-      const parsedData = await extractTextFromPDFFile(file);
-      const destination = pdfImportCategory;
-      const orderPayload = { ...parsedData, destination };
-
-      if (parsedData.error) {
-        setPdfStatus({
-          type: 'warning',
-          message: parsedData.error
-        });
+      const dados = await extractTextFromPDFFile(arquivo);
+      if (dados.error) {
+        setAviso({ tipo: 'warning', texto: dados.error });
       } else {
-        const itemsCount = (parsedData.items || []).length;
-        setPdfStatus({
-          type: 'success',
-          message: `PDF Lido com sucesso (${destination === 'infraestrutura' ? 'Infraestrutura' : 'Material'})! Fornecedor: ${parsedData.fornecedor} | Req: ${parsedData.orderNumber} | Total: ${formatBRL(parsedData.totalValue)}`
+        setAviso({
+          tipo: 'success',
+          texto: `PDF lido (${destinoImport === 'infraestrutura' ? 'Infraestrutura' : 'Materiais'}): ${dados.fornecedor} · Req ${dados.orderNumber} · ${brl(dados.totalValue)}`
         });
       }
-      addPurchaseOrder(activeObra.id, orderPayload);
+      addPurchaseOrder(activeObra.id, { ...dados, destination: destinoImport });
     } catch (err) {
       console.error('Erro ao ler PDF:', err);
-      setPdfStatus({
-        type: 'error',
-        message: 'Erro ao processar PDF: ' + (err.message || 'Formato incompatível.')
-      });
+      setAviso({ tipo: 'error', texto: 'Erro ao processar o PDF: ' + (err.message || 'formato incompatível.') });
     } finally {
-      setIsLoadingPdf(false);
+      setCarregando(false);
     }
   };
 
-  // Drag and Drop PDF Handlers
-  const handleDragOverArea = (e) => {
+  const aoSoltar = (e) => {
     e.preventDefault();
-    e.stopPropagation();
-    if (!isDragOverPdf) setIsDragOverPdf(true);
+    setArrastando(false);
+    processarPdf(e.dataTransfer.files?.[0]);
   };
 
-  const handleDragLeaveArea = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOverPdf(false);
-  };
-
-  const handleDropArea = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragOverPdf(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      processPdfFile(file);
+  const aoColar = (valor) => {
+    setTexto(valor);
+    if (valor && valor.trim().length > 10) {
+      const p = parsePurchaseOrderPDFText(valor);
+      if (p.fornecedor && p.fornecedor !== 'FORNECEDOR NÃO IDENTIFICADO') setMFornecedor(p.fornecedor);
+      if (p.orderNumber && !p.orderNumber.startsWith('REQ-')) setMNumero(p.orderNumber);
+      if (p.totalValue > 0) setMValor(String(p.totalValue));
     }
   };
 
-
-
-  // Handle live auto-parse when pasting text into modal
-  const handlePastedTextChange = (text) => {
-    setPastedText(text);
-    if (text && text.trim().length > 10) {
-      const autoParsed = parsePurchaseOrderPDFText(text);
-      if (autoParsed.fornecedor && autoParsed.fornecedor !== 'FORNECEDOR NÃO IDENTIFICADO') {
-        setManualSupplier(autoParsed.fornecedor);
-      }
-      if (autoParsed.orderNumber && !autoParsed.orderNumber.startsWith('REQ-')) {
-        setManualReqNum(autoParsed.orderNumber);
-      }
-      if (autoParsed.totalValue > 0) {
-        setManualTotalValue(autoParsed.totalValue.toString());
-      }
-    }
+  const fecharModal = () => {
+    setModal(false);
+    setTexto('');
+    setMFornecedor('');
+    setMNumero('');
+    setMValor('');
   };
 
-  // Handle Manual Text / Paste Submit
-  const handlePasteSubmit = (e) => {
+  const cadastrar = (e) => {
     e.preventDefault();
-    if (!activeObra) return;
+    const p = parsePurchaseOrderPDFText(texto || `${mNumero} ${mFornecedor} ${mValor}`);
+    if (mFornecedor) p.fornecedor = mFornecedor.toUpperCase();
+    if (mNumero) p.orderNumber = mNumero;
+    if (mValor && !isNaN(parseFloat(mValor))) p.totalValue = parseFloat(mValor);
+    p.destination = mDestino;
+    addPurchaseOrder(activeObra.id, p);
+    setAviso({ tipo: 'success', texto: `Pedido cadastrado: ${p.fornecedor} · ${brl(p.totalValue)}` });
+    fecharModal();
+  };
 
-    let parsed = parsePurchaseOrderPDFText(pastedText || `${manualReqNum} ${manualSupplier} ${manualTotalValue}`);
+  // ---------------------------------------------------------------- ações
+  const estaAberto = (po, r) => (po.id in abertos ? abertos[po.id] : !r.completo);
+  const alternar = (po, r) => setAbertos((p) => ({ ...p, [po.id]: !estaAberto(po, r) }));
 
-    if (manualSupplier) parsed.fornecedor = manualSupplier.toUpperCase();
-    if (manualReqNum) parsed.orderNumber = manualReqNum;
-    if (manualTotalValue && !isNaN(parseFloat(manualTotalValue))) {
-      parsed.totalValue = parseFloat(manualTotalValue);
-    }
-    parsed.destination = materialCategory || 'quadros';
+  const receberTodos = (po) =>
+    (po.items || []).filter((i) => !chegou(i)).forEach((i) => updatePOItemStatus(po.id, i.id, 'Já Chegou'));
 
-    addPurchaseOrder(activeObra.id, parsed);
-    setIsPasteModalOpen(false);
-    setPastedText('');
-    setManualSupplier('');
-    setManualReqNum('');
-    setManualTotalValue('');
-    setPdfStatus({
-      type: 'success',
-      message: `Pedido cadastrado com sucesso! Fornecedor: ${parsed.fornecedor} | Total: ${formatBRL(parsed.totalValue)}`
-    });
+  const excluir = (po) => {
+    if (!window.confirm(`Excluir o pedido ${po.orderNumber} (${po.fornecedor})?\nO valor de ${brl(po.totalValue)} será devolvido à verba da obra.`)) return;
+    deletePurchaseOrder(po.id);
+    setAviso({ tipo: 'warning', texto: `Pedido ${po.orderNumber} excluído e ${brl(po.totalValue)} devolvido à verba.` });
+  };
+
+  const exportarCsv = (somentePendentes) => {
+    const linhas = [['Fornecedor', 'Pedido', 'NF', 'Destino', 'Código', 'Descrição', 'Qtde', 'Un', 'Vl. unitário', 'Vl. total', 'Situação']];
+    filtrados.forEach((po) =>
+      (po.items || []).forEach((i) => {
+        if (somentePendentes && chegou(i)) return;
+        linhas.push([
+          po.fornecedor, po.orderNumber, po.nfNumber ?? '', ehInfra(po) ? 'Infraestrutura' : 'Quadros',
+          i.code ?? '', i.description ?? '', i.quantityOrdered ?? '', i.unit ?? '',
+          String(i.unitPrice ?? '').replace('.', ','), String(i.totalPrice ?? '').replace('.', ','),
+          chegou(i) ? 'Recebido' : 'Pendente'
+        ]);
+      })
+    );
+    const csv = linhas.map((l) => l.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
+    baixar(`materiais-${nomeArquivo(activeObra.name)}${somentePendentes ? '-pendentes' : ''}.csv`, '﻿' + csv);
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '1200px', margin: '0 auto' }}>
-      {/* Header Banner */}
-      <div className="glass-panel" style={{
-        padding: '1.25rem',
-        borderRadius: 'var(--radius-lg)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: '1rem'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div style={{ width: '48px', height: '48px', borderRadius: '12px', background: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
-            <Package size={24} />
-          </div>
-          <div>
-            <span className="badge badge-blue" style={{ marginBottom: '0.15rem' }}>
-              Gestão de Suprimentos & Balanço por Fornecedor
-            </span>
-            <h1 style={{ fontSize: '1.3rem', fontWeight: 800 }}>
-              Controle de Materiais & Importação de Pedidos
-            </h1>
-            <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-              Obra: <strong>{activeObra?.name || 'Selecione uma Obra'}</strong>
-            </p>
-          </div>
+    <div className="mt-wrap">
+      <div className="mt-topo">
+        <div>
+          <h2><Package size={20} /> Controle de materiais</h2>
+          <span className="mt-dica">{activeObra.name} · pedidos de compra, recebimento e verba</span>
         </div>
-
-        {/* PDF Import Controls & Verba Selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
-          {/* Category Toggle: Material vs Infraestrutura */}
-          <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-main)', padding: '3px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
-            <button
-              type="button"
-              onClick={() => setPdfImportCategory('material')}
-              style={{
-                padding: '0.25rem 0.6rem',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                borderRadius: '4px',
-                border: 'none',
-                cursor: 'pointer',
-                background: pdfImportCategory === 'material' ? 'var(--accent-blue)' : 'transparent',
-                color: pdfImportCategory === 'material' ? '#ffffff' : 'var(--text-muted)'
-              }}
-              title="Pedidos de Quadros, Componentes e Painéis (Verba de Materiais)"
-            >
-              ⚡ Material (Quadros)
+        <span className="mt-espaco" />
+        {obraPOs.length > 0 && (
+          <>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => exportarCsv(true)} disabled={totais.pendentes === 0}>
+              <ListChecks size={14} /> Pendentes (CSV)
             </button>
-            <button
-              type="button"
-              onClick={() => setPdfImportCategory('infraestrutura')}
-              style={{
-                padding: '0.25rem 0.6rem',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                borderRadius: '4px',
-                border: 'none',
-                cursor: 'pointer',
-                background: pdfImportCategory === 'infraestrutura' ? 'var(--accent-purple)' : 'transparent',
-                color: pdfImportCategory === 'infraestrutura' ? '#ffffff' : 'var(--text-muted)'
-              }}
-              title="Pedidos de Infraestrutura em Campo, Eletrocalhas e Cabos (Verba de Infraestrutura)"
-            >
-              🛠️ Infraestrutura
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => exportarCsv(false)}>
+              <Download size={14} /> Tudo (CSV)
             </button>
-          </div>
-
-          <button onClick={() => setIsPasteModalOpen(true)} className="btn btn-secondary btn-sm">
-            <ClipboardList size={14} className="text-amber" /> Colar / Inserir Pedido
-          </button>
-
-          <label className="btn btn-primary btn-sm" style={{ cursor: 'pointer' }}>
-            <Upload size={14} />
-            <span>{isLoadingPdf ? 'Lendo PDF...' : `Importar PDF (${pdfImportCategory === 'infraestrutura' ? 'Infra' : 'Material'})`}</span>
-            <input type="file" accept=".pdf" onChange={(e) => processPdfFile(e.target.files[0])} style={{ display: 'none' }} disabled={isLoadingPdf} />
-          </label>
-        </div>
+          </>
+        )}
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setMDestino(destinoImport); setModal(true); }}>
+          <ClipboardList size={14} /> Inserir manualmente
+        </button>
       </div>
 
-      {/* Status Banner do PDF */}
-      {pdfStatus && (
-        <div 
-          className="glass-panel" 
-          style={{ 
-            padding: '0.85rem 1.25rem', 
-            borderRadius: 'var(--radius-md)', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'space-between',
-            background: pdfStatus.type === 'success' 
-              ? 'rgba(16, 185, 129, 0.12)' 
-              : pdfStatus.type === 'warning' 
-              ? 'var(--wash-amber)' 
-              : 'rgba(244, 63, 94, 0.12)',
-            borderLeft: `4px solid ${
-              pdfStatus.type === 'success' 
-                ? 'var(--accent-emerald, #10b981)' 
-                : pdfStatus.type === 'warning' 
-                ? 'var(--accent-amber, #f59e0b)' 
-                : 'var(--accent-rose, #f43f5e)'
-            }`
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-            {pdfStatus.type === 'success' ? (
-              <CheckCircle2 size={18} style={{ color: 'var(--accent-emerald, #10b981)' }} />
-            ) : pdfStatus.type === 'warning' ? (
-              <AlertCircle size={18} style={{ color: 'var(--accent-amber, #f59e0b)' }} />
-            ) : (
-              <AlertCircle size={18} style={{ color: 'var(--accent-rose, #f43f5e)' }} />
-            )}
-            <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{pdfStatus.message}</span>
-          </div>
-          <button 
-            onClick={() => setPdfStatus(null)} 
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
-          >
-            <X size={16} />
-          </button>
+      {aviso && (
+        <div className={`mt-aviso ${aviso.tipo}`} role="status">
+          {aviso.tipo === 'success' ? <CheckCircle2 size={17} /> : <AlertCircle size={17} />}
+          <span>{aviso.texto}</span>
+          <button type="button" aria-label="Fechar aviso" onClick={() => setAviso(null)}><X size={15} /></button>
         </div>
       )}
 
-      {/* Drag & Drop PDF Zone */}
-      <div 
-        onDragOver={handleDragOverArea}
-        onDragLeave={handleDragLeaveArea}
-        onDrop={handleDropArea}
-        className="glass-panel"
-        style={{
-          padding: '1.5rem 1rem',
-          borderRadius: 'var(--radius-lg)',
-          border: isDragOverPdf ? '2px dashed var(--accent-blue)' : '2px dashed var(--border-color)',
-          background: isDragOverPdf ? 'var(--wash-blue)' : 'var(--bg-card)',
-          textAlign: 'center',
-          cursor: 'pointer',
-          transition: 'all 0.15s ease'
-        }}
+      <div className="mt-kpis">
+        <div className="mt-kpi mt-kpi-blue">
+          <span>Materiais (quadros)</span>
+          <strong>{brl(totais.material)}</strong>
+          <BarraVerba gasto={totais.material} verba={Number(activeObra.materialsBudget) || 0} />
+        </div>
+        <div className="mt-kpi mt-kpi-purple">
+          <span>Infraestrutura</span>
+          <strong>{brl(totais.infra)}</strong>
+          <BarraVerba gasto={totais.infra} verba={Number(activeObra.infraBudget) || 0} />
+        </div>
+        <div className="mt-kpi mt-kpi-emerald">
+          <span>Recebimento</span>
+          <strong>{totais.pct}%</strong>
+          <div className="mt-barra"><i style={{ width: `${totais.pct}%` }} /></div>
+          <small>{totais.recebidos} de {totais.itens} itens</small>
+        </div>
+        <div className={`mt-kpi ${totais.pendentes ? 'mt-kpi-amber' : ''}`}>
+          <span>A receber</span>
+          <strong>{totais.pendentes} itens</strong>
+          <small>{brl(totais.valorPendente)} em aberto · {fornecedores.length} fornecedor(es)</small>
+        </div>
+      </div>
+
+      <div
+        className={`mt-importar ${arrastando ? 'arrastando' : ''}`}
+        onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
+        onDragLeave={() => setArrastando(false)}
+        onDrop={aoSoltar}
       >
-        <FileUp size={36} style={{ color: isDragOverPdf ? 'var(--accent-blue)' : 'var(--text-muted)', marginBottom: '0.5rem' }} />
-        <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.2rem' }}>
-          {isDragOverPdf ? 'Solte o arquivo PDF aqui!' : `📁 Solte o PDF aqui (Destinado à Verba de ${pdfImportCategory === 'infraestrutura' ? 'Infraestrutura' : 'Materiais'})`}
-        </h3>
-        <p style={{ fontSize: '0.775rem', color: 'var(--text-secondary)' }}>
-          Ou clique para procurar. O leitor extrai fornecedor, os itens do pedido e desconta automaticamente da verba da obra.
-        </p>
+        <FileUp size={26} />
+        <div className="mt-importar-texto">
+          <strong>{arrastando ? 'Solte o PDF aqui' : 'Arraste o PDF do pedido de compra ou escolha o arquivo'}</strong>
+          <span className="mt-dica">Lê fornecedor e itens e desconta o valor da verba escolhida ao lado.</span>
+        </div>
+        <div className="mt-seg" role="group" aria-label="Verba do pedido">
+          <button type="button" className={destinoImport === 'quadros' ? 'ativo' : ''} onClick={() => setDestinoImport('quadros')}>Quadros</button>
+          <button type="button" className={`infra ${destinoImport === 'infraestrutura' ? 'ativo' : ''}`} onClick={() => setDestinoImport('infraestrutura')}>Infraestrutura</button>
+        </div>
+        <label className="btn btn-primary btn-sm" style={{ cursor: carregando ? 'wait' : 'pointer' }}>
+          <Upload size={14} /> {carregando ? 'Lendo PDF…' : 'Importar PDF'}
+          <input
+            type="file"
+            accept=".pdf,application/pdf"
+            hidden
+            disabled={carregando}
+            onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; processarPdf(f); }}
+          />
+        </label>
       </div>
 
-      {/* KPI Cards Grid */}
-      <div className="kpi-grid-mobile" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-        <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-blue)' }}>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.2rem' }}>Verba de Materiais (Quadros)</div>
-          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-blue)' }}>{formatBRL(totalMaterialsValue)}</div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Debitado da Verba de Materiais</div>
-        </div>
-
-        <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-purple)' }}>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.2rem' }}>Verba de Infraestrutura</div>
-          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-purple)' }}>{formatBRL(totalInfraValue)}</div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Debitado da Verba de Infraestrutura</div>
-        </div>
-
-        <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-emerald)' }}>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.2rem' }}>Taxa de Entrega</div>
-          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>{totalDeliveryPct}%</div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>{totalItemsArrivedCount} de {totalItemsOrderedCount} itens recebidos</div>
-        </div>
-
-        <div className="glass-panel" style={{ padding: '1.1rem', borderRadius: 'var(--radius-md)', borderLeft: '4px solid var(--accent-amber)' }}>
-          <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, marginBottom: '0.2rem' }}>Itens Pendentes</div>
-          <div style={{ fontSize: '1.4rem', fontWeight: 800, color: 'var(--accent-amber)' }}>{totalItemsOrderedCount - totalItemsArrivedCount} itens</div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>{suppliersList.length} fornecedores ativos</div>
-        </div>
-      </div>
-
-      {/* Supplier Filter Tabs */}
-      {suppliersList.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.775rem', fontWeight: 700, color: 'var(--text-muted)' }}>Filtrar Fornecedor:</span>
-          <button
-            onClick={() => setSelectedSupplierFilter('ALL')}
-            className="btn btn-secondary btn-sm"
-            style={{
-              background: selectedSupplierFilter === 'ALL' ? 'var(--accent-blue)' : 'var(--bg-main)',
-              color: selectedSupplierFilter === 'ALL' ? '#fff' : 'var(--text-secondary)',
-              borderColor: selectedSupplierFilter === 'ALL' ? 'var(--accent-blue)' : 'var(--border-color)'
-            }}
-          >
-            Todos ({obraPOs.length})
-          </button>
-          {suppliersList.map(supplier => (
-            <button
-              key={supplier}
-              onClick={() => setSelectedSupplierFilter(supplier)}
-              className="btn btn-secondary btn-sm"
-              style={{
-                background: selectedSupplierFilter === supplier ? 'var(--accent-blue)' : 'var(--bg-main)',
-                color: selectedSupplierFilter === supplier ? '#fff' : 'var(--text-secondary)',
-                borderColor: selectedSupplierFilter === supplier ? 'var(--accent-blue)' : 'var(--border-color)'
-              }}
-            >
-              🚚 {supplier.split(' ')[0]} {supplier.split(' ')[1] || ''}
-            </button>
-          ))}
+      {obraPOs.length > 0 && (
+        <div className="mt-filtros">
+          <label className="mt-busca">
+            <Search size={14} />
+            <input className="form-control" placeholder="Buscar fornecedor, pedido, NF ou item…" value={busca} onChange={(e) => setBusca(e.target.value)} />
+          </label>
+          <select className="form-control" style={{ width: 'auto' }} value={fornecedor} onChange={(e) => setFornecedor(e.target.value)} aria-label="Fornecedor">
+            <option value="ALL">Todos os fornecedores</option>
+            {fornecedores.map((f) => <option key={f} value={f}>{f}</option>)}
+          </select>
+          <div className="mt-chips" role="group" aria-label="Verba">
+            {[['todos', 'Todas as verbas'], ['quadros', 'Quadros'], ['infraestrutura', 'Infraestrutura']].map(([id, rot]) => (
+              <button key={id} type="button" className={`mt-chip ${destino === id ? 'ativo' : ''}`} onClick={() => setDestino(id)}>{rot}</button>
+            ))}
+          </div>
+          <div className="mt-chips" role="group" aria-label="Situação">
+            {[['todos', 'Todos'], ['pendentes', 'Com pendências'], ['completos', 'Recebidos']].map(([id, rot]) => (
+              <button key={id} type="button" className={`mt-chip ${situacao === id ? 'ativo' : ''}`} onClick={() => setSituacao(id)}>{rot}</button>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Purchase Orders List & Materials Balance */}
-      {filteredPOs.length > 0 ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-          {filteredPOs.map((po) => {
-            const poItems = po.items || [];
-            const poArrivedCount = poItems.filter(i => i.status === 'Já Chegou').length;
-            const poTotalCount = poItems.length || 1;
-            const poProgressPct = Math.round((poArrivedCount / poTotalCount) * 100);
-
-            return (
-              <div key={po.id} className="glass-panel" style={{ padding: '1.25rem', borderRadius: 'var(--radius-md)' }}>
-                {/* PO Header */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border-color)', flexWrap: 'wrap', gap: '0.5rem' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem', flexWrap: 'wrap' }}>
-                      <span className="badge badge-blue">
-                        Req Nº {po.orderNumber || '17355'}
-                      </span>
-                      <span className="badge badge-purple">
-                        NF: {po.nfNumber || '127528'}
-                      </span>
-                      <span className="badge badge-amber">
-                        📅 {po.date}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => updatePurchaseOrderCategory(po.id, po.destination === 'infraestrutura' ? 'material' : 'infraestrutura')}
-                        className={`badge ${po.destination === 'infraestrutura' ? 'badge-purple' : 'badge-emerald'}`}
-                        style={{ cursor: 'pointer', border: 'none' }}
-                        title="Clique para alternar a verba debitada (Material vs Infraestrutura)"
-                      >
-                        {po.destination === 'infraestrutura' ? '🛠️ Verba: Infraestrutura' : '⚡ Verba: Material (Quadros)'}
-                      </button>
-                    </div>
-
-                    <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)' }}>
-                      🚚 Fornecedor: <span style={{ color: 'var(--accent-blue)' }}>{po.fornecedor}</span>
-                    </h3>
+      {obraPOs.length === 0 ? (
+        <div className="mt-vazio">
+          <Package size={36} />
+          <h3>Nenhum pedido de compra nesta obra</h3>
+          <p>Importe o PDF do pedido ou cadastre manualmente para acompanhar o recebimento dos materiais.</p>
+          <button type="button" className="btn btn-primary" onClick={() => setModal(true)}>
+            <ClipboardList size={15} /> Inserir pedido manualmente
+          </button>
+        </div>
+      ) : filtrados.length === 0 ? (
+        <p className="mt-dica" style={{ textAlign: 'center', padding: '1.5rem' }}>Nenhum pedido encontrado com esses filtros.</p>
+      ) : (
+        filtrados.map((po) => {
+          const r = resumoPedido(po);
+          const aberto = estaAberto(po, r);
+          return (
+            <article key={po.id} className={`mt-pedido ${ehInfra(po) ? 'infra' : ''} ${r.completo ? 'completo' : ''}`}>
+              <div className="mt-pedido-cab" onClick={() => alternar(po, r)}>
+                <ChevronRight size={18} className={`mt-seta ${aberto ? 'aberto' : ''}`} />
+                <div className="mt-pedido-info">
+                  <h3>{po.fornecedor}</h3>
+                  <div className="mt-meta">
+                    <span>Pedido {po.orderNumber || '—'}</span>
+                    {po.nfNumber && po.nfNumber !== '0' && <span>· NF {po.nfNumber}</span>}
+                    {po.date && <span>· {po.date}</span>}
+                    <span className={`mt-selo ${ehInfra(po) ? 'infra' : ''}`}>{ehInfra(po) ? 'Infraestrutura' : 'Quadros'}</span>
+                    {r.completo
+                      ? <span className="mt-selo ok">Recebido</span>
+                      : <span className="mt-selo pend">{r.pendentes} a receber</span>}
                   </div>
+                </div>
+                <div className="mt-prog">
+                  <strong>{r.recebidos}/{r.total}</strong> itens
+                  <div className={`mt-barra ${r.completo ? '' : 'amber'}`}><i style={{ width: `${r.pct}%` }} /></div>
+                </div>
+                <div className="mt-valor">{brl(po.totalValue)}</div>
+              </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '1.15rem', fontWeight: 800, color: 'var(--accent-emerald)' }}>
-                        {formatBRL(po.totalValue)}
-                      </div>
-                      <div style={{ fontSize: '0.725rem', color: 'var(--text-muted)' }}>
-                        Descontado do Saldo da Obra
-                      </div>
-                    </div>
-
-                    {isAdmin && (
-                      <button
-                        onClick={() => {
-                          if (window.confirm(`Tem certeza que deseja EXCLUIR o pedido ${po.orderNumber} (${po.fornecedor})?\nO valor de ${formatBRL(po.totalValue)} será reembolsado na verba da obra.`)) {
-                            deletePurchaseOrder(po.id);
-                            setPdfStatus({
-                              type: 'warning',
-                              message: `Pedido ${po.orderNumber} excluído e ${formatBRL(po.totalValue)} reembolsado na verba da obra.`
-                            });
-                          }
-                        }}
-                        className="btn btn-danger btn-sm"
-                        title="Excluir Pedido / Orçamento"
-                      >
-                        <Trash2 size={14} /> Excluir
+              {aberto && (
+                <div className="mt-corpo">
+                  <div className="mt-acoes">
+                    {!r.completo && (
+                      <button type="button" className="btn btn-secondary btn-sm" onClick={() => receberTodos(po)}>
+                        <Check size={13} /> Marcar tudo como recebido
                       </button>
                     )}
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      title="Troca a verba debitada pelo pedido"
+                      onClick={() => updatePurchaseOrderCategory(po.id, ehInfra(po) ? 'quadros' : 'infraestrutura')}
+                    >
+                      Mover para {ehInfra(po) ? 'Quadros' : 'Infraestrutura'}
+                    </button>
+                    <button type="button" className="btn btn-danger btn-sm" onClick={() => excluir(po)}>
+                      <Trash2 size={13} /> Excluir
+                    </button>
                   </div>
-                </div>
 
-                {/* Progress Bar of Delivery for this Supplier */}
-                <div style={{ padding: '0.75rem 0' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.775rem', marginBottom: '0.25rem' }}>
-                    <span>Progresso de Recebimento ({po.fornecedor})</span>
-                    <strong style={{ color: poProgressPct === 100 ? 'var(--accent-emerald)' : 'var(--accent-amber)' }}>
-                      {poArrivedCount} de {poTotalCount} itens recebidos ({poProgressPct}%)
-                    </strong>
-                  </div>
-                  <div style={{ height: '8px', background: 'var(--border-color)', borderRadius: '4px', overflow: 'hidden' }}>
-                    <div style={{ width: `${poProgressPct}%`, height: '100%', background: poProgressPct === 100 ? 'var(--accent-emerald)' : 'var(--accent-amber)' }} />
-                  </div>
-                </div>
-
-                {/* Table of Items */}
-                <div className="table-responsive" style={{ marginTop: '0.5rem' }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem', textAlign: 'left' }}>
-                    <thead>
-                      <tr style={{ background: 'var(--bg-main)', borderBottom: '1px solid var(--border-color)', color: 'var(--text-muted)', fontSize: '0.725rem' }}>
-                        <th style={{ padding: '0.5rem' }}>Código / Produto</th>
-                        <th style={{ padding: '0.5rem', width: '90px' }}>Qtde</th>
-                        <th style={{ padding: '0.5rem', width: '70px' }}>Unidade</th>
-                        <th style={{ padding: '0.5rem', width: '110px' }}>Vl. Unitário</th>
-                        <th style={{ padding: '0.5rem', width: '110px' }}>Valor Total</th>
-                        <th style={{ padding: '0.5rem', width: '160px', textAlign: 'center' }}>Status de Entrega</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {poItems.map((item) => (
-                        <tr key={item.id} style={{ borderBottom: '1px solid var(--border-color)', background: item.status === 'Já Chegou' ? 'rgba(5, 150, 105, 0.05)' : 'transparent' }}>
-                          <td style={{ padding: '0.6rem 0.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {item.description}
-                          </td>
-                          <td style={{ padding: '0.6rem 0.5rem', fontWeight: 700 }}>
-                            {item.quantityOrdered}
-                          </td>
-                          <td style={{ padding: '0.6rem 0.5rem', color: 'var(--text-muted)' }}>
-                            {item.unit}
-                          </td>
-                          <td style={{ padding: '0.6rem 0.5rem', color: 'var(--text-secondary)' }}>
-                            {formatBRL(item.unitPrice)}
-                          </td>
-                          <td style={{ padding: '0.6rem 0.5rem', fontWeight: 700, color: 'var(--accent-emerald)' }}>
-                            {formatBRL(item.totalPrice)}
-                          </td>
-                          <td style={{ padding: '0.6rem 0.5rem', textAlign: 'center' }}>
-                            <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'center' }}>
-                              <button
-                                onClick={() => updatePOItemStatus(po.id, item.id, 'Já Chegou')}
-                                className="btn btn-sm"
-                                style={{
-                                  padding: '0.2rem 0.5rem',
-                                  fontSize: '0.7rem',
-                                  background: item.status === 'Já Chegou' ? 'var(--accent-emerald)' : 'var(--bg-main)',
-                                  color: item.status === 'Já Chegou' ? '#ffffff' : 'var(--text-muted)',
-                                  borderColor: item.status === 'Já Chegou' ? 'var(--accent-emerald)' : 'var(--border-color)'
-                                }}
-                              >
-                                <Check size={12} /> Já Chegou
-                              </button>
-
-                              <button
-                                onClick={() => updatePOItemStatus(po.id, item.id, 'Falta Chegar')}
-                                className="btn btn-sm"
-                                style={{
-                                  padding: '0.2rem 0.5rem',
-                                  fontSize: '0.7rem',
-                                  background: item.status === 'Falta Chegar' ? 'var(--accent-amber)' : 'var(--bg-main)',
-                                  color: item.status === 'Falta Chegar' ? '#ffffff' : 'var(--text-muted)',
-                                  borderColor: item.status === 'Falta Chegar' ? 'var(--accent-amber)' : 'var(--border-color)'
-                                }}
-                              >
-                                <Clock size={12} /> Falta Chegar
-                              </button>
-                            </div>
-                          </td>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="mt-tabela">
+                      <thead>
+                        <tr>
+                          <th>Produto</th>
+                          <th className="num">Qtde</th>
+                          <th className="oculta-mobile">Un</th>
+                          <th className="num oculta-mobile">Vl. unit.</th>
+                          <th className="num">Total</th>
+                          <th>Recebimento</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {r.itens.map((i) => (
+                          <tr key={i.id} className={chegou(i) ? 'chegou' : ''}>
+                            <td style={{ fontWeight: 600 }}>{i.description}</td>
+                            <td className="num">{i.quantityOrdered}</td>
+                            <td className="oculta-mobile">{i.unit}</td>
+                            <td className="num oculta-mobile">{brl(i.unitPrice)}</td>
+                            <td className="num">{brl(i.totalPrice)}</td>
+                            <td>
+                              <button
+                                type="button"
+                                className={`mt-receber ${chegou(i) ? 'ok' : ''}`}
+                                onClick={() => updatePOItemStatus(po.id, i.id, chegou(i) ? 'Falta Chegar' : 'Já Chegou')}
+                                aria-pressed={chegou(i)}
+                              >
+                                {chegou(i) ? <><Check size={12} /> Recebido</> : <><Clock size={12} /> A receber</>}
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                        {r.itens.length === 0 && (
+                          <tr><td colSpan={6} className="mt-dica">Pedido sem itens detalhados (apenas o valor total foi lançado).</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="glass-panel" style={{ padding: '3.5rem 1.5rem', textAlign: 'center', borderRadius: 'var(--radius-lg)', border: '2px dashed var(--border-color)', maxWidth: '560px', margin: '2rem auto' }}>
-          <Package size={48} style={{ color: 'var(--text-muted)', marginBottom: '1rem' }} />
-          <h3 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-            Nenhum Pedido de Compra Importado
-          </h3>
-          <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>
-            Arraste e solte o arquivo PDF do pedido de compra na área acima ou clique em "Colar / Inserir Pedido" para cadastrar os materiais da obra.
-          </p>
-          <button onClick={() => setIsPasteModalOpen(true)} className="btn btn-primary">
-            <ClipboardList size={16} /> Colar / Inserir Pedido Manualmente
-          </button>
-        </div>
+              )}
+            </article>
+          );
+        })
       )}
 
-      {/* Modal: Paste / Manual Purchase Order Entry */}
-      {isPasteModalOpen && (
-        <div className="mobile-modal-overlay" style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.85)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1100,
-          padding: '1rem'
-        }}>
-          <div className="glass-panel mobile-modal-content" style={{ width: '100%', maxWidth: '550px', borderRadius: 'var(--radius-lg)', padding: '1.5rem', overflowY: 'auto', maxHeight: '90vh' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Colar Texto do PDF / Cadastrar Pedido</h3>
-              <button onClick={() => setIsPasteModalOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                <X size={20} />
-              </button>
+      {modal && (
+        <ModalShell title="Inserir pedido de compra" subtitle="Cole o texto do PDF para preencher automaticamente" onClose={fecharModal} maxWidth={560}>
+          <form onSubmit={cadastrar} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+            <label className="dq-field">
+              <span>Fornecedor *</span>
+              <input className="form-control" required autoFocus value={mFornecedor} onChange={(e) => setMFornecedor(e.target.value)} placeholder="Ex.: CAREL SUD AMERICA LTDA" />
+            </label>
+            <div className="dq-field">
+              <span>Verba debitada</span>
+              <div className="mt-seg" role="group" aria-label="Verba">
+                <button type="button" className={mDestino === 'quadros' ? 'ativo' : ''} onClick={() => setMDestino('quadros')}>Quadros</button>
+                <button type="button" className={`infra ${mDestino === 'infraestrutura' ? 'ativo' : ''}`} onClick={() => setMDestino('infraestrutura')}>Infraestrutura</button>
+              </div>
             </div>
-
-            <form onSubmit={handlePasteSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-              <div className="form-group">
-                <label>Nome do Fornecedor:</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={manualSupplier}
-                  onChange={(e) => setManualSupplier(e.target.value)}
-                  placeholder="Ex: CAREL SUD AMERICA INSTRUMENTAÇÃO ELETRONICA LTDA"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label style={{ fontWeight: 700 }}>Destinação da Verba do Material *</label>
-                <select
-                  className="form-control"
-                  value={materialCategory}
-                  onChange={(e) => setMaterialCategory(e.target.value)}
-                  style={{ fontWeight: 600 }}
-                >
-                  <option value="quadros">⚡ Quadros & Painéis (Debitar da Verba de Materiais)</option>
-                  <option value="infraestrutura">🛠️ Infraestrutura em Campo (Debitar da Verba de Infraestrutura)</option>
-                </select>
-              </div>
-
-              <div className="mobile-stack" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                <div className="form-group">
-                  <label>Nº Requisição / Pedido:</label>
-                  <input
-                    type="text"
-                    className="form-control"
-                    value={manualReqNum}
-                    onChange={(e) => setManualReqNum(e.target.value)}
-                    placeholder="Ex: 17355"
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Valor Total (R$):</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="form-control"
-                    value={manualTotalValue}
-                    onChange={(e) => setManualTotalValue(e.target.value)}
-                    placeholder="Ex: 27988.87"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>Colar Conteúdo / Texto do Pedido (Opcional):</label>
-                <textarea
-                  className="form-control"
-                  rows={5}
-                  value={pastedText}
-                  onChange={(e) => handlePastedTextChange(e.target.value)}
-                  placeholder="Cole aqui o texto copiado do PDF do pedido (código, itens, valores)..."
-                />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <button type="button" onClick={() => setIsPasteModalOpen(false)} className="btn btn-secondary">
-                  Cancelar
-                </button>
-                <button type="submit" className="btn btn-primary">
-                  <Check size={16} /> Cadastrar e Descontar da Verba
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+            <div className="dq-grid">
+              <label className="dq-field">
+                <span>Nº do pedido</span>
+                <input className="form-control" value={mNumero} onChange={(e) => setMNumero(e.target.value)} placeholder="Ex.: 17355" />
+              </label>
+              <label className="dq-field">
+                <span>Valor total (R$) *</span>
+                <input className="form-control" type="number" step="0.01" min="0" required value={mValor} onChange={(e) => setMValor(e.target.value)} placeholder="27988.87" />
+              </label>
+            </div>
+            <label className="dq-field">
+              <span>Texto do pedido (opcional)</span>
+              <textarea className="form-control" rows={5} value={texto} onChange={(e) => aoColar(e.target.value)} placeholder="Cole aqui o texto copiado do PDF (código, itens, valores)…" />
+            </label>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
+              <button type="button" className="btn btn-secondary" onClick={fecharModal}>Cancelar</button>
+              <button type="submit" className="btn btn-primary"><Check size={15} /> Cadastrar e descontar da verba</button>
+            </div>
+          </form>
+        </ModalShell>
       )}
     </div>
   );

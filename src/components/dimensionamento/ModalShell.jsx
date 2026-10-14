@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 /** Janela modal no padrão visual do app (fecha no clique fora ou com Esc). */
@@ -9,7 +10,7 @@ export const ModalShell = ({ title, subtitle, onClose, children, maxWidth = 640 
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  return (
+  return createPortal(
     <div
       className="mobile-modal-overlay"
       onClick={onClose}
@@ -56,6 +57,7 @@ export const ModalShell = ({ title, subtitle, onClose, children, maxWidth = 640 
         {!subtitle && <div style={{ height: '0.9rem' }} />}
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

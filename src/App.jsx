@@ -3,7 +3,6 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { DataProvider, useData } from './context/DataContext';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
-import { Breadcrumb } from './components/Breadcrumb';
 import { ObraHubView } from './components/ObraHubView';
 import { KanbanBoard } from './components/KanbanBoard';
 import { ChecklistModule } from './components/ChecklistModule';
@@ -156,8 +155,6 @@ function MainLayout() {
         )}
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
-          {/* Location Breadcrumb Bar */}
-          <Breadcrumb activeTabName={getTabLabel(activeTab)} />
 
           <main className="content-body">
             {activeTab === 'hub' && (
